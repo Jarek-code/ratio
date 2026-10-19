@@ -1,0 +1,20 @@
+[package]
+name = "movil"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Aplicación móvil de Ratio"
+
+[[bin]]
+name = "movil"
+path = "src/main.rs"
+
+[dependencies]
+api = { workspace = true }
+proporciones = { workspace = true }
+dioxus = { workspace = true, features = ["router"] }
+serde = { workspace = true }
+
+[features]
+mobile = ["dioxus/mobile"]
+server = ["dioxus/server", "api/server"]

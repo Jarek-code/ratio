@@ -1,0 +1,7 @@
+[application]
+name = "Ratio"
+default_platform = "mobile"
+
+[bundle]
+identifier = "com.ratio.app"
+publisher = "Ratio"

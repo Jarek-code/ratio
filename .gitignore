@@ -1,0 +1,29 @@
+# Rust
+/target/
+*.rs.bk
+*.pdb
+
+# Dioxus
+.dioxus/
+dist/
+
+# Entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Base de datos local
+*.db
+*.db-shm
+*.db-wal
+
+# Registros y temporales
+*.log
+.tmp*/
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

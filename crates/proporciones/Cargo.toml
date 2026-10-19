@@ -1,0 +1,9 @@
+[package]
+name = "proporciones"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Motor de proporciones: geometría del vaso, capas por volumen real, graduación y unidades"
+
+[dependencies]
+serde = { workspace = true }

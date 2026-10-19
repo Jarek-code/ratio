@@ -1,0 +1,6 @@
+target/
+.dioxus/
+.env
+*.db
+*.log
+.git/
