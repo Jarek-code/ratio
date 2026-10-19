@@ -8,10 +8,9 @@ Rust con el cliente móvil, el backend y el motor de proporciones.
 ```
 ratio/
 ├── apps/movil/            cliente móvil (Dioxus): interfaz y pantallas
-├── crates/proporciones/   motor de las tazas: geometría, capas, graduación y unidades
+├── crates/proporciones/   motor de las tazas: geometría, capas, graduación, unidades y SVG
 ├── crates/api/            tipos que viajan entre cliente y servidor, y server functions
 ├── crates/servidor/       backend Dioxus sin interfaz; registra las server functions
-├── migraciones/           SQL de la base de datos
 ├── Dockerfile             imagen del backend
 ├── docker-compose.yml     PostgreSQL para desarrollo local
 └── .env.example           variables del servidor

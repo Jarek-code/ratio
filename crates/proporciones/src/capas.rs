@@ -17,6 +17,8 @@ pub struct Capa {
     pub desde_ml: f64,
     pub graduacion: f64,
     pub dilucion: bool,
+    /// Color del líquido, tal como venía en el componente.
+    pub color: Option<String>,
 }
 
 /// Resumen de la receta ya repartida.
@@ -40,6 +42,9 @@ pub struct DetalleCapa {
     /// Fracción de altura por volumen real.
     pub fraccion_desde: f64,
     pub fraccion_hasta: f64,
+    /// Las mismas fracciones recortadas al tope de llenado: son las que se dibujan.
+    pub fraccion_dibujo_desde: f64,
+    pub fraccion_dibujo_hasta: f64,
     /// Radios con el tope de llenado aplicado: sirven para dibujar.
     pub radio_abajo: f64,
     pub radio_arriba: f64,
@@ -92,6 +97,7 @@ pub fn capas(receta: &Receta) -> Capas {
                 desde_ml,
                 graduacion: c.graduacion,
                 dilucion: c.dilucion,
+                color: c.color.clone(),
             };
             desde_ml += c.ml;
             capa
@@ -144,6 +150,8 @@ pub fn detalle(receta: &Receta) -> Detalle {
                 capa: capa.clone(),
                 fraccion_desde,
                 fraccion_hasta,
+                fraccion_dibujo_desde: dibujo_desde,
+                fraccion_dibujo_hasta: dibujo_hasta,
                 radio_abajo: radio(dibujo_desde, g.radio_fondo, g.radio_boca),
                 radio_arriba: radio(dibujo_hasta, g.radio_fondo, g.radio_boca),
                 alto: (dibujo_hasta - dibujo_desde).abs() * g.altura,
