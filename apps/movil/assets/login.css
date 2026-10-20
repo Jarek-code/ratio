@@ -1,0 +1,58 @@
+/* Pantalla de inicio de sesión en blanco y negro, sin estilo de marca */
+body
+{
+    margin: 0;
+    background: #fff;
+    color: #000;
+    font-family: system-ui, sans-serif;
+}
+
+/* Contenedor centrado con ancho de teléfono */
+.login
+{
+    max-width: 360px;
+    margin: 0 auto;
+    padding: 48px 16px;
+}
+
+.subtitulo
+{
+    margin-top: 0;
+}
+
+/* Campos apilados uno debajo de otro */
+form
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+input
+{
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #000;
+    border-radius: 0;
+}
+
+label
+{
+    margin-top: 8px;
+}
+
+button
+{
+    margin-top: 16px;
+    padding: 12px;
+    font-size: 16px;
+    background: #000;
+    color: #fff;
+    border: 1px solid #000;
+    border-radius: 0;
+}
+
+.mensaje
+{
+    margin-top: 16px;
+}

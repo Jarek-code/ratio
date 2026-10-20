@@ -17,4 +17,5 @@ serde = { workspace = true }
 
 [features]
 mobile = ["dioxus/mobile"]
+desktop = ["dioxus/desktop"]
 server = ["dioxus/server", "api/server"]
