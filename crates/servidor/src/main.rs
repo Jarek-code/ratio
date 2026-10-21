@@ -22,10 +22,10 @@ fn main() {
     enlazar_contratos();
 
     let config = match config::Config::desde_entorno() {
-        Ok(config) => config,
+        Ok(config) => Some(config),
         Err(motivo) => {
             error!("{motivo}");
-            std::process::exit(2);
+            None
         }
     };
 
@@ -40,8 +40,29 @@ fn enlazar_contratos() {
     let _ = (api::analizar, api::salud);
 }
 
-/// Arma el pool y el router. Vivimos dentro del runtime de Dioxus, que es el que atiende.
-async fn arrancar(config: config::Config) -> Result<axum::Router, Error> {
+/// Prepara la base y el router. Si falta configuración arranca igual: el proceso queda en pie
+/// y `/salud` dice qué falta, en vez de morir en cada despliegue sin dejar diagnóstico.
+async fn arrancar(config: Option<config::Config>) -> Result<axum::Router, Error> {
+    match &config {
+        Some(config) => {
+            abrir_pool(config).await;
+
+            if config.migrar {
+                aplicar_migraciones().await;
+            }
+        }
+        None => warn!("sin DATABASE_URL: se arranca en modo degradado"),
+    }
+
+    Ok(axum::Router::new()
+        .route("/salud", get(salud))
+        .register_server_functions()
+        .with_state(FullstackState::headless()))
+}
+
+/// Abre el pool y lo publica para las server functions; si no conecta, deja uno perezoso
+/// que reintenta en cada consulta.
+async fn abrir_pool(config: &config::Config) {
     let pool = match db::conectar(&config.database_url).await {
         Ok(pool) => {
             info!(base = %config.destino(), "conectado a la base de datos");
@@ -57,24 +78,22 @@ async fn arrancar(config: config::Config) -> Result<axum::Router, Error> {
         }
     };
 
-    api::db::instalar(pool.clone());
+    api::db::instalar(pool);
+}
 
-    if config.migrar {
-        let mut migrador = sqlx::migrate!("../../migrations");
-        migrador.set_ignore_missing(true);
+/// Aplica `migrations/` con el pool ya instalado.
+async fn aplicar_migraciones() {
+    let Some(pool) = api::db::pool() else {
+        return;
+    };
 
-        match migrador.run(&pool).await {
-            Ok(()) => info!("migraciones aplicadas"),
-            Err(causa) => {
-                error!(error = %causa, "las migraciones fallaron; se arranca sin aplicarlas");
-            }
-        }
+    let mut migrador = sqlx::migrate!("../../migrations");
+    migrador.set_ignore_missing(true);
+
+    match migrador.run(pool).await {
+        Ok(()) => info!("migraciones aplicadas"),
+        Err(causa) => error!(error = %causa, "las migraciones fallaron; se arranca sin aplicarlas"),
     }
-
-    Ok(axum::Router::new()
-        .route("/salud", get(salud))
-        .register_server_functions()
-        .with_state(FullstackState::headless()))
 }
 
 /// Lo que consulta Render y lo que enseña el cliente. `200` si la base contesta;

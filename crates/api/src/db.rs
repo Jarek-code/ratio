@@ -28,7 +28,7 @@ pub async fn estado(plazo: Duration) -> EstadoSalud {
     let Some(pool) = pool() else {
         return EstadoSalud {
             base_de_datos: false,
-            detalle: "el servidor todavía no abrió la conexión".to_string(),
+            detalle: "el servidor no tiene DATABASE_URL o no pudo abrir el pool".to_string(),
         };
     };
 
