@@ -3,6 +3,7 @@
 // LIBRERÍAS
 use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (única importación con comodín permitida)
 use api::EstadoSalud; // Estado del backend que devuelve la server function salud
+mod descubrir; // Pantalla Descubrir (B1) del módulo Recetario
 
 // CONSTANTES Y VARIABLES GLOBALES
 /// Hoja de estilos en blanco y negro de la pantalla de inicio de sesión
@@ -161,11 +162,8 @@ fn App() -> Element
 {
     rsx!
     {
-        // Montar el inicio de sesión como pantalla inicial
-        PantallaLogin {}
-
-        // Prueba de conexión hasta abajo de la pantalla
-        PruebaSalud {}
+        // Montar Descubrir como pantalla inicial (punto de entrada del Recetario)
+        descubrir::PantallaDescubrir {}
     }
 }
 
