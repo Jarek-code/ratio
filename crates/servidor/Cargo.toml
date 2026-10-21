@@ -12,3 +12,9 @@ path = "src/main.rs"
 [dependencies]
 api = { workspace = true, features = ["server"] }
 dioxus = { workspace = true, features = ["fullstack", "server"] }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+dotenvy = { workspace = true }
+anyhow = { workspace = true }

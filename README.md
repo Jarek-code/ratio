@@ -25,6 +25,21 @@ ratio/
 cargo run -p servidor    # backend en IP:PORT
 ```
 
+### Base de datos
+
+El backend abre un pool de SQLx al arrancar y `/salud` comprueba la conexión: `200` si la base
+contesta, `503` si no (el servicio sigue en pie para que el diagnóstico se lea en el log).
+
+```
+cp .env.example .env     # y pon tu DATABASE_URL
+cargo run -p servidor
+curl http://127.0.0.1:8080/salud
+```
+
+En Render, `DATABASE_URL` va como variable de entorno del servicio (nunca en el repo) y usa la
+cadena del **session pooler** de Supabase: Render no tiene salida IPv6 y la conexión directa
+`db.<proyecto>.supabase.co` solo resuelve a IPv6.
+
 El cliente se compila desde `apps/movil` con la CLI de Dioxus:
 
 ```

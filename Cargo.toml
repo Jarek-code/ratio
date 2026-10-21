@@ -13,3 +13,17 @@ api = { path = "crates/api" }
 
 dioxus = "0.7"
 serde = { version = "1", features = ["derive"] }
+
+# Base de datos y servidor
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls-ring",
+    "postgres",
+    "migrate",
+    "macros",
+] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+anyhow = "1"

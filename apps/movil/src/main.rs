@@ -1,8 +1,10 @@
 // LIBRERÍAS
 use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (única importación con comodín permitida)
+use api::EstadoSalud; // Estado del backend que devuelve la server function salud
 
 // CONSTANTES Y VARIABLES GLOBALES
 const CSS_LOGIN: Asset = asset!("/assets/login.css"); // Hoja de estilos en blanco y negro de la pantalla de inicio de sesión
+const SERVIDOR: &str = match option_env!("RATIO_SERVIDOR") { Some(url) => url, None => "http://127.0.0.1:8080" }; // Backend al que se piden las server functions (Render en producción)
 
 // FUNCIONES
 // Valida los datos del formulario de inicio de sesión y devuelve el mensaje del primer error
@@ -102,6 +104,48 @@ fn PantallaLogin() -> Element
     }
 }
 
+/// Prueba de salud completa: la app pregunta al backend (Render) y el backend a Supabase.
+#[component]
+fn PruebaSalud() -> Element
+{
+    let mut resultado = use_signal(|| None::<Result<EstadoSalud, ServerFnError>>); // Última respuesta recibida
+    let mut cargando = use_signal(|| false); // Petición en curso
+
+    rsx!
+    {
+        section
+        {
+            class: "salud",
+
+            // Lanzar la prueba contra el backend
+            button
+            {
+                r#type: "button",
+                disabled: *cargando.read(),
+                onclick: move |_|
+                {
+                    cargando.set(true);
+                    spawn(async move
+                    {
+                        resultado.set(Some(api::salud().await));
+                        cargando.set(false);
+                    });
+                },
+                if *cargando.read() { "Comprobando…" } else { "Probar conexión" }
+            }
+
+            // Mostrar el resultado de la última prueba
+            match &*resultado.read()
+            {
+                None => rsx! {},
+                Some(Ok(estado)) if estado.base_de_datos => rsx! { p { "Backend y base de datos: conectados" } },
+                Some(Ok(estado)) => rsx! { p { "Backend responde, base de datos no: {estado.detalle}" } },
+                Some(Err(causa)) => rsx! { p { "Sin respuesta del backend: {causa}" } },
+            }
+        }
+    }
+}
+
 // Componente raíz que monta la aplicación
 #[component]
 fn App() -> Element
@@ -110,11 +154,15 @@ fn App() -> Element
     {
         // Montar el inicio de sesión como pantalla inicial
         PantallaLogin {}
+
+        // Prueba de conexión hasta abajo de la pantalla
+        PruebaSalud {}
     }
 }
 
 // PUNTO DE PARTIDA
 fn main()
 {
+    dioxus::fullstack::set_server_url(SERVIDOR); // Fijar el backend de las server functions
     dioxus::launch(App); // Lanzar la app
 }

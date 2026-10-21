@@ -10,5 +10,9 @@ proporciones = { workspace = true }
 dioxus = { workspace = true, features = ["fullstack"] }
 serde = { workspace = true }
 
+# Solo en el servidor: el cliente no enlaza nada de esto.
+sqlx = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
 [features]
-server = ["dioxus/server"]
+server = ["dioxus/server", "dep:sqlx", "dep:tokio"]
