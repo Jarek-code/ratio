@@ -4,7 +4,8 @@ use api::EstadoSalud; // Estado del backend que devuelve la server function salu
 
 // CONSTANTES Y VARIABLES GLOBALES
 const CSS_LOGIN: Asset = asset!("/assets/login.css"); // Hoja de estilos en blanco y negro de la pantalla de inicio de sesión
-const SERVIDOR: &str = match option_env!("RATIO_SERVIDOR") { Some(url) => url, None => "http://127.0.0.1:8080" }; // Backend al que se piden las server functions (Render en producción)
+const SERVIDOR_POR_DEFECTO: &str = "https://ratio-689g.onrender.com"; // Backend desplegado en Render
+const SERVIDOR: &str = match option_env!("RATIO_SERVIDOR") { Some(url) => url, None => SERVIDOR_POR_DEFECTO }; // Permite apuntar a otro backend al compilar
 
 // FUNCIONES
 // Valida los datos del formulario de inicio de sesión y devuelve el mensaje del primer error
@@ -134,13 +135,16 @@ fn PruebaSalud() -> Element
                 if *cargando.read() { "Comprobando…" } else { "Probar conexión" }
             }
 
+            // Mostrar a quién se le preguntó, para saber si el cliente apunta al backend correcto
+            p { class: "servidor", "Servidor: {SERVIDOR}" }
+
             // Mostrar el resultado de la última prueba
             match &*resultado.read()
             {
                 None => rsx! {},
                 Some(Ok(estado)) if estado.base_de_datos => rsx! { p { "Backend y base de datos: conectados" } },
                 Some(Ok(estado)) => rsx! { p { "Backend responde, base de datos no: {estado.detalle}" } },
-                Some(Err(causa)) => rsx! { p { "Sin respuesta del backend: {causa}" } },
+                Some(Err(causa)) => rsx! { p { "Sin respuesta del backend: {causa} (probado en {SERVIDOR})" } },
             }
         }
     }

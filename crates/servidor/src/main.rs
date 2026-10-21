@@ -57,7 +57,22 @@ async fn arrancar(config: Option<config::Config>) -> Result<axum::Router, Error>
     Ok(axum::Router::new()
         .route("/salud", get(salud))
         .register_server_functions()
+        .layer(axum::middleware::from_fn(registrar_peticion))
         .with_state(FullstackState::headless()))
+}
+
+/// Anota método, ruta y estado de cada petición. Se ve con `RUST_LOG=debug`.
+async fn registrar_peticion(
+    peticion: axum::extract::Request,
+    siguiente: axum::middleware::Next,
+) -> axum::response::Response {
+    let metodo = peticion.method().clone();
+    let ruta = peticion.uri().path().to_string();
+    let respuesta = siguiente.run(peticion).await;
+
+    tracing::debug!(%metodo, %ruta, estado = respuesta.status().as_u16(), "petición");
+
+    respuesta
 }
 
 /// Abre el pool y lo publica para las server functions; si no conecta, deja uno perezoso
