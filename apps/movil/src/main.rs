@@ -1,14 +1,19 @@
+//! App móvil de Ratio: pantalla de inicio de sesión, prueba de conexión y componente raíz
+
 // LIBRERÍAS
 use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (única importación con comodín permitida)
 use api::EstadoSalud; // Estado del backend que devuelve la server function salud
 
 // CONSTANTES Y VARIABLES GLOBALES
-const CSS_LOGIN: Asset = asset!("/assets/login.css"); // Hoja de estilos en blanco y negro de la pantalla de inicio de sesión
-const SERVIDOR_POR_DEFECTO: &str = "https://ratio-689g.onrender.com"; // Backend desplegado en Render
-const SERVIDOR: &str = match option_env!("RATIO_SERVIDOR") { Some(url) => url, None => SERVIDOR_POR_DEFECTO }; // Permite apuntar a otro backend al compilar
+/// Hoja de estilos en blanco y negro de la pantalla de inicio de sesión
+const CSS_LOGIN: Asset = asset!("/assets/login.css");
+/// Backend desplegado en Render
+const SERVIDOR_POR_DEFECTO: &str = "https://ratio-689g.onrender.com";
+/// Backend de las server functions; se cambia al compilar con la variable RATIO_SERVIDOR
+const SERVIDOR: &str = match option_env!("RATIO_SERVIDOR") { Some(url) => url, None => SERVIDOR_POR_DEFECTO };
 
 // FUNCIONES
-// Valida los datos del formulario de inicio de sesión y devuelve el mensaje del primer error
+/// Valida los datos del formulario de inicio de sesión y devuelve el mensaje del primer error
 fn validar_login(correo_val: &str, contrasena_val: &str) -> Option<&'static str>
 {
     // Rechazar el correo si no tiene arroba
@@ -28,7 +33,7 @@ fn validar_login(correo_val: &str, contrasena_val: &str) -> Option<&'static str>
     None // Retornar sin errores
 }
 
-// Muestra el formulario de inicio de sesión con correo y contraseña
+/// Muestra el formulario de inicio de sesión con correo y contraseña
 #[component]
 fn PantallaLogin() -> Element
 {
@@ -150,7 +155,7 @@ fn PruebaSalud() -> Element
     }
 }
 
-// Componente raíz que monta la aplicación
+/// Componente raíz que monta la aplicación
 #[component]
 fn App() -> Element
 {
@@ -165,6 +170,7 @@ fn App() -> Element
 }
 
 // PUNTO DE PARTIDA
+/// Fija el backend y lanza la aplicación con el componente raíz
 fn main()
 {
     dioxus::fullstack::set_server_url(SERVIDOR); // Fijar el backend de las server functions
