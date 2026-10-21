@@ -31,13 +31,15 @@ pub struct EstadoSalud {
 }
 
 /// Recalcula una receta en el servidor con el mismo motor que usa el cliente.
-#[server]
+/// El endpoint va fijo: sin él Dioxus añade un sufijo que depende de la ruta del crate al
+/// compilar, y el cliente y el servidor desplegado no coincidirían.
+#[server(endpoint = "analizar")]
 pub async fn analizar(receta: Receta) -> Result<Detalle, ServerFnError> {
     Ok(proporciones::detalle(&receta))
 }
 
 /// Estado del backend, para la pantalla de arranque del cliente.
-#[server]
+#[server(endpoint = "salud")]
 pub async fn salud() -> Result<EstadoSalud, ServerFnError> {
     use std::time::Duration;
 
