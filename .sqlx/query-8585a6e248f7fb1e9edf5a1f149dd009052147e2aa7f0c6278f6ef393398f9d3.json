@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT ON (r.tipo)\n            r.id::text AS \"id!\",\n            r.nombre AS \"nombre!\",\n            r.tipo AS \"tipo!\",\n            COALESCE(r.capacidad_ml, v.capacidad_ml) AS \"capacidad_ml!\",\n            v.capacidad_ml AS \"vaso_capacidad_ml!\",\n            v.radio_boca AS \"radio_boca!\",\n            v.radio_fondo AS \"radio_fondo!\",\n            v.altura AS \"altura!\",\n            v.pared AS \"pared!\",\n            v.borde AS \"borde!\",\n            v.tallo AS \"tallo!\",\n            v.asa,\n            v.plato AS \"plato!\"\n        FROM receta r\n        JOIN vaso v ON v.id = r.vaso_id\n        WHERE r.publicada_en IS NOT NULL\n        AND NOT r.oculta\n        AND ($1 OR NOT EXISTS (SELECT 1 FROM componente_receta c WHERE c.receta_id = r.id AND c.graduacion_pct > 0))\n        ORDER BY r.tipo, md5(r.id::text || (now() AT TIME ZONE 'America/Tijuana')::date::text)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "nombre!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "tipo!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "capacidad_ml!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "vaso_capacidad_ml!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "radio_boca!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "radio_fondo!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "altura!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "pared!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 9,
+        "name": "borde!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 10,
+        "name": "tallo!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 11,
+        "name": "asa",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "plato!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "8585a6e248f7fb1e9edf5a1f149dd009052147e2aa7f0c6278f6ef393398f9d3"
+}

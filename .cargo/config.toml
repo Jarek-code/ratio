@@ -1,0 +1,4 @@
+# Parche local de la rama Abraham-Brach para correr la app en iOS 27.
+# shortcut: dioxus-desktop 0.7.10 con tao 0.37 en iOS (PR DioxusLabs/dioxus#5893), borrar .cargo/ y .parches/ cuando Dioxus publique la corrección
+[patch.crates-io]
+dioxus-desktop = { path = ".parches/dioxus-desktop" }

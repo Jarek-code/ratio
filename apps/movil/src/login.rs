@@ -362,8 +362,9 @@ body {
 "#;
 
 /// Formulario de acceso visual; la autenticación se conectará más adelante.
+/// Avisa con `on_entrar` cuando los datos pasan la validación, para seguir a la siguiente pantalla.
 #[component]
-pub fn Login() -> Element {
+pub fn Login(on_entrar: EventHandler<()>) -> Element {
     // Estado local del formulario.
     let mut correo = use_signal(String::new);
     let mut contrasena = use_signal(String::new);
@@ -389,13 +390,17 @@ pub fn Login() -> Element {
         }
 
         error.set(None);
-        aviso.set(Some(
-            "El inicio de sesión estará disponible próximamente.".into(),
-        ));
+        on_entrar.call(());
     };
 
     // Las opciones de cuenta son visuales; sus conexiones se agregarán después.
     rsx! {
+        document::Link {
+            rel: "stylesheet",
+            href: "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap",
+        }
+        style { {CSS} }
+
         main { class: "login-page",
             section { class: "login-shell",
                 div { class: "login-brand",
