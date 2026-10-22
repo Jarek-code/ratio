@@ -149,6 +149,7 @@ impl FilaReceta {
                 graduacion: capa.graduacion_pct,
                 dilucion: capa.dilucion,
                 color: capa.color,
+                superficie: None,
             })
             .collect();
 

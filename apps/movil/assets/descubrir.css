@@ -14,8 +14,34 @@
     --borde: #DFD2C2;
     --cobre: #B9633B;
     --cobre-oscuro: #43281C;
+    --linea-2: #CBB9A6;
+    --tenue: #8B7663;
+    --texto-2: #5A483A;
+    --cup-body: #FFFFFF;
+    --cup-body-2: #F1E6D6;
+    --cup-line: #9C8468;
+    --cup-inner: #EFE4D5;
+    --superficie-3: #DCCDB8;
+    --linea: #E0D3C5;
+    --linea-2: #CBB9A6;
+    --tenue: #8B7663;
+    --texto-2: #5A483A;
+    --font: Inter, "Segoe UI", system-ui, sans-serif;
     color-scheme: light;
     color: var(--tinta);
+}
+
+/* Vaso en modo oscuro, por si la app gana ese tema. */
+[data-theme="oscuro"] {
+    --cup-body: #241C16;
+    --cup-body-2: #2F251D;
+    --cup-line: #4C3B2C;
+    --cup-inner: #100C09;
+    --superficie-3: #2F251D;
+    --linea: #3A2E24;
+    --linea-2: #3A2E24;
+    --tenue: #8E7B69;
+    --texto-2: #D2C1AF;
 }
 
 * {
@@ -43,6 +69,7 @@ body::before {
     background-size: 32px 32px;
     content: "";
     pointer-events: none;
+    z-index: -1;
 }
 
 button {
@@ -242,11 +269,24 @@ button {
 }
 
 .tarjeta-sugerencia {
-    display: grid;
-    grid-template-columns: 120px 1fr;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 18px;
+    gap: 10px;
     padding: 20px;
+}
+
+/* El vaso con etiquetas necesita ancho: a 120 px el texto quedaría a 4 px. */
+.tarjeta-sugerencia .vaso {
+    width: min(260px, 100%);
+}
+
+.tarjeta-sugerencia .vaso svg {
+    max-height: none;
+}
+
+.tarjeta-datos {
+    width: 100%;
 }
 
 .tarjeta-datos {
@@ -299,67 +339,99 @@ button {
     max-height: 180px;
 }
 
-/* Etiquetas del vaso: nombre de la capa y su medida. */
-.cup-label path {
-    stroke: rgba(120, 90, 70, 0.45);
-    stroke-width: 1;
-    fill: none;
-}
-
-.cup-label text {
-    font-family: Inter, "Segoe UI", system-ui, sans-serif;
-    font-size: 10px;
-}
-
-.cup-label-n {
-    fill: var(--tinta-suave);
-    font-weight: 600;
-}
-
-.cup-label-v {
-    fill: var(--tinta-suave);
-    font-size: 9px;
+/* Vaso: mismas reglas que el diseño inicial, con los tokens del tema claro. */
+.cup-svg {
+    display: block;
+    width: 100%;
+    height: auto;
 }
 
 .cup-sombra {
-    fill: rgba(58, 35, 22, 0.12);
+    fill: rgba(58, 35, 22, 0.28);
+    filter: blur(6px);
+}
+
+.cup-plato {
+    fill: var(--superficie-3);
+    stroke: var(--linea);
+    stroke-width: 1.2;
 }
 
 .cup-cuerpo {
-    fill: rgba(255, 255, 255, 0.55);
+    fill: var(--cup-body);
 }
 
 .cup-boca {
-    fill: rgba(255, 255, 255, 0.7);
+    fill: var(--cup-inner);
 }
 
-.cup-contorno,
-.cup-borde,
-.cup-asa {
+.cup-contorno {
     fill: none;
-    stroke: var(--tinta);
+    stroke: var(--cup-line);
     stroke-width: 2;
 }
 
 .cup-pared {
     fill: none;
-    stroke: rgba(42, 27, 20, 0.22);
-    stroke-width: 1;
+    stroke: rgba(58, 35, 22, 0.3);
+    stroke-width: 1.4;
+}
+
+.cup-borde {
+    fill: none;
+    stroke: var(--cup-line);
+    stroke-width: 1.6;
 }
 
 .cup-asa-borde {
     fill: none;
-    stroke: rgba(255, 253, 249, 0.9);
-    stroke-width: 5;
+    stroke: var(--cup-line);
+    stroke-width: 11;
+    stroke-linecap: round;
 }
 
-.cup-tallo,
-.cup-pie,
-.cup-plato {
-    fill: rgba(255, 255, 255, 0.6);
-    stroke: var(--tinta);
-    stroke-width: 2;
+.cup-asa {
+    fill: none;
+    stroke: var(--cup-body-2);
+    stroke-width: 7.5;
+    stroke-linecap: round;
 }
+
+.cup-tallo {
+    fill: var(--cup-body-2);
+    stroke: var(--cup-line);
+    stroke-width: 1.3;
+}
+
+.cup-pie {
+    fill: var(--cup-body);
+    stroke: var(--cup-line);
+    stroke-width: 1.5;
+}
+
+.capa {
+    transition: opacity 0.2s ease;
+}
+
+.capa--dilucion {
+    opacity: 0.68;
+}
+
+.cup-tick {
+    stroke: var(--linea-2);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+    opacity: 0.75;
+}
+
+.cup-tick-txt {
+    fill: var(--tenue);
+    font-size: 9.5px;
+    font-family: var(--font);
+    font-variant-numeric: tabular-nums;
+}
+
+
 
 /* Estados de carga, vacío, error y sin conexión. */
 .estado {

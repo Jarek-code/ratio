@@ -71,7 +71,6 @@ fn VasoCapas(receta: proporciones::Receta) -> Element
     // Generar el SVG del vaso sin etiquetas ni escalas
     let svg_val = proporciones::svg(&receta, &proporciones::Opciones
     {
-        etiquetas: true,
         escalas: false,
         mini: false,
     });

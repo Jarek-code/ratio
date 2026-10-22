@@ -19,6 +19,8 @@ pub struct Capa {
     pub dilucion: bool,
     /// Color del líquido, tal como venía en el componente.
     pub color: Option<String>,
+    /// Color de la superficie, tal como venía en el componente.
+    pub superficie: Option<String>,
 }
 
 /// Resumen de la receta ya repartida.
@@ -98,6 +100,7 @@ pub fn capas(receta: &Receta) -> Capas {
                 graduacion: c.graduacion,
                 dilucion: c.dilucion,
                 color: c.color.clone(),
+                superficie: c.superficie.clone(),
             };
             desde_ml += c.ml;
             capa

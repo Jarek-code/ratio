@@ -88,6 +88,9 @@ pub struct Componente {
     pub dilucion: bool,
     /// Color del líquido en hex (`#RRGGBB`). Si falta o no es válido, se usa la paleta.
     pub color: Option<String>,
+    /// Color de la superficie (el menisco del vaso). Si falta, se usa el tono de reserva.
+    #[serde(default)]
+    pub superficie: Option<String>,
 }
 
 impl Componente {
@@ -98,6 +101,7 @@ impl Componente {
             graduacion,
             dilucion: false,
             color: None,
+            superficie: None,
         }
     }
 
@@ -108,6 +112,7 @@ impl Componente {
             graduacion: 0.0,
             dilucion: true,
             color: None,
+            superficie: None,
         }
     }
 

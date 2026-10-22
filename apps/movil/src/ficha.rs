@@ -72,7 +72,7 @@ fn Contenido(receta: RecetaCompleta) -> Element {
     let graduacion = proporciones::graduacion(&receta.receta);
     let svg = proporciones::svg(
         &receta.receta,
-        &proporciones::Opciones { etiquetas: true, escalas: false, mini: false },
+        &proporciones::Opciones { escalas: false, mini: false },
     );
 
     rsx! {

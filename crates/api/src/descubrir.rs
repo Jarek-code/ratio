@@ -112,6 +112,7 @@ impl FilaReceta
                 graduacion: capa_iter.graduacion_pct,
                 dilucion: capa_iter.dilucion,
                 color: capa_iter.color.clone(),
+                superficie: None,
             })
             .collect();
 

@@ -57,20 +57,26 @@
     font-size: 14px;
 }
 
-/* Tarjeta del vaso con sus datos al lado. */
+/* Tarjeta del vaso, con sus datos debajo para que las etiquetas se lean. */
 .ficha-vaso {
-    display: grid;
-    grid-template-columns: minmax(120px, 0.9fr) 1fr;
+    display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 18px;
     padding: 20px;
+    background: var(--papel);
+}
+
+.ficha-vaso .vaso {
+    width: min(340px, 100%);
 }
 
 .ficha-vaso .vaso svg {
-    max-height: 220px;
+    max-height: none;
 }
 
 .ficha-datos {
+    width: 100%;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px 16px;
@@ -95,6 +101,7 @@
     margin: 0;
     font-size: 16px;
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Leyenda de capas: color, nombre, mililitros y porcentaje. */
@@ -109,13 +116,13 @@
 
 .leyenda-fila {
     display: grid;
-    grid-template-columns: 14px 1fr auto auto;
+    grid-template-columns: 14px minmax(0, 1fr) 64px 56px;
     align-items: center;
     gap: 12px;
     padding: 10px 14px;
     border: 1px solid var(--borde);
     border-radius: 14px;
-    background: rgba(255, 253, 249, 0.86);
+    background: var(--papel);
 }
 
 .leyenda-punto {
@@ -134,10 +141,6 @@
     color: var(--tinta-suave);
     font-size: 14px;
     font-variant-numeric: tabular-nums;
-}
-
-.leyenda-pct {
-    min-width: 48px;
     text-align: right;
 }
 
@@ -152,6 +155,15 @@
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+}
+
+/* Cuatro pastillas en dos filas parejas, sin una suelta al final. */
+.acciones-fila .proximamente {
+    flex: 1 1 calc(50% - 5px);
+}
+
+.acciones-fila .chip {
+    width: 100%;
 }
 
 .acciones .primario {
@@ -170,13 +182,13 @@
 
 .paso {
     display: grid;
-    grid-template-columns: 32px 1fr auto;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
     align-items: start;
     gap: 12px;
     padding: 14px 16px;
     border: 1px solid var(--borde);
     border-radius: 16px;
-    background: rgba(255, 253, 249, 0.86);
+    background: var(--papel);
 }
 
 .paso-numero {
@@ -230,13 +242,17 @@
     font-size: 13px;
 }
 
-/* En el teléfono el vaso y sus datos se apilan. */
-@media (max-width: 420px) {
-    .ficha-vaso {
-        grid-template-columns: 1fr;
-    }
+/* Texto secundario de las cabeceras de sección. */
+.mini {
+    color: var(--tinta-suave);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
 
+/* En pantallas muy estrechas los datos pasan a una columna. */
+@media (max-width: 340px) {
     .ficha-datos {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr;
     }
 }

@@ -14,6 +14,6 @@ mod unidades;
 pub use capas::{Capa, Capas, Detalle, DetalleCapa, LLENADO_MAX, capas, detalle};
 pub use geometria::{Geometria, fraccion_por_volumen, radio, volumen};
 pub use graduacion::{Graduacion, Nivel, graduacion};
-pub use svg::{Opciones, barra, leyenda, svg};
+pub use svg::{Opciones, svg};
 pub use tipos::{Asa, Componente, Receta, Vaso};
 pub use unidades::{CUCHARA_ML, Equivalencia, OZ_ML, equivalencias};
