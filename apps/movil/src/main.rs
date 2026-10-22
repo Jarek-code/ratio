@@ -4,13 +4,17 @@ mod barra;
 mod biblioteca;
 mod descubrir;
 mod ficha;
+mod historial;
 mod login;
+mod marca;
 mod proximamente;
 mod rutas;
-mod sesion;
 mod salud;
+mod sesion;
+mod styles;
 
 use dioxus::prelude::*;
+use dioxus::router::Router;
 
 use crate::rutas::Rutas;
 
@@ -28,6 +32,11 @@ fn App() -> Element {
     use_context_provider(|| Signal::new(None::<sesion::SesionApp>));
 
     rsx! {
+        // Fuentes usadas por el diseño de Penpot.
+        document::Link {
+            rel: "stylesheet",
+            href: "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap",
+        }
         Router::<Rutas> {}
     }
 }

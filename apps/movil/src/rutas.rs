@@ -5,6 +5,7 @@ use dioxus::prelude::*;
 use crate::biblioteca;
 use crate::descubrir;
 use crate::ficha;
+use crate::historial;
 use crate::login;
 use crate::salud::PruebaSalud;
 
@@ -23,6 +24,9 @@ pub enum Rutas {
     /// Ficha de una receta (B3).
     #[route("/receta/:id")]
     Ficha { id: String },
+    /// Historial de versiones de una bebida (B6).
+    #[route("/historial")]
+    Historial,
 }
 
 /// Acceso; al validar el formulario continúa a Descubrir.
@@ -45,6 +49,14 @@ fn Entrar() -> Element {
 fn Descubrir() -> Element {
     rsx! {
         descubrir::PantallaDescubrir {}
+    }
+}
+
+/// Historial de versiones (B6).
+#[component]
+fn Historial() -> Element {
+    rsx! {
+        historial::Historial {}
     }
 }
 
