@@ -40,6 +40,7 @@ fn enlazar_contratos() {
     let _ = (
         api::analizar,
         api::salud,
+        api::biblioteca::catalogo,
         api::descubrir::sugerencias_dia,
         api::receta::completa,
     );

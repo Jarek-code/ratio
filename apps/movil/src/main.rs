@@ -1,5 +1,7 @@
 //! Ratio · cliente móvil: rutas, backend y componente raíz.
 
+mod barra;
+mod biblioteca;
 mod descubrir;
 mod ficha;
 mod login;
