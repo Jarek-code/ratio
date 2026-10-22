@@ -108,13 +108,17 @@ async fn token_con_contrasena(correo: &str, contrasena: &str) -> Result<String, 
 
     if !exito {
         let motivo = motivo_de(&cuerpo);
+        let codigo = cuerpo["error_code"].as_str().unwrap_or("");
 
-        return Err(if motivo.contains("Invalid login credentials") || motivo.contains("invalid_grant") {
+        return Err(if codigo == "invalid_credentials"
+            || motivo.contains("Invalid login credentials")
+            || motivo.contains("invalid_grant")
+        {
             "Correo o contraseña incorrectos".to_string()
-        } else if motivo.contains("Email not confirmed") {
+        } else if codigo == "email_not_confirmed" || motivo.contains("Email not confirmed") {
             "Confirma el correo que te enviamos y vuelve a entrar".to_string()
         } else if motivo.is_empty() {
-            "Supabase Auth rechazó el acceso".to_string()
+            format!("Supabase Auth rechazó el acceso ({})", cuerpo["code"].as_u64().unwrap_or(0))
         } else {
             format!("Supabase Auth: {motivo}")
         });
@@ -232,13 +236,21 @@ pub async fn registrar(datos: Registro) -> Result<SesionIniciada, ServerFnError>
 
     if !exito {
         let motivo = motivo_de(&cuerpo);
+        let codigo = cuerpo["error_code"].as_str().unwrap_or("");
 
         return Err(ServerFnError::new(
-            if motivo.contains("already registered") || motivo.contains("already been registered") {
+            if codigo == "user_already_exists"
+                || motivo.contains("already registered")
+                || motivo.contains("already been registered")
+            {
                 "Ese correo ya tiene cuenta: entra con tu contraseña".to_string()
-            } else if motivo.contains("at least 6 characters") || motivo.contains("weak") {
+            } else if codigo == "weak_password" || motivo.contains("at least 6 characters") {
                 "La contraseña necesita al menos 6 caracteres".to_string()
-            } else if motivo.contains("invalid format") || motivo.contains("is invalid") {
+            } else if codigo == "over_email_send_rate_limit" || motivo.contains("rate limit") {
+                "Demasiados correos seguidos: espera unos minutos y vuelve a probar".to_string()
+            } else if codigo == "signup_disabled" || motivo.contains("Signups not allowed") {
+                "El alta de cuentas está desactivada en el proyecto".to_string()
+            } else if codigo == "email_address_invalid" || motivo.contains("is invalid") {
                 "Ese correo no parece válido".to_string()
             } else if motivo.is_empty() {
                 "No se pudo crear la cuenta".to_string()

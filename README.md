@@ -48,7 +48,7 @@ Para que funcione hacen falta dos variables de entorno en el servidor:
 
 ```
 SUPABASE_URL=https://<proyecto>.supabase.co
-SUPABASE_ANON_KEY=<clave anon, pública>
+SUPABASE_ANON_KEY=<clave pública: anon o publishable (sb_publishable_…), Ajustes → API>
 ```
 
 Si el proyecto exige confirmar el correo (Auth → Providers → Email), el alta crea la cuenta pero
