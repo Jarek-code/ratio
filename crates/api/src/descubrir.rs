@@ -142,7 +142,7 @@ impl FilaReceta
 ///
 /// Devuelve `ServerFnError` si el servidor no tiene pool de conexiones o si alguna consulta falla
 #[server(endpoint = "sugerencias_dia")]
-pub async fn sugerencias_dia() -> Result<Vec<RecetaSugerida>, ServerFnError>
+pub async fn sugerencias_dia(token: Option<String>) -> Result<Vec<RecetaSugerida>, ServerFnError>
 {
     // Obtener el pool que instaló el binario del servidor
     let pool_val = match db::pool()
@@ -155,8 +155,10 @@ pub async fn sugerencias_dia() -> Result<Vec<RecetaSugerida>, ServerFnError>
         }
     };
 
-    // shortcut: la mayoría de edad va fija en false (menor de edad), cambiarla por Sesion::mayor_de_edad cuando exista la verificación del JWT
+    // La mayoría de edad sale del perfil que corresponde al token: sin sesión, se trata como menor
     // Consultar una receta visible por tipo con orden determinista por día, sin alcohol para menores
+    let adulto = crate::auth::es_adulto(token.as_deref()).await;
+
     let recetas_vec = sqlx::query_as!(FilaReceta,
         r#"
         SELECT DISTINCT ON (r.tipo)
@@ -180,7 +182,7 @@ pub async fn sugerencias_dia() -> Result<Vec<RecetaSugerida>, ServerFnError>
         AND ($1 OR NOT EXISTS (SELECT 1 FROM componente_receta c WHERE c.receta_id = r.id AND c.graduacion_pct > 0))
         ORDER BY r.tipo, md5(r.id::text || (now() AT TIME ZONE 'America/Tijuana')::date::text)
         "#,
-        false // Mayoría de edad sin declarar (todavía no se verifica el JWT)
+        adulto // Mayoría de edad verificada contra Supabase Auth y el perfil
     )
         .fetch_all(pool_val) // Ejecutar consulta con el pool compartido
         .await

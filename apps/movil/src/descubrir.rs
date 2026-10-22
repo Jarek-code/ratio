@@ -89,13 +89,18 @@ fn VasoCapas(receta: proporciones::Receta) -> Element
     }
 }
 
-/// Muestra el encabezado con el logo, la marca y el acceso al perfil
+/// Encabezado con la marca y el avatar: si hay sesión, muestra el alias y deja salir.
 #[component]
 fn Encabezado() -> Element
 {
+    let mut sesion = use_context::<crate::sesion::SenalSesion>(); // Sesión iniciada, si la hay
+    let mut abierto = use_signal(|| false); // Si el menú del perfil está desplegado
+    let navegador = navigator(); // Para volver al acceso al salir
+
+    let perfil = sesion.read().as_ref().map(|guardada| guardada.perfil.alias.clone());
+
     rsx!
     {
-        // Encabezado con la marca a la izquierda y el avatar a la derecha
         header
         {
             class: "encabezado",
@@ -108,23 +113,68 @@ fn Encabezado() -> Element
                 span { "Ratio" }
             }
 
-            // Acceso al perfil (pantalla pendiente)
-            Proximamente
+            div
             {
-                button
+                class: "encabezado-perfil",
+
+                if let Some(alias) = perfil.clone()
                 {
-                    class: "avatar",
-                    r#type: "button",
-                    "aria-label": "Perfil",
-                    "aria-disabled": "true",
-
-                    svg
+                    button
                     {
-                        view_box: "0 0 24 24",
-                        "aria-hidden": "true",
+                        class: "avatar avatar-con-sesion",
+                        r#type: "button",
+                        "aria-label": "Perfil de {alias}",
+                        "aria-expanded": if abierto() { "true" } else { "false" },
+                        onclick: move |_| abierto.toggle(),
 
-                        circle { cx: "12", cy: "9", r: "4", fill: "none", stroke: "currentColor", stroke_width: "1.8" }
-                        path { d: "M4.5 20 Q12 13.5 19.5 20", fill: "none", stroke: "currentColor", stroke_width: "1.8", stroke_linecap: "round" }
+                        {alias.chars().next().unwrap_or('R').to_uppercase().to_string()}
+                    }
+
+                    if abierto()
+                    {
+                        div
+                        {
+                            class: "perfil-menu",
+                            role: "menu",
+
+                            span { class: "perfil-alias", "{alias}" }
+
+                            button
+                            {
+                                class: "perfil-salir",
+                                r#type: "button",
+                                onclick: move |_|
+                                {
+                                    sesion.set(None);
+                                    abierto.set(false);
+                                    navegador.push(crate::rutas::Rutas::Entrar);
+                                },
+                                "Salir"
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // Sin sesión, el perfil sigue pendiente
+                    Proximamente
+                    {
+                        button
+                        {
+                            class: "avatar",
+                            r#type: "button",
+                            "aria-label": "Perfil",
+                            "aria-disabled": "true",
+
+                            svg
+                            {
+                                view_box: "0 0 24 24",
+                                "aria-hidden": "true",
+
+                                circle { cx: "12", cy: "9", r: "4", fill: "none", stroke: "currentColor", stroke_width: "1.8" }
+                                path { d: "M4.5 20 Q12 13.5 19.5 20", fill: "none", stroke: "currentColor", stroke_width: "1.8", stroke_linecap: "round" }
+                            }
+                        }
                     }
                 }
             }
@@ -132,7 +182,6 @@ fn Encabezado() -> Element
     }
 }
 
-/// Muestra el buscador de recetas; la búsqueda vive en Biblioteca (B2), que todavía no existe
 #[component]
 fn Buscador() -> Element
 {
@@ -237,7 +286,10 @@ fn TarjetaSugerencia(sugerencia: descubrir::RecetaSugerida) -> Element
 #[component]
 fn SeccionSugerencias() -> Element
 {
-    let mut sugerencias_res = use_resource(|| descubrir::sugerencias_dia()); // Sugerencias del día pedidas al servidor
+    let sesion = use_context::<crate::sesion::SenalSesion>(); // Sesión con la que se pide el catálogo
+    let mut sugerencias_res = use_resource(move || {
+        descubrir::sugerencias_dia(crate::sesion::token(&sesion))
+    }); // Sugerencias del día pedidas al servidor
     let mut indice_sel = use_signal(|| 0_usize); // Sugerencia visible en el carrusel
 
     rsx!

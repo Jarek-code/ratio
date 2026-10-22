@@ -13,6 +13,8 @@ serde = { workspace = true }
 # Solo en el servidor: el cliente no enlaza nada de esto.
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [features]
-server = ["dioxus/server", "dep:sqlx", "dep:tokio"]
+server = ["dioxus/server", "dep:sqlx", "dep:tokio", "dep:reqwest", "dep:serde_json"]

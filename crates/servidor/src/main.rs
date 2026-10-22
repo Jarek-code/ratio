@@ -40,6 +40,9 @@ fn enlazar_contratos() {
     let _ = (
         api::analizar,
         api::salud,
+        api::auth::entrar,
+        api::auth::registrar,
+        api::auth::sesion,
         api::biblioteca::catalogo,
         api::descubrir::sugerencias_dia,
         api::receta::completa,
@@ -100,6 +103,11 @@ async fn abrir_pool(config: &config::Config) {
     };
 
     api::db::instalar(pool);
+
+    match (&config.supabase_url, &config.supabase_anon) {
+        (Some(url), Some(anon)) => api::auth::configurar(url.clone(), anon.clone()),
+        _ => warn!("sin SUPABASE_URL o SUPABASE_ANON_KEY: el acceso no podrá validar credenciales"),
+    }
 }
 
 /// Aplica `migrations/` con el pool ya instalado.

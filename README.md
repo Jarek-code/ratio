@@ -36,6 +36,24 @@ cargo run -p servidor
 curl http://127.0.0.1:8080/salud
 ```
 
+## Acceso
+
+El formulario de la app habla con las server functions `entrar`, `registrar` y `sesion`, que
+reenvían la contraseña a **Supabase Auth** y reciben un token. El servidor no guarda ni hashea
+contraseñas: el hash vive en `auth.users.encrypted_password`, y del token solo se pide la cuenta
+para leer su perfil en `usuario` (alias, rol y mayoría de edad). La app guarda el token en
+memoria y lo reenvía en cada petición que lo necesite, como las sugerencias del día.
+
+Para que funcione hacen falta dos variables de entorno en el servidor:
+
+```
+SUPABASE_URL=https://<proyecto>.supabase.co
+SUPABASE_ANON_KEY=<clave anon, pública>
+```
+
+Si el proyecto exige confirmar el correo (Auth → Providers → Email), el alta crea la cuenta pero
+no inicia la sesión hasta que la persona confirme; la app lo avisa con ese mensaje.
+
 En Render, `DATABASE_URL` va como variable de entorno del servicio (nunca en el repo) y usa la
 cadena del **session pooler** de Supabase: Render no tiene salida IPv6 y la conexión directa
 `db.<proyecto>.supabase.co` solo resuelve a IPv6.

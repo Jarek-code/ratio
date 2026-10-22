@@ -7,6 +7,7 @@ mod ficha;
 mod login;
 mod proximamente;
 mod rutas;
+mod sesion;
 mod salud;
 
 use dioxus::prelude::*;
@@ -24,6 +25,8 @@ pub const SERVIDOR: &str = match option_env!("RATIO_SERVIDOR") {
 /// Componente raíz: el router decide la pantalla.
 #[component]
 fn App() -> Element {
+    use_context_provider(|| Signal::new(None::<sesion::SesionApp>));
+
     rsx! {
         Router::<Rutas> {}
     }

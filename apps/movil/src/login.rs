@@ -349,6 +349,37 @@ body {
     }
 }
 
+/* Casilla de mayoría de edad y botón mientras se envía. */
+.check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: var(--tinta-suave);
+    font-size: 13px;
+    line-height: 1.45;
+    cursor: pointer;
+}
+
+.check input {
+    width: 18px;
+    height: 18px;
+    margin: 1px 0 0;
+    accent-color: var(--cobre);
+    flex: none;
+}
+
+.submit:disabled {
+    opacity: 0.65;
+    cursor: progress;
+}
+
+.switch-modo {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 13px;
+    text-align: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -361,39 +392,112 @@ body {
 }
 "#;
 
-/// Formulario de acceso visual; la autenticación se conectará más adelante.
-/// Avisa con `on_entrar` cuando los datos pasan la validación, para seguir a la siguiente pantalla.
+/// Qué hace el formulario: entrar con una cuenta o crear una nueva.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Modo {
+    /// Acceso con una cuenta existente.
+    Entrar,
+    /// Alta de una cuenta nueva.
+    Crear,
+}
+
+/// Texto del error del servidor, sin los prefijos que añade el transporte.
+fn mensaje_de_error(causa: ServerFnError) -> String {
+    let texto = causa.to_string();
+    let texto = texto
+        .strip_prefix("error running server function: ")
+        .unwrap_or(&texto);
+    let texto = texto.strip_suffix(" (details: None)").unwrap_or(texto);
+
+    texto.to_string()
+}
+
+/// Acceso y alta contra Supabase Auth; guarda la sesión y avisa con `on_entrar`.
 #[component]
 pub fn Login(on_entrar: EventHandler<()>) -> Element {
-    // Estado local del formulario.
+    let mut sesion = use_context::<crate::sesion::SenalSesion>();
+    let mut modo = use_signal(|| Modo::Entrar);
     let mut correo = use_signal(String::new);
     let mut contrasena = use_signal(String::new);
+    let mut alias = use_signal(String::new);
+    let mut adulto = use_signal(|| false);
     let mut ver_contrasena = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    // Aviso local para las opciones que todavía no tienen backend.
-    let mut aviso = use_signal(|| None::<String>);
+    let mut enviando = use_signal(|| false);
 
-    // Valida los campos y muestra un aviso local; aún no hay autenticación.
+    let crear = modo() == Modo::Crear;
+    let titulo = if crear { "Crear cuenta" } else { "Entrar" };
+    let bajada = if crear {
+        "Tu alias y tu edad quedan en el perfil; la contraseña la guarda Supabase cifrada."
+    } else {
+        "Usa tu correo para volver a tu recetario."
+    };
+
     let enviar = move |evento: FormEvent| {
         evento.prevent_default();
 
+        if enviando() {
+            return;
+        }
+
         let email = correo().trim().to_string();
         let clave = contrasena();
+        let es_alta = modo() == Modo::Crear;
+        let nombre = alias().trim().to_string();
+        let es_adulto = adulto();
 
         if email.is_empty() || !email.contains('@') {
             error.set(Some("Escribe un correo válido.".into()));
             return;
         }
-        if clave.is_empty() {
-            error.set(Some("Escribe tu contraseña.".into()));
+        if clave.len() < 6 {
+            error.set(Some("La contraseña necesita al menos 6 caracteres.".into()));
+            return;
+        }
+        if es_alta && nombre.len() < 3 {
+            error.set(Some("Escribe un alias de 3 caracteres o más.".into()));
+            return;
+        }
+        if es_alta && !es_adulto {
+            error.set(Some("Necesitamos que declares que eres mayor de edad.".into()));
             return;
         }
 
         error.set(None);
-        on_entrar.call(());
+        enviando.set(true);
+
+        spawn(async move {
+            let resultado = if es_alta {
+                api::auth::registrar(api::auth::Registro {
+                    correo: email,
+                    contrasena: clave,
+                    alias: nombre,
+                    mayor_de_edad: es_adulto,
+                })
+                .await
+            } else {
+                api::auth::entrar(api::auth::Credenciales {
+                    correo: email,
+                    contrasena: clave,
+                })
+                .await
+            };
+
+            enviando.set(false);
+
+            match resultado {
+                Ok(iniciada) => {
+                    sesion.set(Some(crate::sesion::SesionApp {
+                        token: iniciada.token,
+                        perfil: iniciada.perfil,
+                    }));
+                    on_entrar.call(());
+                }
+                Err(causa) => error.set(Some(mensaje_de_error(causa))),
+            }
+        });
     };
 
-    // Las opciones de cuenta son visuales; sus conexiones se agregarán después.
     rsx! {
         document::Link {
             rel: "stylesheet",
@@ -416,8 +520,8 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
 
                 form { class: "login-card", onsubmit: enviar,
                     div { class: "login-card__head",
-                        h2 { "Entrar" }
-                        p { "Usa tu correo para volver a tu recetario." }
+                        h2 { "{titulo}" }
+                        p { "{bajada}" }
                     }
 
                     if let Some(mensaje) = error() {
@@ -448,8 +552,8 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
                                 id: "contrasena",
                                 r#type: if ver_contrasena() { "text" } else { "password" },
                                 name: "password",
-                                autocomplete: "current-password",
-                                placeholder: "Tu contraseña",
+                                autocomplete: if crear { "new-password" } else { "current-password" },
+                                placeholder: if crear { "Al menos 6 caracteres" } else { "Tu contraseña" },
                                 value: "{contrasena}",
                                 oninput: move |evento| contrasena.set(evento.value()),
                             }
@@ -463,22 +567,61 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
                         }
                     }
 
-                    button { class: "submit", r#type: "submit", "Entrar" }
+                    if crear {
+                        label { class: "field", r#for: "alias",
+                            span { "Alias" }
+                            input {
+                                id: "alias",
+                                r#type: "text",
+                                name: "alias",
+                                autocomplete: "nickname",
+                                placeholder: "Como te verán en La Barra",
+                                value: "{alias}",
+                                oninput: move |evento| alias.set(evento.value()),
+                            }
+                        }
 
-                    p { class: "signup",
-                        "¿No tienes cuenta? "
-                        button {
-                            r#type: "button",
-                            class: "link",
-                            onclick: move |_| {
-                                aviso.set(Some("La creación de cuenta estará disponible próximamente.".into()))
-                            },
-                            "Crear cuenta"
+                        label { class: "check",
+                            input {
+                                r#type: "checkbox",
+                                checked: adulto(),
+                                onchange: move |evento| adulto.set(evento.checked()),
+                            }
+                            span { "Tengo 18 años o más y quiero ver recetas con alcohol." }
                         }
                     }
 
-                    if let Some(mensaje) = aviso() {
-                        p { class: "pendiente", role: "status", aria_live: "polite", "{mensaje}" }
+                    button {
+                        class: "submit",
+                        r#type: "submit",
+                        disabled: enviando(),
+                        if enviando() { "Un momento…" } else { "{titulo}" }
+                    }
+
+                    p { class: "switch-modo",
+                        if crear {
+                            "¿Ya tienes cuenta? "
+                            button {
+                                r#type: "button",
+                                class: "link",
+                                onclick: move |_| {
+                                    error.set(None);
+                                    modo.set(Modo::Entrar);
+                                },
+                                "Entrar"
+                            }
+                        } else {
+                            "¿No tienes cuenta? "
+                            button {
+                                r#type: "button",
+                                class: "link",
+                                onclick: move |_| {
+                                    error.set(None);
+                                    modo.set(Modo::Crear);
+                                },
+                                "Crear cuenta"
+                            }
+                        }
                     }
 
                     p { class: "legal", "Contenido con alcohol solo para personas mayores de edad." }

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "server")]
 pub mod db;
+pub mod auth; // Acceso, alta y verificación de la sesión
 pub mod biblioteca; // Catálogo completo de la pantalla Biblioteca (B2)
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
 pub mod receta; // Ficha completa de una receta (B3)

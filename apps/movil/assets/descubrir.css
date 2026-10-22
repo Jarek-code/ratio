@@ -148,6 +148,60 @@ button {
     height: 22px;
 }
 
+/* Avatar con sesión iniciada: la inicial del alias y un menú para salir. */
+.encabezado-perfil {
+    position: relative;
+}
+
+.avatar-con-sesion {
+    border-color: var(--tinta);
+    background: var(--tinta);
+    color: #FFF9F2;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 19px;
+}
+
+.perfil-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 20;
+    display: flex;
+    min-width: 168px;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    background: var(--papel);
+    box-shadow: 0 12px 28px rgba(58, 35, 22, 0.14);
+}
+
+.perfil-alias {
+    overflow: hidden;
+    color: var(--tinta);
+    font-size: 14px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.perfil-salir {
+    min-height: 38px;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--tinta);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.perfil-salir:hover {
+    border-color: var(--cobre);
+    color: var(--cobre);
+}
+
 /* Buscador. */
 .buscador {
     display: flex;

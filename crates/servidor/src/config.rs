@@ -10,6 +10,10 @@ pub struct Config {
     pub database_url: String,
     /// Si es `true`, aplica `migraciones/` al arrancar (ver `MIGRACIONES_AL_ARRANCAR`).
     pub migrar: bool,
+    /// Dirección del proyecto de Supabase, para el acceso.
+    pub supabase_url: Option<String>,
+    /// Clave pública de Supabase (la `anon`), que viaja en la cabecera `apikey`.
+    pub supabase_anon: Option<String>,
 }
 
 impl Config {
@@ -34,8 +38,13 @@ impl Config {
             format!("{database_url}{separador}sslmode=require")
         };
 
+        let supabase_url = std::env::var("SUPABASE_URL").ok().filter(|v| !v.trim().is_empty());
+        let supabase_anon = std::env::var("SUPABASE_ANON_KEY").ok().filter(|v| !v.trim().is_empty());
+
         Ok(Self {
             database_url,
+            supabase_url,
+            supabase_anon,
             migrar: std::env::var("MIGRACIONES_AL_ARRANCAR")
                 .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "si" | "sí"))
                 .unwrap_or(false),
