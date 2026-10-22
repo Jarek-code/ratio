@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::biblioteca;
 use crate::descubrir;
 use crate::ficha;
 use crate::login;
@@ -16,6 +17,9 @@ pub enum Rutas {
     /// Descubrir: sugerencia del día y accesos del recetario (B1).
     #[route("/descubrir")]
     Descubrir,
+    /// Biblioteca con el catálogo completo (B2).
+    #[route("/biblioteca")]
+    Biblioteca,
     /// Ficha de una receta (B3).
     #[route("/receta/:id")]
     Ficha { id: String },
@@ -41,6 +45,14 @@ fn Entrar() -> Element {
 fn Descubrir() -> Element {
     rsx! {
         descubrir::PantallaDescubrir {}
+    }
+}
+
+/// Biblioteca (B2).
+#[component]
+fn Biblioteca() -> Element {
+    rsx! {
+        biblioteca::PantallaBiblioteca {}
     }
 }
 

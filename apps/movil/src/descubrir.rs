@@ -5,6 +5,7 @@
 // LIBRERÍAS
 use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (única importación con comodín permitida)
 use api::descubrir; // Tipo RecetaSugerida y server function sugerencias_dia
+use crate::barra::{BarraInferior, Destino}; // Barra inferior compartida
 use crate::proximamente::Proximamente; // Aviso de las funciones que aún no tienen pantalla
 use crate::rutas::Rutas; // Rutas de la app, para abrir la ficha de una receta
 
@@ -350,40 +351,11 @@ fn SeccionUltimasVistas() -> Element
                 class: "seccion-cabeza",
 
                 p { id: "titulo-ultimas", class: "eyebrow", "Sigue donde lo dejaste" }
-                Proximamente
-                {
-                    button { class: "enlace", r#type: "button", "aria-disabled": "true", "Biblioteca" }
-                }
+                Link { to: Rutas::Biblioteca, class: "enlace", "Biblioteca" }
             }
 
             // shortcut: siempre se muestra el estado vacío porque el repositorio local (A2) no existe, leer de A2 y agregar los estados de carga, error y sin conexión cuando exista
             p { class: "estado", "Aún no has preparado nada. Empieza por la sugerencia de hoy." }
-        }
-    }
-}
-
-/// Muestra la barra inferior con los cinco destinos de la app; solo Descubrir existe por ahora
-#[component]
-fn BarraInferior() -> Element
-{
-    rsx!
-    {
-        // Barra fija con el destino activo resaltado
-        nav
-        {
-            class: "barra-inferior",
-            "aria-label": "Navegación principal",
-
-            button { class: "destino activo", r#type: "button", "aria-current": "page", "Descubrir" }
-
-            // Recorrer los destinos cuyas pantallas todavía no existen
-            for destino_iter in ["Biblioteca", "Crear", "La Barra", "Perfil"]
-            {
-                Proximamente
-                {
-                    button { class: "destino", r#type: "button", "aria-disabled": "true", "{destino_iter}" }
-                }
-            }
         }
     }
 }
@@ -409,6 +381,6 @@ pub fn PantallaDescubrir() -> Element
             SeccionUltimasVistas {}
         }
 
-        BarraInferior {}
+        BarraInferior { activo: Destino::Descubrir }
     }
 }
