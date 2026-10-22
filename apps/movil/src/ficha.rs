@@ -160,6 +160,11 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                     button { class: "primario", r#type: "button", "aria-disabled": "true", "Preparar" }
                 }
                 div { class: "acciones-fila",
+                    Link {
+                        to: Rutas::Historial { id: receta.id.clone() },
+                        class: "chip chip--enlace",
+                        "Versiones"
+                    }
                     Proximamente {
                         button { class: "chip", r#type: "button", "aria-disabled": "true", "Ajustar" }
                     }

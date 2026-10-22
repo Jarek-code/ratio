@@ -25,8 +25,8 @@ pub enum Rutas {
     #[route("/receta/:id")]
     Ficha { id: String },
     /// Historial de versiones de una bebida (B6).
-    #[route("/historial")]
-    Historial,
+    #[route("/receta/:id/historial")]
+    Historial { id: String },
 }
 
 /// Acceso; al validar el formulario continúa a Descubrir.
@@ -54,9 +54,9 @@ fn Descubrir() -> Element {
 
 /// Historial de versiones (B6).
 #[component]
-fn Historial() -> Element {
+fn Historial(id: String) -> Element {
     rsx! {
-        historial::Historial {}
+        historial::Historial { id }
     }
 }
 

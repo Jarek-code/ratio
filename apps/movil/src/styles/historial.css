@@ -425,6 +425,7 @@
     font: inherit;
     font-size: 9.5px;
     font-weight: 700;
+    text-decoration: none;
 }
 
 .version-open:hover {
@@ -491,4 +492,16 @@
         padding-right: 9px;
         padding-left: 9px;
     }
+}
+
+/* Aviso de carga, error o historial vacío. */
+.historial-estado {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 24px 0;
+    color: var(--tinta-suave);
+    font-size: 14px;
+    line-height: 1.5;
 }

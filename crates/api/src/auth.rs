@@ -291,6 +291,15 @@ pub async fn sesion(token: String) -> Result<crate::Sesion, ServerFnError> {
     perfil_de(&cuenta).await.map_err(ServerFnError::new)
 }
 
+/// Cuenta a la que pertenece el token, si el token sigue siendo válido.
+#[cfg(feature = "server")]
+pub async fn cuenta(token: Option<&str>) -> Option<String> {
+    match token {
+        Some(token) => cuenta_del_token(token).await.ok(),
+        None => None,
+    }
+}
+
 /// ¿La sesión corresponde a una persona mayor de edad? Sin token, no.
 #[cfg(feature = "server")]
 pub async fn es_adulto(token: Option<&str>) -> bool {
