@@ -5,12 +5,12 @@
 // LIBRERÍAS
 use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (única importación con comodín permitida)
 use api::descubrir; // Tipo RecetaSugerida y server function sugerencias_dia
+use crate::proximamente::Proximamente; // Aviso de las funciones que aún no tienen pantalla
+use crate::rutas::Rutas; // Rutas de la app, para abrir la ficha de una receta
 
 // CONSTANTES Y VARIABLES GLOBALES
 /// Hoja de estilos de la pantalla Descubrir
 const CSS_DESCUBRIR: Asset = asset!("/assets/descubrir.css");
-/// Aviso de los controles cuyas pantallas todavía no existen
-const AVISO_FUTURO: &str = "Esta función se programará en el futuro";
 
 // FUNCIONES
 /// Resume los porcentajes de las capas de abajo hacia arriba (ej. «27 · 60 · 13 %»)
@@ -37,30 +37,6 @@ fn descripcion_capas(receta: &proporciones::Receta) -> String
         .collect();
 
     format!("{}: {}", receta.nombre, capas_vec.join(", ")) // Retornar descripción completa
-}
-
-/// Envuelve un control cuya pantalla todavía no existe y muestra el aviso de función futura
-///
-/// El aviso aparece al pasar el cursor (CSS) y también al tocar el control, porque en el teléfono
-/// no hay hover. `children` es el control que queda visible.
-#[component]
-fn Proximamente(children: Element) -> Element
-{
-    let mut abierto_sel = use_signal(|| false); // Si el aviso quedó visible tras tocar el control
-
-    rsx!
-    {
-        // Contenedor que muestra el aviso al tocar o al pasar el cursor
-        span
-        {
-            class: if *abierto_sel.read() { "proximamente abierto" } else { "proximamente" },
-            onclick: move |_| abierto_sel.toggle(),
-            onmouseleave: move |_| abierto_sel.set(false),
-
-            {children}
-            span { class: "aviso", role: "tooltip", "{AVISO_FUTURO}" }
-        }
-    }
 }
 
 /// Dibuja el logo de Ratio: un vaso con tres capas de bebida
@@ -95,7 +71,7 @@ fn VasoCapas(receta: proporciones::Receta) -> Element
     // Generar el SVG del vaso sin etiquetas ni escalas
     let svg_val = proporciones::svg(&receta, &proporciones::Opciones
     {
-        etiquetas: false,
+        etiquetas: true,
         escalas: false,
         mini: false,
     });
@@ -250,11 +226,8 @@ fn TarjetaSugerencia(sugerencia: descubrir::RecetaSugerida) -> Element
                 h3 { "{sugerencia.receta.nombre}" }
                 p { class: "porcentajes", {porcentajes_texto(&sugerencia.receta)} }
 
-                // Acceso a la ficha de receta (pantalla pendiente)
-                Proximamente
-                {
-                    button { class: "primario", r#type: "button", "aria-disabled": "true", "Ver receta" }
-                }
+                // Acceso a la ficha de la receta
+                Link { to: Rutas::Ficha { id: sugerencia.id.clone() }, class: "primario", "Ver receta" }
             }
         }
     }

@@ -264,8 +264,12 @@ pub fn svg(receta: &Receta, opciones: &Opciones) -> String {
 
     let mut etiquetas = String::new();
     if opciones.etiquetas {
+        // Umbral proporcional: 15 unidades en un vaso de 150 y 6 en una taza baja de 40,
+        // para que las tazas pequeñas no se queden sin etiquetas.
+        let alto_minimo = (m.g.altura * 0.10).max(6.0);
+
         for (i, capa) in d.capas.iter().enumerate() {
-            if capa.capa.ml <= 0.0 || capa.alto < 15.0 {
+            if capa.capa.ml <= 0.0 || capa.alto < alto_minimo {
                 continue;
             }
             let color = color_de(&capa.capa.color, i);

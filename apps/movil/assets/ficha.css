@@ -1,0 +1,242 @@
+/* Pantalla Ficha de receta (B3). Usa los tokens y el fondo de descubrir.css. */
+
+.ficha {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 22px 18px 48px;
+}
+
+/* Barra superior con la vuelta a Descubrir. */
+.ficha-barra {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.volver {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0 16px;
+    background: var(--papel);
+    border: 1px solid var(--borde);
+    color: var(--tinta);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.volver:hover,
+.volver:focus-visible {
+    border-color: var(--cobre);
+    color: var(--cobre-oscuro);
+}
+
+/* Cabecera: familia, nombre y autoría. */
+.ficha-cabeza {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ficha-cabeza h1 {
+    margin: 0;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 34px;
+    font-weight: 400;
+    line-height: 1.1;
+}
+
+.ficha-autor {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 14px;
+}
+
+/* Tarjeta del vaso con sus datos al lado. */
+.ficha-vaso {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.9fr) 1fr;
+    align-items: center;
+    gap: 18px;
+    padding: 20px;
+}
+
+.ficha-vaso .vaso svg {
+    max-height: 220px;
+}
+
+.ficha-datos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    margin: 0;
+}
+
+.dato {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.dato dt {
+    color: var(--tinta-suave);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.dato dd {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* Leyenda de capas: color, nombre, mililitros y porcentaje. */
+.leyenda {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.leyenda-fila {
+    display: grid;
+    grid-template-columns: 14px 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    background: rgba(255, 253, 249, 0.86);
+}
+
+.leyenda-punto {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(42, 27, 20, 0.25);
+}
+
+.leyenda-nombre {
+    font-weight: 600;
+}
+
+.leyenda-ml,
+.leyenda-pct {
+    color: var(--tinta-suave);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
+
+.leyenda-pct {
+    min-width: 48px;
+    text-align: right;
+}
+
+/* Acciones de la ficha. */
+.acciones {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.acciones-fila {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.acciones .primario {
+    width: 100%;
+}
+
+/* Pasos de preparación. */
+.pasos {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.paso {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    align-items: start;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    background: rgba(255, 253, 249, 0.86);
+}
+
+.paso-numero {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--tinta);
+    color: #FFF9F2;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.paso-texto h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+}
+
+.paso-texto p {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.paso-tiempo {
+    align-self: center;
+    border-radius: 999px;
+    background: rgba(185, 99, 59, 0.12);
+    padding: 6px 10px;
+    color: var(--cobre-oscuro);
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Notas de sabor. */
+.notas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.notas .chip {
+    min-height: 36px;
+    padding: 6px 14px;
+    font-size: 13px;
+}
+
+/* En el teléfono el vaso y sus datos se apilan. */
+@media (max-width: 420px) {
+    .ficha-vaso {
+        grid-template-columns: 1fr;
+    }
+
+    .ficha-datos {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

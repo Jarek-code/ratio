@@ -299,6 +299,28 @@ button {
     max-height: 180px;
 }
 
+/* Etiquetas del vaso: nombre de la capa y su medida. */
+.cup-label path {
+    stroke: rgba(120, 90, 70, 0.45);
+    stroke-width: 1;
+    fill: none;
+}
+
+.cup-label text {
+    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    font-size: 10px;
+}
+
+.cup-label-n {
+    fill: var(--tinta-suave);
+    font-weight: 600;
+}
+
+.cup-label-v {
+    fill: var(--tinta-suave);
+    font-size: 9px;
+}
+
 .cup-sombra {
     fill: rgba(58, 35, 22, 0.12);
 }

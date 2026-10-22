@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "server")]
 pub mod db;
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
+pub mod receta; // Ficha completa de una receta (B3)
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

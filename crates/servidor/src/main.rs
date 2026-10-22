@@ -37,7 +37,12 @@ fn main() {
 
 /// Fuerza el enlace de las server functions: Dioxus registra solo las que el binario referencia.
 fn enlazar_contratos() {
-    let _ = (api::analizar, api::salud, api::descubrir::sugerencias_dia);
+    let _ = (
+        api::analizar,
+        api::salud,
+        api::descubrir::sugerencias_dia,
+        api::receta::completa,
+    );
 }
 
 /// Prepara la base y el router. Si falta configuración arranca igual: el proceso queda en pie
