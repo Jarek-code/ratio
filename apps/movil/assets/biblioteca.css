@@ -82,13 +82,16 @@
 .rec-mini {
     display: grid;
     place-items: center;
-    height: 92px;
-    overflow: hidden;
+    height: 96px;
 }
 
+/* Los vasos altos (highball, copa) son mucho más altos que anchos: se limita el alto y el
+   ancho a la vez para que quepan enteros, sin recortar la base ni la boca. */
 .rec-mini svg {
-    width: 78px;
+    width: auto;
     height: auto;
+    max-width: 86px;
+    max-height: 92px;
 }
 
 .rec-cuerpo {

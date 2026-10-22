@@ -230,7 +230,7 @@ fn superficie_de(color: &str, superficie: &Option<String>) -> String {
         .as_deref()
         .filter(|valor| hex_valido(valor))
         .map(|valor| valor.to_string())
-        .unwrap_or_else(|| aclarar(color, 0.22))
+        .unwrap_or_else(|| aclarar(color, 0.12))
 }
 
 /// Aclara un color `#RRGGBB` acercando cada canal al blanco.
@@ -252,7 +252,7 @@ fn hex_valido(s: &str) -> bool {
 }
 
 /// Capas de líquido apiladas desde el fondo, cada una con su menisco.
-fn capas_svg(m: &Marco, detalle: &[DetalleCapa], id: usize) -> String {
+fn capas_svg(m: &Marco, detalle: &[DetalleCapa], id: usize, mini: bool) -> String {
     let mut salida = String::new();
 
     for (i, capa) in detalle.iter().enumerate() {
@@ -265,7 +265,8 @@ fn capas_svg(m: &Marco, detalle: &[DetalleCapa], id: usize) -> String {
         let (r0, r1) = (capa.radio_abajo, capa.radio_arriba);
         let y0 = m.y_interior_abajo - capa.fraccion_dibujo_desde * m.g.altura;
         let y1 = m.y_interior_abajo - capa.fraccion_dibujo_hasta * m.g.altura;
-        let ry = (r1 * 0.13).clamp(2.2, 5.5);
+        // El menisco se queda dentro de su capa: si la capa es fina, la elipse adelgaza.
+        let ry = (r1 * 0.13).clamp(1.0, 5.5).min(capa.alto * 0.45);
         let clase = clase_de(&capa.capa);
         let trazo = format!(
             "M {} {} L {} {} L {} {} L {} {} Z",
@@ -290,7 +291,7 @@ fn capas_svg(m: &Marco, detalle: &[DetalleCapa], id: usize) -> String {
             "<g class=\"{clase}\"><path d=\"{trazo}\" fill=\"{color}\" />{menisco}"
         ));
 
-        if capa.capa.dilucion {
+        if capa.capa.dilucion && !mini {
             let agua = format!("url(#agua-{id})");
             salida.push_str(&format!(
                 "<path d=\"{trazo}\" fill=\"{agua}\" /><ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{agua}\" />",
@@ -350,7 +351,7 @@ pub fn svg(receta: &Receta, opciones: &Opciones) -> String {
     let (interna, externa) = paths(&m);
     let id = CONTADOR.fetch_add(1, Ordering::Relaxed) + 1;
 
-    let cuerpo = capas_svg(&m, &d.capas, id);
+    let cuerpo = capas_svg(&m, &d.capas, id, opciones.mini);
     let brillo = if opciones.mini {
         String::new()
     } else {
