@@ -6,6 +6,7 @@ use crate::biblioteca;
 use crate::comparar;
 use crate::descubrir;
 use crate::ficha;
+use crate::historial;
 use crate::login;
 use crate::salud::PruebaSalud;
 
@@ -24,9 +25,14 @@ pub enum Rutas {
     /// Ficha de una receta (B3).
     #[route("/receta/:id")]
     Ficha { id: String },
+
     /// Comparar dos recetas (B4).
     #[route("/comparar")]
     Comparar,
+
+    /// Historial de versiones de una bebida (B6).
+    #[route("/receta/:id/historial")]
+    Historial { id: String },
 }
 
 /// Acceso; al validar el formulario continúa a Descubrir.
@@ -49,6 +55,14 @@ fn Entrar() -> Element {
 fn Descubrir() -> Element {
     rsx! {
         descubrir::PantallaDescubrir {}
+    }
+}
+
+/// Historial de versiones (B6).
+#[component]
+fn Historial(id: String) -> Element {
+    rsx! {
+        historial::Historial { id }
     }
 }
 

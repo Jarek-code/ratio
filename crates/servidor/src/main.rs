@@ -45,6 +45,7 @@ fn enlazar_contratos() {
         api::auth::sesion,
         api::biblioteca::catalogo,
         api::descubrir::sugerencias_dia,
+        api::historial::versiones,
         api::receta::completa,
     );
 }
