@@ -2,6 +2,7 @@
 
 mod barra;
 mod biblioteca;
+mod comparar;
 mod descubrir;
 mod ficha;
 mod login;

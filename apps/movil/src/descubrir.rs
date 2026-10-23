@@ -403,6 +403,7 @@ fn SeccionUltimasVistas() -> Element
                 class: "seccion-cabeza",
 
                 p { id: "titulo-ultimas", class: "eyebrow", "Sigue donde lo dejaste" }
+                Link { to: Rutas::Comparar, class: "enlace", "Comparar" }
                 Link { to: Rutas::Biblioteca, class: "enlace", "Biblioteca" }
             }
 

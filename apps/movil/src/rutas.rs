@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::biblioteca;
+use crate::comparar;
 use crate::descubrir;
 use crate::ficha;
 use crate::login;
@@ -23,6 +24,9 @@ pub enum Rutas {
     /// Ficha de una receta (B3).
     #[route("/receta/:id")]
     Ficha { id: String },
+    /// Comparar dos recetas (B4).
+    #[route("/comparar")]
+    Comparar,
 }
 
 /// Acceso; al validar el formulario continúa a Descubrir.
@@ -61,5 +65,13 @@ fn Biblioteca() -> Element {
 fn Ficha(id: String) -> Element {
     rsx! {
         ficha::PantallaFicha { id }
+    }
+}
+
+/// Comparar (B4).
+#[component]
+fn Comparar() -> Element {
+    rsx! {
+        comparar::PantallaComparar {}
     }
 }
