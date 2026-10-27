@@ -72,7 +72,10 @@ fn Contenido(receta: RecetaCompleta) -> Element {
     let graduacion = proporciones::graduacion(&receta.receta);
     let svg = proporciones::svg(
         &receta.receta,
-        &proporciones::Opciones { escalas: false, mini: false },
+        &proporciones::Opciones {
+            escalas: false,
+            mini: false,
+        },
     );
 
     rsx! {
@@ -165,8 +168,10 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                         class: "chip chip--enlace",
                         "Versiones"
                     }
-                    Proximamente {
-                        button { class: "chip", r#type: "button", "aria-disabled": "true", "Ajustar" }
+                    Link {
+                        to: Rutas::Ajustar { id: receta.id.clone() },
+                        class: "chip chip--enlace",
+                        "Ajustar"
                     }
                     Proximamente {
                         button { class: "chip", r#type: "button", "aria-disabled": "true", "Comparar" }

@@ -2,6 +2,9 @@ use dioxus::prelude::*;
 
 use crate::marca::Marca; // Logo compartido, dibujado inline
 
+/// Hoja de estilos del acceso; también define la paleta que reutiliza el historial.
+const CSS_LOGIN: Asset = asset!("/assets/login.css");
+
 /// Qué hace el formulario: entrar con una cuenta o crear una nueva.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Modo {
@@ -69,7 +72,9 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
             return;
         }
         if es_alta && !es_adulto {
-            error.set(Some("Necesitamos que declares que eres mayor de edad.".into()));
+            error.set(Some(
+                "Necesitamos que declares que eres mayor de edad.".into(),
+            ));
             return;
         }
 
@@ -109,7 +114,7 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
     };
 
     rsx! {
-        style { {crate::styles::LOGIN} }
+        document::Stylesheet { href: CSS_LOGIN }
 
         main { class: "login-page",
             section { class: "login-shell",

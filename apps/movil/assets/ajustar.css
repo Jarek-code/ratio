@@ -1,0 +1,303 @@
+/* Pantalla Ajustar proporciones (C1). Usa los tokens y el fondo de descubrir.css. */
+
+.ajustar {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 22px 18px 48px;
+}
+
+/* Barra superior con la vuelta a la ficha. */
+.ajustar-barra {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ajustar-volver {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    padding: 0 16px;
+    background: var(--papel);
+    color: var(--tinta);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ajustar-volver:hover,
+.ajustar-volver:focus-visible {
+    border-color: var(--cobre);
+    color: var(--cobre-oscuro);
+}
+
+/* Cabecera: nombre de la bebida y autoría. */
+.ajustar-cabeza {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ajustar-cabeza h1 {
+    margin: 0;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 34px;
+    font-weight: 400;
+    line-height: 1.1;
+}
+
+.ajustar-autor {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 14px;
+}
+
+/* Vaso en vivo y totales del ajuste. */
+.ajustar-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 20px;
+    background: var(--papel);
+}
+
+.ajustar-vaso {
+    width: min(340px, 100%);
+}
+
+.ajustar-vaso svg {
+    max-height: none;
+}
+
+.ajustar-totales {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    margin: 0;
+}
+
+.ajustar-totales .dato {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ajustar-totales dt {
+    color: var(--tinta-suave);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.ajustar-totales dd {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Avisos de capacidad: uno suave al límite y otro fuerte cuando ya no cabe. */
+.ajustar-aviso {
+    width: 100%;
+    margin: 0;
+    border: 1px solid #E6D3BF;
+    border-radius: 14px;
+    background: #FBF1E7;
+    padding: 12px 14px;
+    color: #6D503D;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.ajustar-aviso--error {
+    border-color: #F3C9C1;
+    background: #FCEDEA;
+    color: #8E2C22;
+}
+
+/* Atajos: presets y pastillas de porcentaje. */
+.ajustar-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ajustar-porcentajes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.ajustar-etiqueta {
+    margin-right: 2px;
+    color: var(--tinta-suave);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.ajustar .chip.activo {
+    border-color: var(--tinta);
+    background: var(--tinta);
+    color: #FFF9F2;
+}
+
+/* Escalado por comensales. */
+.ajustar-comensales {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    background: var(--papel);
+    padding: 8px 8px 8px 16px;
+}
+
+.ajustar-comensales-texto {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    color: var(--tinta-suave);
+    font-size: 14px;
+}
+
+.ajustar-comensales-texto strong {
+    color: var(--tinta);
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ajustar-comensales .contador strong {
+    min-width: 28px;
+    text-align: center;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Vasos disponibles: nombre arriba y capacidad debajo. */
+.ajustar-vasos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ajustar-vaso-chip {
+    display: flex;
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+}
+
+.ajustar-vaso-capacidad {
+    color: var(--tinta-suave);
+    font-size: 12px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.ajustar-vaso-chip.activo .ajustar-vaso-capacidad {
+    color: rgba(255, 249, 242, 0.72);
+}
+
+/* Una tarjeta por ingrediente: color, cifra, deslizador y porcentajes. */
+.ajustar-capas {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ajustar-capa {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    background: var(--papel);
+    padding: 12px 14px 10px;
+}
+
+.ajustar-capa-cabeza {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.ajustar-capa-punto {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(42, 27, 20, 0.25);
+}
+
+.ajustar-capa-nombre {
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ajustar-capa-cifra {
+    color: var(--tinta-suave);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* El deslizador usa el color de acento del sistema y conserva un área táctil grande. */
+.ajustar-rango {
+    width: 100%;
+    height: 44px;
+    margin: 0;
+    accent-color: var(--cobre);
+    cursor: pointer;
+}
+
+.ajustar-capa-pie {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--tinta-suave);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Cierre: restablecer y la nota de que C2 todavía no existe. */
+.ajustar-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.ajustar .mini {
+    color: var(--tinta-suave);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 340px) {
+    .ajustar-totales {
+        grid-template-columns: 1fr;
+    }
+
+    .ajustar-vaso-chip {
+        flex-basis: 100%;
+    }
+}

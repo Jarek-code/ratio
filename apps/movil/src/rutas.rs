@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::ajustar;
 use crate::biblioteca;
 use crate::descubrir;
 use crate::ficha;
@@ -27,6 +28,9 @@ pub enum Rutas {
     /// Historial de versiones de una bebida (B6).
     #[route("/receta/:id/historial")]
     Historial { id: String },
+    /// Ajuste de proporciones de una receta (C1).
+    #[route("/receta/:id/ajustar")]
+    Ajustar { id: String },
 }
 
 /// Acceso; al validar el formulario continúa a Descubrir.
@@ -73,5 +77,13 @@ fn Biblioteca() -> Element {
 fn Ficha(id: String) -> Element {
     rsx! {
         ficha::PantallaFicha { id }
+    }
+}
+
+/// Ajuste de proporciones (C1).
+#[component]
+fn Ajustar(id: String) -> Element {
+    rsx! {
+        ajustar::PantallaAjustar { id }
     }
 }

@@ -4,13 +4,14 @@ use dioxus::prelude::*;
 use proporciones::{Detalle, Receta};
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "server")]
-pub mod db;
 pub mod auth; // Acceso, alta y verificación de la sesión
 pub mod biblioteca; // Catálogo completo de la pantalla Biblioteca (B2)
+#[cfg(feature = "server")]
+pub mod db;
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
 pub mod historial; // Árbol de versiones de una bebida (B6)
 pub mod receta; // Ficha completa de una receta (B3)
+pub mod vasos; // Catálogo de vasos para el editor de proporciones (C1)
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

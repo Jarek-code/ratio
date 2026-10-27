@@ -1,5 +1,6 @@
 //! Ratio · cliente móvil: rutas, backend y componente raíz.
 
+mod ajustar;
 mod barra;
 mod biblioteca;
 mod descubrir;
@@ -11,7 +12,6 @@ mod proximamente;
 mod rutas;
 mod salud;
 mod sesion;
-mod styles;
 
 use dioxus::prelude::*;
 use dioxus::router::Router;

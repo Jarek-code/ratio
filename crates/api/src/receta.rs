@@ -29,6 +29,8 @@ pub struct RecetaCompleta {
     pub familia: String,
     /// Alias de quien la publicó.
     pub autor: String,
+    /// Identificador del vaso en el catálogo.
+    pub vaso_id: String,
     /// Nombre del vaso en el catálogo.
     pub vaso_nombre: String,
     /// Vaso y capas listos para el motor de proporciones.
@@ -59,6 +61,8 @@ struct FilaReceta {
     familia: String,
     /// Alias del autor.
     autor: String,
+    /// Identificador del vaso.
+    vaso_id: String,
     /// Nombre del vaso.
     vaso_nombre: String,
     /// Volumen servido (ml, el del vaso si la receta no fija uno).
@@ -158,6 +162,7 @@ impl FilaReceta {
             tipo: self.tipo,
             familia: self.familia,
             autor: self.autor,
+            vaso_id: self.vaso_id,
             vaso_nombre: self.vaso_nombre,
             receta: proporciones::Receta {
                 nombre: self.nombre,
@@ -195,6 +200,7 @@ pub async fn completa(id: String) -> Result<Option<RecetaCompleta>, ServerFnErro
                r.tipo,
                r.familia,
                u.alias AS autor,
+               v.id::text AS vaso_id,
                v.nombre AS vaso_nombre,
                COALESCE(r.capacidad_ml, v.capacidad_ml) AS capacidad_ml,
                v.capacidad_ml AS vaso_capacidad_ml,

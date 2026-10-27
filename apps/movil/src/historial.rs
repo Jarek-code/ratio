@@ -13,6 +13,12 @@ use crate::marca::Marca;
 use crate::rutas::Rutas;
 use crate::sesion::SenalSesion;
 
+/// Hoja del acceso: aporta la paleta y los tokens globales que usa el historial.
+const CSS_LOGIN: Asset = asset!("/assets/login.css");
+
+/// Hoja propia del historial de versiones.
+const CSS_HISTORIAL: Asset = asset!("/assets/historial.css");
+
 /// Filtro de visibilidad de las versiones.
 #[derive(Clone, Copy, PartialEq)]
 enum Filtro {
@@ -46,7 +52,11 @@ impl Filtro {
 
 /// Etiqueta de visibilidad de una versión.
 fn visibilidad(version: &VersionHistorial) -> &'static str {
-    if version.publica { "Pública" } else { "Privada" }
+    if version.publica {
+        "Pública"
+    } else {
+        "Privada"
+    }
 }
 
 /// Diferencia entre la versión actual y la de origen.
@@ -90,7 +100,9 @@ pub fn Historial(id: String) -> Element {
     }));
 
     rsx! {
-        style { {crate::styles::LOGIN}{crate::styles::HISTORIAL} }
+        // Primero los tokens del acceso; después las reglas propias del historial.
+        document::Stylesheet { href: CSS_LOGIN }
+        document::Stylesheet { href: CSS_HISTORIAL }
 
         main { class: "historial-page",
             section { class: "historial-shell",
