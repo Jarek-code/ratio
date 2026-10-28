@@ -8,6 +8,7 @@ mod ficha;
 mod historial;
 mod login;
 mod marca;
+mod mis_recetas;
 mod proximamente;
 mod rutas;
 mod salud;

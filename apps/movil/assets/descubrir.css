@@ -1,11 +1,11 @@
-/* Pantalla Descubrir (B1), con el sistema visual del login de Memo-main. */
+/* Pantalla Descubrir (B1),*/
 
 /* Dioxus antepone un nodo de hidratación al primer selector: la hoja no puede empezar por :root. */
 .__ratio_style_anchor {
     display: contents;
 }
 
-/* Paleta del sistema (copiada del login de Memo-main). */
+/* Paleta del sistema. */
 :root {
     --crema: #F5EFE5;
     --papel: #FFFDF9;
@@ -184,6 +184,26 @@ button {
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.perfil-enlace {
+    display: flex;
+    min-height: 38px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--tinta);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.perfil-enlace:hover,
+.perfil-enlace:focus-visible {
+    border-color: var(--cobre);
+    color: var(--cobre);
 }
 
 .perfil-salir {

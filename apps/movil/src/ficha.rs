@@ -17,9 +17,11 @@ const COLOR_RESERVA: &str = "#8A6A4A";
 /// Ficha de una receta publicada, cargada por su identificador.
 #[component]
 pub fn PantallaFicha(id: String) -> Element {
+    let sesion = use_context::<crate::sesion::SenalSesion>();
     let mut receta_res = use_resource(move || {
         let id = id.clone();
-        async move { completa(id).await }
+        let token = crate::sesion::token(&sesion);
+        async move { completa(id, token).await }
     });
 
     rsx! {

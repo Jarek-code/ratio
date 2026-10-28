@@ -1,0 +1,273 @@
+/* Pantalla Mi recetario (C4). Usa los tokens y el fondo de descubrir.css. */
+
+.mi-recetario {
+    display: flex;
+    max-width: 560px;
+    margin: 0 auto;
+    flex-direction: column;
+    gap: 16px;
+    padding: 22px 18px 96px;
+}
+
+.mi-recetario-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.mi-recetario-marca {
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 18px;
+}
+
+.mi-recetario-volver {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    padding: 0 16px;
+    background: var(--papel);
+    color: var(--tinta);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.mi-recetario-volver:hover,
+.mi-recetario-volver:focus-visible {
+    border-color: var(--cobre);
+    color: var(--cobre-oscuro);
+}
+
+.mi-recetario-cabeza {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mi-recetario-cabeza h1 {
+    margin: 0;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 34px;
+    font-weight: 400;
+    line-height: 1.1;
+}
+
+.mi-recetario-sub {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+/* Pestanas: el contador dice cuantas recetas caen en cada filtro. */
+.mi-recetario-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.mi-recetario-tab {
+    display: inline-flex;
+    min-height: 44px;
+    flex: 1 1 calc(50% - 4px);
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    background: var(--papel);
+    padding: 0 12px 0 14px;
+    color: var(--tinta);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.mi-recetario-tab.activo {
+    border-color: var(--tinta);
+    background: var(--tinta);
+    color: #FFF9F2;
+}
+
+.mi-recetario-cuenta {
+    display: grid;
+    min-width: 20px;
+    height: 20px;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(58, 35, 22, 0.08);
+    padding: 0 5px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.mi-recetario-tab.activo .mi-recetario-cuenta {
+    background: rgba(255, 249, 242, 0.18);
+}
+
+.mi-recetario-resumen {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.mi-recetario-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Tarjeta propia: mismo vaso que la biblioteca y el estado siempre a la vista. */
+.propia-tarjeta {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px 12px 6px;
+    border: 1px solid var(--borde);
+    border-radius: 18px;
+    background: var(--papel);
+    color: inherit;
+    text-decoration: none;
+}
+
+.propia-tarjeta:hover,
+.propia-tarjeta:focus-visible {
+    border-color: var(--cobre);
+}
+
+.propia-mini {
+    display: grid;
+    place-items: center;
+    height: 94px;
+}
+
+.propia-mini svg {
+    width: auto;
+    height: auto;
+    max-width: 80px;
+    max-height: 90px;
+}
+
+.propia-cuerpo {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.propia-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.propia-top h2 {
+    min-width: 0;
+    overflow: hidden;
+    margin: 0;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 19px;
+    font-weight: 400;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.propia-meta {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.propia-origen {
+    margin: 0;
+    color: var(--cobre-oscuro);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.propia-fechas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    color: var(--tinta-suave);
+    font-size: 11.5px;
+}
+
+.estado-chip {
+    flex: none;
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.estado-chip--publicada {
+    background: #E8F1EA;
+    color: #2F6B4F;
+}
+
+.estado-chip--privada {
+    background: #FBF0DF;
+    color: #8A5B22;
+}
+
+.estado-chip--borrador {
+    background: #F1EAE2;
+    color: #6B5B4F;
+}
+
+.estado-chip--oculta {
+    background: #FCE9E6;
+    color: #8E2C22;
+}
+
+.mi-recetario-accion {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--tinta);
+    border-radius: 999px;
+    margin-top: 12px;
+    padding: 0 16px;
+    background: var(--tinta);
+    color: #FFF9F2;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.mi-recetario-accion:hover,
+.mi-recetario-accion:focus-visible {
+    background: var(--cobre-oscuro);
+    border-color: var(--cobre-oscuro);
+}
+
+@media (min-width: 520px) {
+    .propia-tarjeta {
+        grid-template-columns: 100px minmax(0, 1fr);
+    }
+
+    .propia-mini {
+        height: 108px;
+    }
+
+    .propia-mini svg {
+        max-width: 92px;
+        max-height: 104px;
+    }
+}

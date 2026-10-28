@@ -179,19 +179,25 @@ impl FilaReceta {
     }
 }
 
-/// Trae una receta publicada con su vaso, sus capas y sus pasos.
+/// Trae una receta con su vaso, sus capas y sus pasos.
 ///
-/// Devuelve `None` si no existe, si es un borrador o si está oculta: la ficha solo
-/// enseña lo que se puede ver en La Barra.
+/// Devuelve la receta si esta publicada o si pertenece a la cuenta del token. Los
+/// borradores y las versiones privadas ajenas se tratan como inexistentes; una receta
+/// oculta no se devuelve ni a su autor.
 ///
 /// # Errores
 ///
 /// Devuelve `ServerFnError` si el servidor no tiene pool o si alguna consulta falla.
 #[server(endpoint = "receta")]
-pub async fn completa(id: String) -> Result<Option<RecetaCompleta>, ServerFnError> {
+pub async fn completa(
+    id: String,
+    token: Option<String>,
+) -> Result<Option<RecetaCompleta>, ServerFnError> {
     let Some(pool) = db::pool() else {
         return Err(ServerFnError::new("Database unavailable"));
     };
+
+    let cuenta = crate::auth::cuenta(token.as_deref()).await;
 
     let cabecera = sqlx::query_as::<_, FilaReceta>(
         r#"
@@ -220,11 +226,12 @@ pub async fn completa(id: String) -> Result<Option<RecetaCompleta>, ServerFnErro
         JOIN vaso v ON v.id = r.vaso_id
         JOIN usuario u ON u.id = r.autor_id
         WHERE r.id = $1::uuid
-          AND r.publicada_en IS NOT NULL
           AND NOT r.oculta
+          AND (r.publicada_en IS NOT NULL OR r.autor_id = $2::uuid)
         "#,
     )
     .bind(&id)
+    .bind(&cuenta)
     .fetch_optional(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;

@@ -15,6 +15,8 @@ pub struct RecetaResumen {
     pub tipo: String,
     /// Familia de la bebida, para los filtros de la biblioteca.
     pub familia: String,
+    /// Alias de quien creo la receta.
+    pub autor: String,
     /// Vaso y capas listos para el motor de proporciones.
     pub receta: proporciones::Receta,
     /// Tiempo de preparación declarado (min).
@@ -28,7 +30,7 @@ pub struct RecetaResumen {
 /// Fila de la consulta de recetas, con las medidas de su vaso (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
-struct FilaReceta {
+pub(crate) struct FilaReceta {
     /// Identificador de la receta (UUID en texto).
     id: String,
     /// Nombre visible de la bebida.
@@ -37,6 +39,8 @@ struct FilaReceta {
     tipo: String,
     /// Familia de la bebida.
     familia: String,
+    /// Alias de quien creo la receta.
+    autor: String,
     /// Volumen servido (ml, el del vaso si la receta no fija uno).
     capacidad_ml: f64,
     /// Volumen útil del vaso (ml).
@@ -68,7 +72,7 @@ struct FilaReceta {
 /// Fila de una capa líquida, con la receta a la que pertenece (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
-struct FilaCapa {
+pub(crate) struct FilaCapa {
     /// Receta a la que pertenece la capa (UUID en texto).
     receta_id: String,
     /// Nombre del ingrediente en esta receta.
@@ -86,7 +90,7 @@ struct FilaCapa {
 #[cfg(feature = "server")]
 impl FilaReceta {
     /// Convierte la fila y sus capas en el resumen que consume la lista.
-    fn a_resumen(self, capas: &[FilaCapa]) -> RecetaResumen {
+    pub(crate) fn a_resumen(self, capas: &[FilaCapa]) -> RecetaResumen {
         let asa = match self.asa.as_deref() {
             Some("chica") => Some(proporciones::Asa::Chica),
             Some("grande") => Some(proporciones::Asa::Grande),
@@ -122,6 +126,7 @@ impl FilaReceta {
             id: self.id,
             tipo: self.tipo,
             familia: self.familia,
+            autor: self.autor,
             receta: proporciones::Receta {
                 nombre: self.nombre,
                 vaso,
@@ -155,6 +160,7 @@ pub async fn catalogo() -> Result<Vec<RecetaResumen>, ServerFnError> {
                r.nombre,
                r.tipo,
                r.familia,
+               u.alias AS autor,
                COALESCE(r.capacidad_ml, v.capacidad_ml) AS capacidad_ml,
                v.capacidad_ml AS vaso_capacidad_ml,
                v.radio_boca,
@@ -170,6 +176,7 @@ pub async fn catalogo() -> Result<Vec<RecetaResumen>, ServerFnError> {
                r.intensidad
         FROM receta r
         JOIN vaso v ON v.id = r.vaso_id
+        JOIN usuario u ON u.id = r.autor_id
         WHERE r.publicada_en IS NOT NULL
           AND NOT r.oculta
         ORDER BY r.nombre

@@ -139,6 +139,13 @@ fn Encabezado() -> Element
 
                             span { class: "perfil-alias", "{alias}" }
 
+                            Link
+                            {
+                                to: crate::rutas::Rutas::MisRecetas,
+                                class: "perfil-enlace",
+                                "Mi recetario"
+                            }
+
                             button
                             {
                                 class: "perfil-salir",

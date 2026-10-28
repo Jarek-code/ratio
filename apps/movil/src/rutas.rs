@@ -8,6 +8,7 @@ use crate::descubrir;
 use crate::ficha;
 use crate::historial;
 use crate::login;
+use crate::mis_recetas;
 use crate::salud::PruebaSalud;
 
 /// Pantallas que ya existen.
@@ -31,6 +32,9 @@ pub enum Rutas {
     /// Ajuste de proporciones de una receta (C1).
     #[route("/receta/:id/ajustar")]
     Ajustar { id: String },
+    /// Recetario propio: versiones, publicaciones y borradores (C4).
+    #[route("/mis-recetas")]
+    MisRecetas,
 }
 
 /// Acceso; al validar el formulario continúa a Descubrir.
@@ -85,5 +89,13 @@ fn Ficha(id: String) -> Element {
 fn Ajustar(id: String) -> Element {
     rsx! {
         ajustar::PantallaAjustar { id }
+    }
+}
+
+/// Mi recetario (C4).
+#[component]
+fn MisRecetas() -> Element {
+    rsx! {
+        mis_recetas::PantallaMisRecetas {}
     }
 }

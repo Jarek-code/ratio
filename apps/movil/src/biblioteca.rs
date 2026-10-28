@@ -245,7 +245,7 @@ fn RecetaEnLista(receta: RecetaResumen) -> Element {
 }
 
 /// Nombre visible de una familia del catálogo (`con_leche` → «Con leche»).
-fn familia_legible(clave: &str) -> String {
+pub(crate) fn familia_legible(clave: &str) -> String {
     let texto = match clave {
         "cafe_coctel" => "Café coctel".to_string(),
         "con_leche" => "Con leche".to_string(),

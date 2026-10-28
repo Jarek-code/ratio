@@ -62,10 +62,12 @@ impl Preset {
 #[component]
 pub fn PantallaAjustar(id: String) -> Element {
     let id_recurso = id.clone();
+    let sesion = use_context::<crate::sesion::SenalSesion>();
     let mut recurso = use_resource(move || {
         let id = id_recurso.clone();
+        let token = crate::sesion::token(&sesion);
         async move {
-            let receta = completa(id).await?;
+            let receta = completa(id, token).await?;
             let catalogo = catalogo_vasos().await?;
             Ok::<_, ServerFnError>((receta, catalogo))
         }
