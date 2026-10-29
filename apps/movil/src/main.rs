@@ -6,6 +6,7 @@ mod biblioteca;
 mod descubrir;
 mod ficha;
 mod historial;
+mod lista_compra;
 mod login;
 mod marca;
 mod mis_recetas;

@@ -66,6 +66,11 @@ pub fn PantallaBiblioteca() -> Element {
                 p { class: "eyebrow", "Recetario" }
                 h1 { "Biblioteca" }
                 p { class: "biblioteca-sub", "Todas las recetas publicadas, con su proporción a la vista." }
+                Link {
+                    to: Rutas::ListaCompra,
+                    class: "chip biblioteca-compra",
+                    "Lista de compra"
+                }
             }
 
             Buscador { busqueda }

@@ -1,0 +1,502 @@
+/* Pantalla Lista de compra (C7). Usa los tokens y el fondo de descubrir.css. */
+
+.lista-compra {
+    display: flex;
+    max-width: 560px;
+    margin: 0 auto;
+    flex-direction: column;
+    gap: 16px;
+    padding: 22px 18px 96px;
+}
+
+.lista-compra-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.lista-compra-marca {
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 18px;
+}
+
+.lista-compra-volver {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    padding: 0 16px;
+    background: var(--papel);
+    color: var(--tinta);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.lista-compra-volver:hover,
+.lista-compra-volver:focus-visible {
+    border-color: var(--cobre);
+    color: var(--cobre-oscuro);
+}
+
+.lista-compra-cabeza {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lista-compra-cabeza h1 {
+    margin: 0;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 34px;
+    font-weight: 400;
+    line-height: 1.1;
+}
+
+.lista-compra-sub {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+/* Resumen: lo que se compra, para cuantas personas y en que unidad. */
+.compra-resumen {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border: 1px solid var(--borde);
+    border-radius: 20px;
+    background: var(--papel);
+    padding: 16px;
+}
+
+.compra-resumen-cabeza {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.compra-resumen-meta {
+    margin: 4px 0 0;
+    color: var(--tinta-suave);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.compra-metricas {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+}
+
+.compra-metrica {
+    min-width: 0;
+    border-radius: 14px;
+    background: #F7F0E6;
+    padding: 10px;
+}
+
+.compra-metrica dt {
+    color: var(--tinta-suave);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.compra-metrica dd {
+    overflow: hidden;
+    margin: 3px 0 0;
+    color: var(--tinta);
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 21px;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.compra-controles {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.compra-control-etiqueta {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--tinta-suave);
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.compra-stepper {
+    display: inline-flex;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    background: var(--papel);
+}
+
+.compra-stepper button {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    background: transparent;
+    color: var(--tinta);
+    font-size: 20px;
+    line-height: 1;
+}
+
+.compra-stepper button:disabled {
+    color: var(--borde);
+}
+
+.compra-stepper strong {
+    min-width: 28px;
+    text-align: center;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
+
+.compra-unidades {
+    display: inline-flex;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    background: var(--papel);
+    padding: 3px;
+}
+
+.compra-unidad {
+    min-width: 52px;
+    min-height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--tinta-suave);
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.compra-unidad.activa {
+    background: var(--tinta);
+    color: #FFF9F2;
+}
+
+/* Recetas elegidas y selector. */
+.compra-recetas,
+.compra-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.compra-seccion-cabeza {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.compra-seccion-cabeza h2 {
+    margin: 0;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 22px;
+    font-weight: 400;
+}
+
+.compra-cuenta {
+    color: var(--tinta-suave);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.compra-nota {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 13px;
+}
+
+.compra-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.compra-chip {
+    display: inline-flex;
+    min-height: 38px;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    background: var(--papel);
+    padding: 0 12px 0 14px;
+    color: var(--tinta);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.compra-chip:hover,
+.compra-chip:focus-visible {
+    border-color: var(--cobre);
+}
+
+.compra-chip-x {
+    color: var(--cobre);
+    font-size: 16px;
+    line-height: 1;
+}
+
+.compra-picker {
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    background: var(--papel);
+}
+
+.compra-picker summary {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    color: var(--cobre-oscuro);
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    list-style: none;
+}
+
+.compra-picker summary::-webkit-details-marker {
+    display: none;
+}
+
+.compra-picker summary::after {
+    color: var(--cobre);
+    content: "+";
+    font-size: 19px;
+    line-height: 1;
+}
+
+.compra-picker[open] summary::after {
+    content: "−";
+}
+
+.compra-buscador {
+    display: flex;
+    margin: 0 12px 10px;
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    background: #FBF7F0;
+}
+
+.compra-buscador input {
+    width: 100%;
+    min-height: 40px;
+    border: 0;
+    background: transparent;
+    padding: 0 12px;
+    color: var(--tinta);
+    font: inherit;
+    font-size: 13px;
+}
+
+.compra-picker-lista {
+    display: flex;
+    max-height: 260px;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0 8px 8px;
+    list-style: none;
+}
+
+.compra-picker-opcion {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto 24px;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    padding: 10px 8px;
+    color: var(--tinta);
+    text-align: left;
+}
+
+.compra-picker-opcion:hover,
+.compra-picker-opcion:focus-visible {
+    background: #F7F0E6;
+}
+
+.compra-picker-opcion.activa {
+    background: #F1E7DA;
+}
+
+.compra-picker-nombre {
+    overflow: hidden;
+    font-size: 13.5px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.compra-picker-familia {
+    color: var(--tinta-suave);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.compra-picker-check {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border: 1px solid var(--borde);
+    border-radius: 50%;
+    color: var(--cobre-oscuro);
+    font-size: 13px;
+}
+
+.compra-picker-opcion.activa .compra-picker-check {
+    border-color: var(--tinta);
+    background: var(--tinta);
+    color: #FFF9F2;
+}
+
+/* Lista agrupada con casillas. */
+.compra-vacio {
+    background: rgba(255, 253, 249, 0.7);
+}
+
+.compra-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.compra-grupo h3 {
+    margin: 6px 0 0;
+    color: var(--tinta-suave);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.compra-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.compra-item {
+    display: grid;
+    width: 100%;
+    min-height: 50px;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    background: var(--papel);
+    padding: 8px 14px 8px 10px;
+    color: var(--tinta);
+    text-align: left;
+}
+
+.compra-item:hover,
+.compra-item:focus-visible {
+    border-color: var(--cobre);
+}
+
+.compra-check {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    border: 1.5px solid var(--linea-2);
+    border-radius: 7px;
+    color: transparent;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.compra-item.marcado {
+    border-color: #CFE0D3;
+    background: #F3F8F3;
+}
+
+.compra-item.marcado .compra-check {
+    border-color: #2F6B4F;
+    background: #2F6B4F;
+    color: #FFF9F2;
+}
+
+.compra-nombre {
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 550;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.compra-item.marcado .compra-nombre {
+    color: var(--tinta-suave);
+    text-decoration: line-through;
+}
+
+.compra-cantidad {
+    color: var(--cobre-oscuro);
+    font-size: 12.5px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+@media (min-width: 520px) {
+    .lista-compra-cabeza h1 {
+        font-size: 38px;
+    }
+
+    .compra-resumen {
+        padding: 18px;
+    }
+}
+
+@media (max-width: 360px) {
+    .compra-metricas {
+        gap: 6px;
+    }
+
+    .compra-metrica {
+        padding: 8px;
+    }
+
+    .compra-metrica dd {
+        font-size: 18px;
+    }
+
+    .compra-picker-opcion {
+        grid-template-columns: minmax(0, 1fr) 24px;
+    }
+
+    .compra-picker-familia {
+        display: none;
+    }
+}

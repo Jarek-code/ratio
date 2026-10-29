@@ -7,6 +7,7 @@ use crate::biblioteca;
 use crate::descubrir;
 use crate::ficha;
 use crate::historial;
+use crate::lista_compra;
 use crate::login;
 use crate::mis_recetas;
 use crate::salud::PruebaSalud;
@@ -35,6 +36,9 @@ pub enum Rutas {
     /// Recetario propio: versiones, publicaciones y borradores (C4).
     #[route("/mis-recetas")]
     MisRecetas,
+    /// Lista de compra a partir de las recetas elegidas (C7).
+    #[route("/lista-compra")]
+    ListaCompra,
 }
 
 /// Acceso; al validar el formulario continúa a Descubrir.
@@ -97,5 +101,13 @@ fn Ajustar(id: String) -> Element {
 fn MisRecetas() -> Element {
     rsx! {
         mis_recetas::PantallaMisRecetas {}
+    }
+}
+
+/// Lista de compra (C7).
+#[component]
+fn ListaCompra() -> Element {
+    rsx! {
+        lista_compra::PantallaListaCompra {}
     }
 }

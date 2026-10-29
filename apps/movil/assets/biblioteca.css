@@ -29,6 +29,13 @@
     font-size: 14px;
 }
 
+.biblioteca-compra {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    text-decoration: none;
+}
+
 .biblioteca-cuenta {
     margin: 0;
     color: var(--tinta-suave);
