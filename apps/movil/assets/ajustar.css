@@ -278,7 +278,7 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* Cierre: restablecer y la nota de que C2 todavía no existe. */
+/* Cierre: restablecer los ajustes o guardar la versión privada. */
 .ajustar-acciones {
     display: flex;
     flex-wrap: wrap;

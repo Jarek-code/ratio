@@ -148,11 +148,18 @@ pub async fn mis_recetas(token: String) -> Result<Vec<RecetaPropia>, ServerFnErr
 
     let capas = sqlx::query_as::<_, FilaCapa>(
         r#"
-        SELECT c.receta_id::text AS receta_id, c.nombre, c.cantidad, c.graduacion_pct, c.color, c.dilucion
+        SELECT c.receta_id::text AS receta_id,
+               c.ingrediente_id::text AS ingrediente_id,
+               c.posicion,
+               c.nombre,
+               c.unidad,
+               c.cantidad,
+               c.graduacion_pct,
+               c.color,
+               c.dilucion
         FROM componente_receta c
         JOIN receta r ON r.id = c.receta_id
-        WHERE c.unidad = 'ml'
-          AND r.autor_id = $1::uuid
+        WHERE r.autor_id = $1::uuid
         ORDER BY c.receta_id, c.posicion
         "#,
     )

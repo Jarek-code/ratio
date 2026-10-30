@@ -5,6 +5,7 @@
 //! ajuste individual que hizo la persona. El vaso y la graduación se recalculan con el
 //! mismo motor que usa la ficha (B3).
 
+use api::guardar::{ComponenteNuevo, RecetaNueva, guardar_receta};
 use api::receta::{RecetaCompleta, completa};
 use api::vasos::{VasoOpcion, vasos as catalogo_vasos};
 use dioxus::prelude::*;
@@ -147,15 +148,22 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
         }
     };
 
+    let sesion = use_context::<crate::sesion::SenalSesion>();
     let mut factores = use_signal(|| vec![1.0_f64; total_ingredientes]);
     let mut comensales = use_signal(|| 1_u32);
     let mut indice_vaso = use_signal(move || indice_inicial);
+    let mut guardando = use_signal(|| false);
+    let mut guardada = use_signal(|| None::<String>);
+    let mut aviso = use_signal(|| None::<String>);
 
     let Some(vaso_actual) = opciones.get(*indice_vaso.read()).cloned() else {
         return rsx! {
             p { class: "estado", "No hay vasos disponibles para ajustar la receta." }
         };
     };
+
+    let receta_para_guardar = receta.clone();
+    let vaso_para_guardar = vaso_actual.clone();
 
     let factores_actuales = factores.read().clone();
     let comensales_actuales = *comensales.read();
@@ -421,7 +429,114 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                 },
                 "Restablecer"
             }
-            span { class: "mini", "Guardar la versión llegará con C2." }
+
+            button {
+                class: "chip",
+                r#type: "button",
+                disabled: *guardando.read(),
+                onclick: move |_| {
+                    if *guardando.read() {
+                        return;
+                    }
+
+                    let Some(token) = crate::sesion::token(&sesion) else {
+                        aviso.set(Some("Inicia sesión para guardar una versión.".to_string()));
+                        return;
+                    };
+
+                    // La version guarda las proporciones por comensal; los comensales
+                    // siguen siendo un ajuste de la vista y no una propiedad de la receta.
+                    let factores_guardar = factores.read().clone();
+                    let mut componentes = Vec::new();
+                    let mut indice_liquido = 0;
+
+                    for capa in &receta_para_guardar.componentes {
+                        if capa.unidad != "ml" {
+                            continue;
+                        }
+
+                        let factor = factores_guardar
+                            .get(indice_liquido)
+                            .copied()
+                            .unwrap_or(1.0);
+                        indice_liquido += 1;
+
+                        // Un factor cero quita la capa; no se guarda una cantidad invalida.
+                        if factor <= 0.0 {
+                            continue;
+                        }
+
+                        componentes.push(ComponenteNuevo {
+                            ingrediente_id: capa.ingrediente_id.clone(),
+                            posicion: capa.posicion,
+                            cantidad: capa.cantidad * factor,
+                        });
+                    }
+
+                    let nombre_version = format!(
+                        "{} · versión",
+                        receta_para_guardar.receta.nombre
+                    )
+                    .chars()
+                    .take(120)
+                    .collect::<String>();
+
+                    let datos = RecetaNueva {
+                        origen_id: receta_para_guardar.id.clone(),
+                        nombre: nombre_version,
+                        vaso_id: vaso_para_guardar.id.clone(),
+                        capacidad_ml: vaso_para_guardar.vaso.capacidad_ml,
+                        componentes,
+                    };
+
+                    guardando.set(true);
+                    guardada.set(None);
+                    aviso.set(None);
+
+                    spawn(async move {
+                        match guardar_receta(token, datos).await {
+                            Ok(resultado) => {
+                                let mensaje = if resultado.advertencias.is_empty() {
+                                    "Versión guardada. Ya aparece en Mi recetario.".to_string()
+                                } else {
+                                    format!(
+                                        "Versión guardada. {}",
+                                        resultado.advertencias.join(" ")
+                                    )
+                                };
+                                aviso.set(Some(mensaje));
+                                guardada.set(Some(resultado.receta_id));
+                            }
+                            Err(causa) => {
+                                aviso.set(Some(format!("No pudimos guardar la versión: {causa}")));
+                            }
+                        }
+
+                        guardando.set(false);
+                    });
+                },
+                if *guardando.read() {
+                    "Guardando…"
+                } else {
+                    "Guardar versión privada"
+                }
+            }
+
+            if let Some(id) = guardada.read().as_ref() {
+                Link {
+                    to: Rutas::Ficha { id: id.clone() },
+                    class: "mini",
+                    "Abrir versión"
+                }
+            }
+        }
+
+        if let Some(mensaje) = aviso.read().as_ref() {
+            p {
+                class: "ajustar-aviso",
+                role: "status",
+                "{mensaje}"
+            }
         }
     }
 }

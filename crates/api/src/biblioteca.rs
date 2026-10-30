@@ -6,6 +6,30 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "server")]
 use crate::db;
 
+/// Capa tal como vive en la base, con su ingrediente y su unidad.
+///
+/// Se envia junto al resumen y a la ficha para que C2 pueda guardar la version sin
+/// adivinar IDs y para que C7 pueda agrupar por ingrediente y separar los solidos.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ComponenteFicha {
+    /// Ingrediente del catalogo al que apunta la capa.
+    pub ingrediente_id: String,
+    /// Orden de la capa dentro de la receta (0 = fondo).
+    pub posicion: i16,
+    /// Nombre copiado dentro de esta receta.
+    pub nombre: String,
+    /// Unidad de la cantidad: "ml" o "mg".
+    pub unidad: String,
+    /// Cantidad en la unidad indicada.
+    pub cantidad: f64,
+    /// Alcohol por volumen (0-100).
+    pub graduacion_pct: f64,
+    /// Color de la capa en hex, si lo tiene.
+    pub color: Option<String>,
+    /// Si la capa es agua o hielo derretido.
+    pub dilucion: bool,
+}
+
 /// Receta publicada con lo necesario para listarla y dibujar su miniatura.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecetaResumen {
@@ -19,6 +43,8 @@ pub struct RecetaResumen {
     pub autor: String,
     /// Vaso y capas listos para el motor de proporciones.
     pub receta: proporciones::Receta,
+    /// Capas con ingrediente y unidad, para C2 y C7.
+    pub componentes: Vec<ComponenteFicha>,
     /// Tiempo de preparación declarado (min).
     pub minutos: Option<i16>,
     /// Dificultad declarada (1-5).
@@ -69,15 +95,21 @@ pub(crate) struct FilaReceta {
     intensidad: Option<i16>,
 }
 
-/// Fila de una capa líquida, con la receta a la que pertenece (solo servidor).
+/// Fila de una capa, con la receta a la que pertenece (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
 pub(crate) struct FilaCapa {
     /// Receta a la que pertenece la capa (UUID en texto).
     receta_id: String,
+    /// Ingrediente del catalogo al que apunta la capa.
+    ingrediente_id: String,
+    /// Orden de la capa dentro de la receta.
+    posicion: i16,
     /// Nombre del ingrediente en esta receta.
     nombre: String,
-    /// Cantidad en mililitros.
+    /// Unidad de la cantidad: "ml" o "mg".
+    unidad: String,
+    /// Cantidad en la unidad indicada.
     cantidad: f64,
     /// Alcohol por volumen (0-100).
     graduacion_pct: f64,
@@ -109,9 +141,15 @@ impl FilaReceta {
             plato: self.plato,
         };
 
-        let ingredientes = capas
+        let capas: Vec<&FilaCapa> = capas
             .iter()
             .filter(|capa| capa.receta_id == self.id)
+            .collect();
+
+        // El motor solo dibuja liquidos; los solidos quedan en `componentes`.
+        let ingredientes = capas
+            .iter()
+            .filter(|capa| capa.unidad == "ml")
             .map(|capa| proporciones::Componente {
                 nombre: capa.nombre.clone(),
                 ml: capa.cantidad,
@@ -119,6 +157,20 @@ impl FilaReceta {
                 dilucion: capa.dilucion,
                 color: capa.color.clone(),
                 superficie: None,
+            })
+            .collect();
+
+        let componentes = capas
+            .iter()
+            .map(|capa| ComponenteFicha {
+                ingrediente_id: capa.ingrediente_id.clone(),
+                posicion: capa.posicion,
+                nombre: capa.nombre.clone(),
+                unidad: capa.unidad.clone(),
+                cantidad: capa.cantidad,
+                graduacion_pct: capa.graduacion_pct,
+                color: capa.color.clone(),
+                dilucion: capa.dilucion,
             })
             .collect();
 
@@ -133,6 +185,7 @@ impl FilaReceta {
                 capacidad_ml: self.capacidad_ml,
                 ingredientes,
             },
+            componentes,
             minutos: self.minutos,
             dificultad: self.dificultad,
             intensidad: self.intensidad,
@@ -188,11 +241,18 @@ pub async fn catalogo() -> Result<Vec<RecetaResumen>, ServerFnError> {
 
     let capas = sqlx::query_as::<_, FilaCapa>(
         r#"
-        SELECT c.receta_id::text AS receta_id, c.nombre, c.cantidad, c.graduacion_pct, c.color, c.dilucion
+        SELECT c.receta_id::text AS receta_id,
+               c.ingrediente_id::text AS ingrediente_id,
+               c.posicion,
+               c.nombre,
+               c.unidad,
+               c.cantidad,
+               c.graduacion_pct,
+               c.color,
+               c.dilucion
         FROM componente_receta c
         JOIN receta r ON r.id = c.receta_id
-        WHERE c.unidad = 'ml'
-          AND r.publicada_en IS NOT NULL
+        WHERE r.publicada_en IS NOT NULL
           AND NOT r.oculta
         ORDER BY c.receta_id, c.posicion
         "#,

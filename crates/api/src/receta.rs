@@ -3,6 +3,8 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::biblioteca::ComponenteFicha;
+
 #[cfg(feature = "server")]
 use crate::db;
 
@@ -35,6 +37,8 @@ pub struct RecetaCompleta {
     pub vaso_nombre: String,
     /// Vaso y capas listos para el motor de proporciones.
     pub receta: proporciones::Receta,
+    /// Capas con ingrediente y unidad, para guardar una version desde C2.
+    pub componentes: Vec<ComponenteFicha>,
     /// Pasos en orden, del primero al último.
     pub pasos: Vec<PasoFicha>,
     /// Tiempo de preparación declarado (min).
@@ -95,13 +99,19 @@ struct FilaReceta {
     notas: Vec<String>,
 }
 
-/// Fila de una capa líquida (solo servidor).
+/// Fila de una capa (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
 struct FilaCapa {
+    /// Ingrediente del catalogo al que apunta la capa.
+    ingrediente_id: String,
+    /// Orden de la capa dentro de la receta.
+    posicion: i16,
     /// Nombre del ingrediente en esta receta.
     nombre: String,
-    /// Cantidad en mililitros.
+    /// Unidad de la cantidad: "ml" o "mg".
+    unidad: String,
+    /// Cantidad en la unidad indicada.
     cantidad: f64,
     /// Alcohol por volumen (0-100).
     graduacion_pct: f64,
@@ -145,15 +155,31 @@ impl FilaReceta {
             plato: self.plato,
         };
 
+        // El motor solo dibuja liquidos; los solidos quedan en `componentes`.
         let ingredientes = capas
-            .into_iter()
+            .iter()
+            .filter(|capa| capa.unidad == "ml")
             .map(|capa| proporciones::Componente {
-                nombre: capa.nombre,
+                nombre: capa.nombre.clone(),
                 ml: capa.cantidad,
                 graduacion: capa.graduacion_pct,
                 dilucion: capa.dilucion,
-                color: capa.color,
+                color: capa.color.clone(),
                 superficie: None,
+            })
+            .collect();
+
+        let componentes = capas
+            .into_iter()
+            .map(|capa| ComponenteFicha {
+                ingrediente_id: capa.ingrediente_id,
+                posicion: capa.posicion,
+                nombre: capa.nombre,
+                unidad: capa.unidad,
+                cantidad: capa.cantidad,
+                graduacion_pct: capa.graduacion_pct,
+                color: capa.color,
+                dilucion: capa.dilucion,
             })
             .collect();
 
@@ -170,6 +196,7 @@ impl FilaReceta {
                 capacidad_ml: self.capacidad_ml,
                 ingredientes,
             },
+            componentes,
             pasos,
             minutos: self.minutos,
             dificultad: self.dificultad,
@@ -242,10 +269,16 @@ pub async fn completa(
 
     let capas = sqlx::query_as::<_, FilaCapa>(
         r#"
-        SELECT nombre, cantidad, graduacion_pct, color, dilucion
+        SELECT ingrediente_id::text AS ingrediente_id,
+               posicion,
+               nombre,
+               unidad,
+               cantidad,
+               graduacion_pct,
+               color,
+               dilucion
         FROM componente_receta
         WHERE receta_id = $1::uuid
-          AND unidad = 'ml'
         ORDER BY posicion
         "#,
     )
