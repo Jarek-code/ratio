@@ -45,6 +45,8 @@ fn enlazar_contratos() {
         api::auth::sesion,
         api::biblioteca::catalogo,
         api::descubrir::sugerencias_dia,
+        api::guardados::alternar_guardado,
+        api::guardados::guardados,
         api::guardar::guardar_receta,
         api::historial::versiones,
         api::ingredientes::catalogo,

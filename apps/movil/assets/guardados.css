@@ -1,0 +1,223 @@
+/* Pantalla Guardados (C5). Usa los tokens y el fondo de descubrir.css. */
+
+.guardados {
+    display: flex;
+    max-width: 560px;
+    margin: 0 auto;
+    flex-direction: column;
+    gap: 16px;
+    padding: 22px 18px 96px;
+}
+
+.guardados-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.guardados-marca {
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 18px;
+}
+
+.guardados-volver {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    padding: 0 16px;
+    background: var(--papel);
+    color: var(--tinta);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.guardados-volver:hover,
+.guardados-volver:focus-visible {
+    border-color: var(--cobre);
+    color: var(--cobre-oscuro);
+}
+
+.guardados-cabeza {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.guardados-cabeza h1 {
+    margin: 0;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 34px;
+    font-weight: 400;
+    line-height: 1.1;
+}
+
+.guardados-sub {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.guardados-cuenta {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.guardados-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* La tarjeta entera abre la ficha; Quitar vive fuera del enlace para ser un botón real. */
+.guardado-tarjeta {
+    position: relative;
+}
+
+.guardado-enlace {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 12px 64px 12px 6px;
+    border: 1px solid var(--borde);
+    border-radius: 18px;
+    background: var(--papel);
+    color: inherit;
+    text-decoration: none;
+}
+
+.guardado-enlace:hover,
+.guardado-enlace:focus-visible {
+    border-color: var(--cobre);
+}
+
+.guardado-mini {
+    display: grid;
+    place-items: center;
+    height: 94px;
+}
+
+.guardado-mini svg {
+    width: auto;
+    height: auto;
+    max-width: 80px;
+    max-height: 90px;
+}
+
+.guardado-cuerpo {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.guardado-cuerpo h2 {
+    overflow: hidden;
+    margin: 0;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 19px;
+    font-weight: 400;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.guardado-meta,
+.guardado-fecha,
+.guardado-ultima {
+    overflow: hidden;
+    margin: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.guardado-meta {
+    color: var(--tinta-suave);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.guardado-fecha,
+.guardado-ultima {
+    color: var(--tinta-suave);
+    font-size: 11.5px;
+}
+
+.guardado-quitar {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    min-height: 36px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    padding: 0 8px;
+    color: var(--cobre);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.guardado-quitar:hover,
+.guardado-quitar:focus-visible {
+    background: rgba(185, 99, 59, 0.08);
+}
+
+.guardado-quitar:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
+
+.guardado-error {
+    margin: -4px 14px 10px 108px;
+    color: #8E2C22;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.guardados-accion {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--tinta);
+    border-radius: 999px;
+    margin-top: 12px;
+    padding: 0 16px;
+    background: var(--tinta);
+    color: #FFF9F2;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.guardados-accion:hover,
+.guardados-accion:focus-visible {
+    background: var(--cobre-oscuro);
+    border-color: var(--cobre-oscuro);
+}
+
+@media (min-width: 520px) {
+    .guardado-enlace {
+        grid-template-columns: 100px minmax(0, 1fr);
+    }
+
+    .guardado-mini {
+        height: 108px;
+    }
+
+    .guardado-mini svg {
+        max-width: 92px;
+        max-height: 104px;
+    }
+}

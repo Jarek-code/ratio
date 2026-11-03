@@ -1,5 +1,6 @@
 //! Ficha de receta (B3): el vaso con sus capas, las proporciones, los datos y los pasos.
 
+use api::guardados::alternar_guardado;
 use api::receta::{PasoFicha, RecetaCompleta, completa};
 use dioxus::prelude::*;
 
@@ -70,6 +71,11 @@ fn BarraSuperior() -> Element {
 /// Cuerpo de la ficha: vaso, proporciones, acciones y pasos.
 #[component]
 fn Contenido(receta: RecetaCompleta) -> Element {
+    let sesion = use_context::<crate::sesion::SenalSesion>();
+    let mut guardando = use_signal(|| false);
+    let mut guardada = use_signal(|| false);
+    let mut aviso_guardado = use_signal(|| None::<String>);
+    let id_guardar = receta.id.clone();
     let capas = proporciones::capas(&receta.receta);
     let graduacion = proporciones::graduacion(&receta.receta);
     let svg = proporciones::svg(
@@ -195,9 +201,52 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                     Proximamente {
                         button { class: "chip", r#type: "button", "aria-disabled": "true", "Derivar" }
                     }
-                    Proximamente {
-                        button { class: "chip", r#type: "button", "aria-disabled": "true", "Guardar" }
+                    button {
+                        class: "chip",
+                        r#type: "button",
+                        disabled: *guardando.read() || *guardada.read(),
+                        onclick: move |_| {
+                            if *guardando.read() || *guardada.read() {
+                                return;
+                            }
+
+                            let Some(token) = crate::sesion::token(&sesion) else {
+                                aviso_guardado.set(Some(
+                                    "Inicia sesión para guardar la receta.".to_string(),
+                                ));
+                                return;
+                            };
+
+                            let id = id_guardar.clone();
+                            guardando.set(true);
+                            aviso_guardado.set(None);
+                            spawn(async move {
+                                match alternar_guardado(token, id, true).await {
+                                    Ok(_) => {
+                                        guardada.set(true);
+                                        guardando.set(false);
+                                    }
+                                    Err(causa) => {
+                                        aviso_guardado.set(Some(format!(
+                                            "No se pudo guardar: {causa}"
+                                        )));
+                                        guardando.set(false);
+                                    }
+                                }
+                            });
+                        },
+                        if *guardada.read() {
+                            "Guardado"
+                        } else if *guardando.read() {
+                            "Guardando…"
+                        } else {
+                            "Guardar"
+                        }
                     }
+                }
+
+                if let Some(texto) = aviso_guardado() {
+                    p { class: "ficha-aviso", role: "alert", "{texto}" }
                 }
             }
         }

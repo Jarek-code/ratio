@@ -5,6 +5,7 @@ mod barra;
 mod biblioteca;
 mod descubrir;
 mod ficha;
+mod guardados;
 mod historial;
 mod lista_compra;
 mod login;

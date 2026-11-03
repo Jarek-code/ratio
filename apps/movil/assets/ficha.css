@@ -170,6 +170,13 @@
     width: 100%;
 }
 
+.ficha-aviso {
+    margin: 0;
+    color: #8E2C22;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
 /* Pasos de preparación. */
 .pasos {
     display: flex;

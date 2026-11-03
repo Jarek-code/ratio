@@ -9,6 +9,7 @@ pub mod biblioteca; // Catálogo completo de la pantalla Biblioteca (B2)
 #[cfg(feature = "server")]
 pub mod db;
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
+pub mod guardados; // Recetas guardadas por la cuenta (C5)
 pub mod guardar; // C2: guardar una version privada ajustada
 pub mod historial; // Árbol de versiones de una bebida (B6)
 pub mod ingredientes; // Catálogo de ingredientes para añadir capas desde C1

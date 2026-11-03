@@ -6,6 +6,7 @@ use crate::ajustar;
 use crate::biblioteca;
 use crate::descubrir;
 use crate::ficha;
+use crate::guardados;
 use crate::historial;
 use crate::lista_compra;
 use crate::login;
@@ -33,6 +34,9 @@ pub enum Rutas {
     /// Ajuste de proporciones de una receta (C1).
     #[route("/receta/:id/ajustar")]
     Ajustar { id: String },
+    /// Recetas guardadas por la cuenta (C5).
+    #[route("/guardados")]
+    Guardados,
     /// Recetario propio: versiones, publicaciones y borradores (C4).
     #[route("/mis-recetas")]
     MisRecetas,
@@ -93,6 +97,14 @@ fn Ficha(id: String) -> Element {
 fn Ajustar(id: String) -> Element {
     rsx! {
         ajustar::PantallaAjustar { id }
+    }
+}
+
+/// Guardados (C5).
+#[component]
+fn Guardados() -> Element {
+    rsx! {
+        guardados::PantallaGuardados {}
     }
 }
 

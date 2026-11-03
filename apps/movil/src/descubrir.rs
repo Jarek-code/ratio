@@ -146,6 +146,13 @@ fn Encabezado() -> Element
                                 "Mi recetario"
                             }
 
+                            Link
+                            {
+                                to: crate::rutas::Rutas::Guardados,
+                                class: "perfil-enlace",
+                                "Guardados"
+                            }
+
                             button
                             {
                                 class: "perfil-salir",
