@@ -155,10 +155,10 @@ impl FilaReceta {
             plato: self.plato,
         };
 
-        // El motor solo dibuja liquidos; los solidos quedan en `componentes`.
+        // De momento 1 mg = 1 ml: el motor recibe todas las capas como volumen. El
+        // detalle con unidad se conserva en `componentes` para guardar y listar.
         let ingredientes = capas
             .iter()
-            .filter(|capa| capa.unidad == "ml")
             .map(|capa| proporciones::Componente {
                 nombre: capa.nombre.clone(),
                 ml: capa.cantidad,

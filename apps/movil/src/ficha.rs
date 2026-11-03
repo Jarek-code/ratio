@@ -142,16 +142,30 @@ fn Contenido(receta: RecetaCompleta) -> Element {
             }
 
             ul { class: "leyenda",
-                for capa in capas.capas.iter() {
-                    li { class: "leyenda-fila",
-                        span {
-                            class: "leyenda-punto",
-                            style: "background:{capa.color.clone().unwrap_or_else(|| COLOR_RESERVA.to_string())}",
-                            "aria-hidden": "true",
+                for (indice, capa) in capas.capas.iter().enumerate() {
+                    {
+                        // El motor mide todo en ml; la unidad original solo cambia la
+                        // etiqueta. De momento 1 mg se dibuja como 1 ml.
+                        let unidad = receta
+                            .componentes
+                            .get(indice)
+                            .map(|componente| {
+                                if componente.unidad == "mg" { "mg" } else { "ml" }
+                            })
+                            .unwrap_or("ml");
+
+                        rsx! {
+                            li { class: "leyenda-fila",
+                                span {
+                                    class: "leyenda-punto",
+                                    style: "background:{capa.color.clone().unwrap_or_else(|| COLOR_RESERVA.to_string())}",
+                                    "aria-hidden": "true",
+                                }
+                                span { class: "leyenda-nombre", "{capa.nombre}" }
+                                span { class: "leyenda-ml", "{capa.ml:.0} {unidad}" }
+                                span { class: "leyenda-pct", "{capa.porcentaje:.0} %" }
+                            }
                         }
-                        span { class: "leyenda-nombre", "{capa.nombre}" }
-                        span { class: "leyenda-ml", "{capa.ml:.0} ml" }
-                        span { class: "leyenda-pct", "{capa.porcentaje:.0} %" }
                     }
                 }
             }

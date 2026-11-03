@@ -514,14 +514,20 @@ fn agregar(lista: &[RecetaResumen], ids: &[String], comensales: u32) -> Vec<Comp
     let mut acumulado: HashMap<String, Compra> = HashMap::new();
 
     for receta in lista.iter().filter(|receta| ids.contains(&receta.id)) {
-        for ingrediente in &receta.receta.ingredientes {
-            let clave = clave_compra(&ingrediente.nombre);
+        // C7 solo maneja ml: los componentes mg siguen fuera de la lista hasta que
+        // la pantalla soporte cantidades con unidad propia.
+        for componente in receta
+            .componentes
+            .iter()
+            .filter(|componente| componente.unidad == "ml")
+        {
+            let clave = clave_compra(&componente.nombre);
             let entrada = acumulado.entry(clave).or_insert_with(|| Compra {
-                nombre: ingrediente.nombre.clone(),
-                categoria: categoria(&ingrediente.nombre),
+                nombre: componente.nombre.clone(),
+                categoria: categoria(&componente.nombre),
                 ml: 0.0,
             });
-            entrada.ml += ingrediente.ml * f64::from(comensales);
+            entrada.ml += componente.cantidad * f64::from(comensales);
         }
     }
 

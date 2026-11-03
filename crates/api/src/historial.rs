@@ -124,12 +124,13 @@ fn ratio_de(total: f64, base: f64) -> String {
     }
 }
 
-/// Suma de las cantidades en mililitros de una lista de componentes.
+/// Suma de las cantidades de una lista de componentes.
+///
+/// De momento 1 mg cuenta como 1 ml, igual que en el motor de proporciones.
 #[cfg(feature = "server")]
 fn total_ml_de(componentes: &[FilaComponente]) -> f64 {
     componentes
         .iter()
-        .filter(|componente| componente.unidad == "ml")
         .map(|componente| componente.cantidad)
         .sum()
 }
@@ -143,8 +144,8 @@ fn base_ml_de(componentes: &[FilaComponente]) -> f64 {
         .max_by(|a, b| a.graduacion_pct.total_cmp(&b.graduacion_pct));
 
     match con_alcohol.or_else(|| componentes.first()) {
-        Some(componente) if componente.unidad == "ml" => componente.cantidad,
-        _ => 0.0,
+        Some(componente) => componente.cantidad,
+        None => 0.0,
     }
 }
 
@@ -171,7 +172,10 @@ fn cambios_de(version: &[FilaComponente], origen: &[FilaComponente]) -> Vec<Camb
             .find(|componente| componente.nombre == nombre)
             .map(|componente| componente.cantidad);
 
-        let despues = actual.as_ref().map(|(cantidad, _)| *cantidad).unwrap_or(0.0);
+        let despues = actual
+            .as_ref()
+            .map(|(cantidad, _)| *cantidad)
+            .unwrap_or(0.0);
         let antes = previo.unwrap_or(0.0);
 
         if (despues - antes).abs() < 0.05 {

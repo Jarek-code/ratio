@@ -11,6 +11,7 @@ pub mod db;
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
 pub mod guardar; // C2: guardar una version privada ajustada
 pub mod historial; // Árbol de versiones de una bebida (B6)
+pub mod ingredientes; // Catálogo de ingredientes para añadir capas desde C1
 pub mod receta; // Ficha completa de una receta (B3)
 pub mod recetario; // Recetario propio de la cuenta (C4)
 pub mod vasos; // Catálogo de vasos para el editor de proporciones (C1)

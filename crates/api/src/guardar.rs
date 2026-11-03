@@ -1,8 +1,10 @@
 //! C2: guardar una version privada de una receta ajustada.
 //!
 //! La version es una fila nueva de `receta` con `receta_origen_id`; nunca modifica ni
-//! despublica la receta original. Las capas copian la metadata del origen y solo cambian
-//! las cantidades de los liquidos que el usuario ajusto en C1.
+//! despublica la receta original. Las capas copian la metadata del origen y cambian las
+//! cantidades que el usuario ajusto en C1. C1 tambien puede añadir ingredientes del
+//! catalogo (ml o mg); se guardan al final de la pila y su metadata se lee de la base, no
+//! del cliente. De momento 1 mg cuenta como 1 ml en la capacidad y en el motor.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,9 +17,21 @@ use crate::db;
 pub struct ComponenteNuevo {
     /// Ingrediente del catalogo al que apunta la capa.
     pub ingrediente_id: String,
-    /// Posicion original de la capa; permite conservar solidos y orden.
+    /// Posicion original de la capa; conserva el orden.
     pub posicion: i16,
-    /// Cantidad nueva para una capa liquida, en mililitros.
+    /// Cantidad nueva en la unidad original de la capa (ml o mg).
+    pub cantidad: f64,
+}
+
+/// Ingrediente del catalogo que C1 añadio a la receta.
+///
+/// Solo se envia el id y la cantidad: nombre, unidad, graduacion, color y dilucion se
+/// copian del catalogo en el servidor para no confiar en datos del cliente.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ComponenteAgregado {
+    /// Ingrediente del catalogo al que apunta la capa nueva.
+    pub ingrediente_id: String,
+    /// Cantidad de la capa nueva, en la unidad del catalogo.
     pub cantidad: f64,
 }
 
@@ -32,8 +46,11 @@ pub struct RecetaNueva {
     pub vaso_id: String,
     /// Capacidad efectiva elegida en C1.
     pub capacidad_ml: f64,
-    /// Capas liquidas ajustadas; los solidos se copian del origen.
+    /// Capas ajustadas; los mg se cuentan como ml (1:1 temporal).
     pub componentes: Vec<ComponenteNuevo>,
+    /// Capas nuevas que nacieron del desplegable de C1.
+    #[serde(default)]
+    pub agregados: Vec<ComponenteAgregado>,
 }
 
 /// Resultado de guardar una version.
@@ -87,8 +104,22 @@ struct FilaComponenteOrigen {
     nombre: String,
     /// Unidad de la cantidad.
     unidad: String,
-    /// Cantidad original.
-    cantidad: f64,
+    /// Alcohol por volumen.
+    graduacion_pct: f64,
+    /// Color de la capa.
+    color: Option<String>,
+    /// Si es agua o hielo derretido.
+    dilucion: bool,
+}
+
+/// Fila del catalogo para copiar la metadata de un ingrediente agregado (solo servidor).
+#[cfg(feature = "server")]
+#[derive(sqlx::FromRow)]
+struct FilaIngredienteCatalogo {
+    /// Nombre copiado a la capa.
+    nombre: String,
+    /// Unidad de la cantidad: "ml" o "mg".
+    unidad: String,
     /// Alcohol por volumen.
     graduacion_pct: f64,
     /// Color de la capa.
@@ -196,7 +227,6 @@ pub async fn guardar_receta(
                posicion,
                nombre,
                unidad,
-               cantidad,
                graduacion_pct,
                color,
                dilucion
@@ -210,38 +240,40 @@ pub async fn guardar_receta(
     .await
     .map_err(|_| ServerFnError::new("No se pudieron leer los ingredientes"))?;
 
+    // Las capas nuevas se apilan despues de las del origen para no reordenar la bebida.
+    let posicion_siguiente = capas.iter().map(|capa| capa.posicion).max().unwrap_or(-1) + 1;
+    let ids_origen: Vec<String> = capas
+        .iter()
+        .map(|capa| capa.ingrediente_id.clone())
+        .collect();
     let mut usados = vec![false; datos.componentes.len()];
-    let mut capas_nuevas = Vec::with_capacity(capas.len());
+    let mut capas_nuevas = Vec::with_capacity(capas.len() + datos.agregados.len());
     let mut total_ml = 0.0;
     let mut tiene_alcohol = false;
 
     for capa in capas {
-        // Un factor cero en C1 significa quitar la capa, no guardar una cantidad invalida.
-        let cantidad = if capa.unidad == "ml" {
-            let Some(indice) = datos.componentes.iter().position(|enviado| {
-                enviado.posicion == capa.posicion && enviado.ingrediente_id == capa.ingrediente_id
-            }) else {
-                continue;
-            };
-
-            if usados[indice] {
-                return Err(ServerFnError::new(
-                    "Hay un ingrediente repetido en la version",
-                ));
-            }
-
-            usados[indice] = true;
-            let cantidad = datos.componentes[indice].cantidad;
-            if !cantidad.is_finite() || cantidad <= 0.0 {
-                return Err(ServerFnError::new(
-                    "Las cantidades deben ser mayores que cero",
-                ));
-            }
-            total_ml += cantidad;
-            cantidad
-        } else {
-            capa.cantidad
+        // Un factor cero en C1 significa quitar la capa. Ahora C1 envia todas las
+        // unidades: de momento 1 mg cuenta como 1 ml para el volumen.
+        let Some(indice) = datos.componentes.iter().position(|enviado| {
+            enviado.posicion == capa.posicion && enviado.ingrediente_id == capa.ingrediente_id
+        }) else {
+            continue;
         };
+
+        if usados[indice] {
+            return Err(ServerFnError::new(
+                "Hay un ingrediente repetido en la version",
+            ));
+        }
+
+        usados[indice] = true;
+        let cantidad = datos.componentes[indice].cantidad;
+        if !cantidad.is_finite() || cantidad <= 0.0 {
+            return Err(ServerFnError::new(
+                "Las cantidades deben ser mayores que cero",
+            ));
+        }
+        total_ml += cantidad;
 
         tiene_alcohol |= capa.graduacion_pct > 0.0;
         capas_nuevas.push((capa, cantidad));
@@ -249,6 +281,63 @@ pub async fn guardar_receta(
 
     if usados.iter().any(|usado| !usado) {
         return Err(ServerFnError::new("Hay un ingrediente ajeno a la receta"));
+    }
+
+    // Los ingredientes que C1 añadio no vienen del origen: se validan contra el catalogo
+    // y se copian con su metadata para que la version no dependa de lo que envio el cliente.
+    let mut ids_agregados: Vec<String> = Vec::with_capacity(datos.agregados.len());
+    for (indice, agregado) in datos.agregados.iter().enumerate() {
+        if !agregado.cantidad.is_finite() || agregado.cantidad <= 0.0 {
+            return Err(ServerFnError::new(
+                "Las cantidades deben ser mayores que cero",
+            ));
+        }
+
+        if ids_origen.iter().any(|id| id == &agregado.ingrediente_id)
+            || ids_agregados
+                .iter()
+                .any(|id| id == &agregado.ingrediente_id)
+        {
+            return Err(ServerFnError::new(
+                "El ingrediente agregado ya esta en la receta",
+            ));
+        }
+
+        let catalogo = sqlx::query_as::<_, FilaIngredienteCatalogo>(
+            r#"
+            SELECT nombre,
+                   unidad,
+                   graduacion_pct,
+                   color,
+                   es_dilucion AS dilucion
+            FROM ingrediente
+            WHERE id = $1::uuid
+            "#,
+        )
+        .bind(&agregado.ingrediente_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| ServerFnError::new("No se pudo leer el ingrediente agregado"))?
+        .ok_or_else(|| ServerFnError::new("El ingrediente agregado no existe"))?;
+
+        // De momento 1 mg = 1 ml, igual que en C1, para que los agregados sólidos
+        // también cuenten en la capacidad del vaso.
+        total_ml += agregado.cantidad;
+        tiene_alcohol |= catalogo.graduacion_pct > 0.0;
+        ids_agregados.push(agregado.ingrediente_id.clone());
+
+        capas_nuevas.push((
+            FilaComponenteOrigen {
+                ingrediente_id: agregado.ingrediente_id.clone(),
+                posicion: posicion_siguiente + indice as i16,
+                nombre: catalogo.nombre,
+                unidad: catalogo.unidad,
+                graduacion_pct: catalogo.graduacion_pct,
+                color: catalogo.color,
+                dilucion: catalogo.dilucion,
+            },
+            agregado.cantidad,
+        ));
     }
 
     if total_ml > datos.capacidad_ml {

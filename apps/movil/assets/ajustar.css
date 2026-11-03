@@ -123,17 +123,10 @@
     color: #8E2C22;
 }
 
-/* Atajos: presets y pastillas de porcentaje. */
+/* Atajos: presets y escala global en mililitros. */
 .ajustar-presets {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-}
-
-.ajustar-porcentajes {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
     gap: 8px;
 }
 
@@ -143,6 +136,76 @@
     font-size: 12px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+}
+
+/* Escala global: un deslizador que reparte un volumen en ml entre todas las capas. */
+.ajustar-escala {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    background: var(--papel);
+    padding: 6px 14px;
+}
+
+.ajustar-rango--escala {
+    flex: 1;
+    min-width: 0;
+}
+
+.ajustar-escala-valor {
+    min-width: 58px;
+    color: var(--tinta);
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* Menús desplegables de vaso e ingredientes nuevos. */
+.ajustar-select {
+    width: 100%;
+    min-height: 46px;
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    background-color: var(--papel);
+    padding: 0 40px 0 14px;
+    color: var(--tinta);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    appearance: none;
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--tinta-suave) 50%),
+        linear-gradient(135deg, var(--tinta-suave) 50%, transparent 50%);
+    background-position:
+        calc(100% - 20px) 50%,
+        calc(100% - 14px) 50%;
+    background-repeat: no-repeat;
+    background-size: 6px 6px, 6px 6px;
+}
+
+.ajustar-select:hover,
+.ajustar-select:focus-visible {
+    border-color: var(--cobre);
+}
+
+.ajustar-select:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+/* Fila para elegir un ingrediente del catálogo; la selección ya crea la capa. */
+.ajustar-agregar {
+    display: flex;
+    align-items: center;
+}
+
+.ajustar-agregar .ajustar-select {
+    flex: 1;
+    min-width: 0;
 }
 
 .ajustar .chip.activo {
@@ -184,34 +247,6 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* Vasos disponibles: nombre arriba y capacidad debajo. */
-.ajustar-vasos {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.ajustar-vaso-chip {
-    display: flex;
-    flex: 1 1 calc(50% - 4px);
-    min-width: 0;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    text-align: left;
-}
-
-.ajustar-vaso-capacidad {
-    color: var(--tinta-suave);
-    font-size: 12px;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-}
-
-.ajustar-vaso-chip.activo .ajustar-vaso-capacidad {
-    color: rgba(255, 249, 242, 0.72);
-}
-
 /* Una tarjeta por ingrediente: color, cifra, deslizador y porcentajes. */
 .ajustar-capas {
     display: flex;
@@ -237,6 +272,27 @@
     grid-template-columns: 12px minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px;
+}
+
+/* Las capas agregadas llevan un botón extra para quitarlas de la versión. */
+.ajustar-capa-cabeza--extra {
+    grid-template-columns: 12px minmax(0, 1fr) auto auto;
+}
+
+.ajustar-capa-quitar {
+    min-height: 32px;
+    border: 0;
+    background: transparent;
+    padding: 4px 2px;
+    color: var(--cobre-oscuro);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.ajustar-capa-quitar:hover,
+.ajustar-capa-quitar:focus-visible {
+    color: var(--cobre);
 }
 
 .ajustar-capa-punto {
@@ -297,7 +353,17 @@
         grid-template-columns: 1fr;
     }
 
-    .ajustar-vaso-chip {
+    .ajustar-escala,
+    .ajustar-agregar {
+        flex-wrap: wrap;
+    }
+
+    .ajustar-escala .ajustar-rango--escala,
+    .ajustar-agregar .ajustar-select {
         flex-basis: 100%;
+    }
+
+    .ajustar-escala-valor {
+        margin-left: auto;
     }
 }

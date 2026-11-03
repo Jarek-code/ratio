@@ -4,8 +4,14 @@
 //! Así el escalado por comensales y los presets pueden cambiar el total sin perder el
 //! ajuste individual que hizo la persona. El vaso y la graduación se recalculan con el
 //! mismo motor que usa la ficha (B3).
+//!
+//! La escala global se expresa en mililitros por comensal y tiene un tope de 500 ml.
+//! Además de las capas de la receta, C1 permite añadir ingredientes del catálogo (ml o
+//! mg). De momento los mg se tratan como ml (1 mg = 1 ml) para que también sumen volumen
+//! mientras el catálogo de sólidos termina de definirse.
 
-use api::guardar::{ComponenteNuevo, RecetaNueva, guardar_receta};
+use api::guardar::{ComponenteAgregado, ComponenteNuevo, RecetaNueva, guardar_receta};
+use api::ingredientes::{IngredienteOpcion, catalogo as catalogo_ingredientes};
 use api::receta::{RecetaCompleta, completa};
 use api::vasos::{VasoOpcion, vasos as catalogo_vasos};
 use dioxus::prelude::*;
@@ -26,6 +32,24 @@ const FACTOR_MAXIMO: f64 = 3.0;
 /// Comensales máximos para el escalado rápido.
 const COMENSALES_MAXIMOS: u32 = 12;
 
+/// Tope de la escala global, en mililitros.
+///
+/// Es un límite de producto: el vaso puede ser mayor, pero C1 nunca propone más de
+/// medio litro por comensal para que el ajuste siga siendo legible.
+const VOLUMEN_MAXIMO_ML: f64 = 500.0;
+
+/// Cantidad inicial de un ingrediente añadido, en mililitros por comensal.
+///
+/// Se elige una porción pequeña para que la capa nueva no desborde el vaso antes de que
+/// la persona la ajuste con su deslizador.
+const ML_AGREGADO_POR_DEFECTO: f64 = 30.0;
+
+/// Cantidad inicial de un ingrediente añadido en miligramos.
+///
+/// De momento cada mg se cuenta como un ml para que la capa nueva también suba el
+/// volumen; es una equivalencia temporal hasta definir el catálogo de sólidos.
+const MG_AGREGADO_POR_DEFECTO: f64 = 10.0;
+
 /// Atajo de proporción que se aplica a todas las capas a la vez.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Preset {
@@ -33,33 +57,49 @@ enum Preset {
     Original,
     /// Sube los ingredientes que aportan fuerza.
     Fuerte,
-    /// Sube la leche, la crema o la nata.
-    Lacteo,
-    /// Deja en cero las capas de espuma.
-    SinEspuma,
+    /// Baja los ingredientes que aportan fuerza.
+    Debil,
 }
 
 impl Preset {
     /// Presets visibles, en el orden en que se ofrecen.
-    const TODOS: [Preset; 4] = [
-        Preset::Original,
-        Preset::Fuerte,
-        Preset::Lacteo,
-        Preset::SinEspuma,
-    ];
+    const TODOS: [Preset; 3] = [Preset::Original, Preset::Fuerte, Preset::Debil];
 
     /// Texto corto del botón.
     fn etiqueta(self) -> &'static str {
         match self {
             Preset::Original => "Original",
             Preset::Fuerte => "Más fuerte",
-            Preset::Lacteo => "Más lácteo",
-            Preset::SinEspuma => "Sin espuma",
+            Preset::Debil => "Más débil",
         }
     }
 }
 
-/// Pantalla C1: carga la receta y el catálogo de vasos antes de abrir el editor.
+/// Capa que nació del desplegable de nuevos ingredientes.
+///
+/// Guarda la metadata del catálogo para dibujarla o medirla, más su unidad, su cantidad
+/// base y el factor que comparten los controles. Los mg se suman al volumen 1:1.
+#[derive(Debug, Clone, PartialEq)]
+struct CapaAgregada {
+    /// Ingrediente del catálogo.
+    ingrediente_id: String,
+    /// Nombre visible de la capa.
+    nombre: String,
+    /// Alcohol por volumen del ingrediente.
+    graduacion: f64,
+    /// Color de la capa, si el catálogo lo define.
+    color: Option<String>,
+    /// Si el ingrediente diluye la bebida.
+    dilucion: bool,
+    /// Unidad de la cantidad: "ml" o "mg".
+    unidad: String,
+    /// Cantidad base por comensal, en la unidad del catálogo.
+    cantidad: f64,
+    /// Factor del deslizador; 1.0 es la cantidad base.
+    factor: f64,
+}
+
+/// Pantalla C1: carga la receta, el catálogo de vasos y el de ingredientes.
 #[component]
 pub fn PantallaAjustar(id: String) -> Element {
     let id_recurso = id.clone();
@@ -69,8 +109,9 @@ pub fn PantallaAjustar(id: String) -> Element {
         let token = crate::sesion::token(&sesion);
         async move {
             let receta = completa(id, token).await?;
-            let catalogo = catalogo_vasos().await?;
-            Ok::<_, ServerFnError>((receta, catalogo))
+            let vasos = catalogo_vasos().await?;
+            let ingredientes = catalogo_ingredientes().await?;
+            Ok::<_, ServerFnError>((receta, vasos, ingredientes))
         }
     });
 
@@ -96,11 +137,15 @@ pub fn PantallaAjustar(id: String) -> Element {
                         }
                     }
                 },
-                Some(Ok((None, _))) => rsx! {
+                Some(Ok((None, _, _))) => rsx! {
                     p { class: "estado", "Esta receta no existe o ya no está publicada." }
                 },
-                Some(Ok((Some(receta), catalogo))) => rsx! {
-                    Editor { receta: receta.clone(), vasos: catalogo.clone() }
+                Some(Ok((Some(receta), vasos, ingredientes))) => rsx! {
+                    Editor {
+                        receta: receta.clone(),
+                        vasos: vasos.clone(),
+                        ingredientes_catalogo: ingredientes.clone(),
+                    }
                 },
             }
         }
@@ -122,9 +167,13 @@ fn BarraSuperior(id: String) -> Element {
     }
 }
 
-/// Editor de proporciones: vista del vaso, totales, vaso, escalado y capas.
+/// Editor de proporciones: vista del vaso, totales, vaso, comensales, escala y capas.
 #[component]
-fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
+fn Editor(
+    receta: RecetaCompleta,
+    vasos: Vec<VasoOpcion>,
+    ingredientes_catalogo: Vec<IngredienteOpcion>,
+) -> Element {
     let ingredientes = receta.receta.ingredientes.clone();
     let total_ingredientes = ingredientes.len();
 
@@ -150,6 +199,8 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
 
     let sesion = use_context::<crate::sesion::SenalSesion>();
     let mut factores = use_signal(|| vec![1.0_f64; total_ingredientes]);
+    let mut agregados = use_signal(Vec::<CapaAgregada>::new);
+    let mut seleccion_ingrediente = use_signal(String::new);
     let mut comensales = use_signal(|| 1_u32);
     let mut indice_vaso = use_signal(move || indice_inicial);
     let mut guardando = use_signal(|| false);
@@ -166,7 +217,9 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
     let vaso_para_guardar = vaso_actual.clone();
 
     let factores_actuales = factores.read().clone();
+    let agregados_actuales = agregados.read().clone();
     let comensales_actuales = *comensales.read();
+    let indice_vaso_actual = *indice_vaso.read();
     let mut ajustada = receta.receta.clone();
     ajustada.vaso = vaso_actual.vaso.clone();
     ajustada.capacidad_ml = vaso_actual.vaso.capacidad_ml;
@@ -175,6 +228,19 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
         let factor = factores_actuales.get(indice).copied().unwrap_or(1.0);
         componente.ml =
             receta.receta.ingredientes[indice].ml * factor * f64::from(comensales_actuales);
+    }
+
+    // Las capas agregadas se suman al final de la pila, encima de las de la receta.
+    // De momento 1 mg cuenta como 1 ml para que los sólidos también suban el volumen.
+    for extra in &agregados_actuales {
+        ajustada.ingredientes.push(proporciones::Componente {
+            nombre: extra.nombre.clone(),
+            ml: extra.cantidad * extra.factor * f64::from(comensales_actuales),
+            graduacion: extra.graduacion,
+            dilucion: extra.dilucion,
+            color: extra.color.clone(),
+            superficie: None,
+        });
     }
 
     let capas = proporciones::capas(&ajustada);
@@ -188,8 +254,36 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
     );
     let capacidad = ajustada.capacidad_ml.max(1.0);
     let porcentaje_vaso = capas.total_ml / capacidad * 100.0;
-    let escala = escala_activa(&factores_actuales);
     let descripcion = descripcion(&ajustada);
+
+    // La escala global se expresa en mililitros por comensal: el deslizador llega hasta
+    // 500 ml y reparte ese volumen entre todas las capas de forma proporcional. Los
+    // comensales multiplican después el total, como en el resto de la pantalla.
+    let total_base: f64 = receta.receta.ingredientes.iter().map(|c| c.ml).sum::<f64>()
+        + agregados_actuales
+            .iter()
+            .map(|extra| extra.cantidad)
+            .sum::<f64>();
+    let volumen_porcion = capas.total_ml / f64::from(comensales_actuales.max(1));
+    let volumen_escala = volumen_porcion.clamp(0.0, VOLUMEN_MAXIMO_ML);
+
+    // El desplegable oculta los ingredientes que ya están en la receta o ya se agregaron.
+    let mut ids_en_uso: Vec<String> = receta
+        .componentes
+        .iter()
+        .map(|componente| componente.ingrediente_id.clone())
+        .collect();
+    ids_en_uso.extend(
+        agregados_actuales
+            .iter()
+            .map(|extra| extra.ingrediente_id.clone()),
+    );
+    let ingredientes_disponibles: Vec<IngredienteOpcion> = ingredientes_catalogo
+        .iter()
+        .filter(|opcion| !ids_en_uso.contains(&opcion.id))
+        .cloned()
+        .collect();
+    let catalogo_para_agregar = ingredientes_catalogo.clone();
 
     rsx! {
         header { class: "ajustar-cabeza",
@@ -270,6 +364,19 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                                 onclick: move |_| {
                                     let actuales = factores.read().clone();
                                     factores.set(factores_preset(preset, &ingredientes, &actuales));
+
+                                    // Los ingredientes agregados siguen la misma regla que
+                                    // las capas del origen para que el atajo sea coherente.
+                                    let mut extras = agregados.read().clone();
+                                    for extra in &mut extras {
+                                        extra.factor = factor_preset(
+                                            preset,
+                                            &extra.nombre,
+                                            extra.graduacion,
+                                            extra.factor,
+                                        );
+                                    }
+                                    agregados.set(extras);
                                 },
                                 "{preset.etiqueta()}"
                             }
@@ -278,22 +385,50 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                 }
             }
 
-            div { class: "ajustar-porcentajes", role: "group", "aria-label": "Escalar todas las capas",
-                span { class: "ajustar-etiqueta", "Escala" }
-                for valor in [0.5_f64, 1.0, 1.5, 2.0] {
-                    button {
-                        key: "escala-{valor}",
-                        class: if escala == Some(valor) { "chip activo" } else { "chip" },
-                        r#type: "button",
-                        onclick: move |_| {
-                            let mut nuevos = factores.read().clone();
-                            nuevos.fill(valor);
-                            factores.set(nuevos);
-                        },
-                        "{valor * 100.0:.0} %"
-                    }
+            div { class: "ajustar-escala",
+                label {
+                    class: "ajustar-etiqueta",
+                    r#for: "escala-ml",
+                    "Escala"
                 }
+                input {
+                    id: "escala-ml",
+                    class: "ajustar-rango ajustar-rango--escala",
+                    r#type: "range",
+                    min: "0",
+                    max: "{VOLUMEN_MAXIMO_ML:.0}",
+                    step: "5",
+                    value: "{volumen_escala:.0}",
+                    disabled: total_base <= 0.0,
+                    aria_label: "Volumen por comensal en mililitros",
+                    "aria-valuetext": "{volumen_escala:.0} mililitros por comensal",
+                    oninput: move |evento| {
+                        let objetivo = evento
+                            .value()
+                            .parse::<f64>()
+                            .unwrap_or(0.0)
+                            .clamp(0.0, VOLUMEN_MAXIMO_ML);
+
+                        // Un solo factor para todas las capas conserva la proporción de
+                        // la receta mientras el volumen por comensal se mueve en mililitros.
+                        if total_base > 0.0 {
+                            let factor = (objetivo / total_base).clamp(0.0, FACTOR_MAXIMO);
+                            let mut nuevos = factores.read().clone();
+                            nuevos.fill(factor);
+                            factores.set(nuevos);
+
+                            let mut extras = agregados.read().clone();
+                            for extra in &mut extras {
+                                extra.factor = factor;
+                            }
+                            agregados.set(extras);
+                        }
+                    },
+                }
+                span { class: "ajustar-escala-valor", "{volumen_escala:.0} ml" }
             }
+
+            p { class: "mini", "La escala termina en 500 ml por comensal y mueve todas las capas." }
         }
 
         section { class: "seccion", "aria-labelledby": "titulo-comensales",
@@ -341,25 +476,108 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                 span { class: "mini", "{vaso_actual.nombre} · {vaso_actual.vaso.capacidad_ml:.0} ml" }
             }
 
-            div { class: "ajustar-vasos", role: "group", "aria-label": "Elegir el vaso",
+            label { class: "solo-lector", r#for: "vaso-editor", "Elegir el vaso" }
+            select {
+                id: "vaso-editor",
+                class: "ajustar-select",
+                value: "{indice_vaso_actual}",
+                onchange: move |evento| {
+                    if let Ok(indice) = evento.value().parse::<usize>() {
+                        if indice < opciones.len() {
+                            indice_vaso.set(indice);
+                        }
+                    }
+                },
                 for (indice, opcion) in opciones.iter().enumerate() {
-                    button {
+                    option {
                         key: "{opcion.id}",
-                        class: if indice == *indice_vaso.read() { "chip ajustar-vaso-chip activo" } else { "chip ajustar-vaso-chip" },
-                        r#type: "button",
-                        "aria-pressed": if indice == *indice_vaso.read() { "true" } else { "false" },
-                        onclick: move |_| indice_vaso.set(indice),
-                        span { "{opcion.nombre}" }
-                        span { class: "ajustar-vaso-capacidad", "{opcion.vaso.capacidad_ml:.0} ml" }
+                        value: "{indice}",
+                        "{opcion.nombre} · {opcion.vaso.capacidad_ml:.0} ml"
                     }
                 }
+            }
+        }
+
+        section { class: "seccion", "aria-labelledby": "titulo-agregados",
+            div { class: "seccion-cabeza",
+                p { id: "titulo-agregados", class: "eyebrow", "Nuevos ingredientes" }
+                span { class: "mini", "Líquidos o sólidos · 1 mg = 1 ml" }
+            }
+
+            div { class: "ajustar-agregar",
+                label { class: "solo-lector", r#for: "ingrediente-nuevo", "Ingrediente del catálogo" }
+                select {
+                    id: "ingrediente-nuevo",
+                    class: "ajustar-select",
+                    value: "{seleccion_ingrediente}",
+                    disabled: ingredientes_disponibles.is_empty(),
+                    onchange: move |evento| {
+                        let id = evento.value();
+                        if id.is_empty() {
+                            return;
+                        }
+
+                        let Some(opcion) = catalogo_para_agregar
+                            .iter()
+                            .find(|opcion| opcion.id == id)
+                            .cloned()
+                        else {
+                            return;
+                        };
+
+                        // El catálogo lo mantiene el equipo: elegir una opción ya crea
+                        // la capa; no hay un paso extra de "añadir".
+                        if agregados.read().iter().any(|extra| extra.ingrediente_id == id) {
+                            seleccion_ingrediente.set(String::new());
+                            return;
+                        }
+
+                        let cantidad = if opcion.unidad == "mg" {
+                            MG_AGREGADO_POR_DEFECTO
+                        } else {
+                            ML_AGREGADO_POR_DEFECTO
+                        };
+
+                        agregados.write().push(CapaAgregada {
+                            ingrediente_id: opcion.id,
+                            nombre: opcion.nombre,
+                            graduacion: opcion.graduacion_pct,
+                            color: opcion.color,
+                            dilucion: opcion.dilucion,
+                            unidad: opcion.unidad,
+                            cantidad,
+                            factor: 1.0,
+                        });
+                        seleccion_ingrediente.set(String::new());
+                    },
+                    option { value: "", "Elige un ingrediente (ml o mg)" }
+                    for opcion in ingredientes_disponibles.iter() {
+                        if opcion.unidad == "mg" {
+                            option {
+                                key: "{opcion.id}",
+                                value: "{opcion.id}",
+                                "{opcion.nombre} · mg"
+                            }
+                        } else {
+                            option {
+                                key: "{opcion.id}",
+                                value: "{opcion.id}",
+                                "{opcion.nombre} · {opcion.graduacion_pct:.0} % ABV"
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ingredientes_disponibles.is_empty() {
+                p { class: "mini", "No hay más ingredientes disponibles en el catálogo." }
             }
         }
 
         section { class: "seccion", "aria-labelledby": "titulo-capas",
             div { class: "seccion-cabeza",
                 p { id: "titulo-capas", class: "eyebrow", "Capas" }
-                span { class: "mini", "{total_ingredientes} ingredientes" }
+                span { class: "mini", "{total_ingredientes + agregados_actuales.len()} ingredientes" }
             }
 
             ul { class: "ajustar-capas",
@@ -378,6 +596,24 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                             .unwrap_or_else(|| COLOR_RESERVA.to_string());
                         let etiqueta = format!("Cantidad de {}", ingrediente.nombre);
 
+                        // La capa del motor siempre es volumen; la unidad original solo
+                        // cambia cómo se rotula. Los mg suman 1 ml por mg.
+                        let es_liquido = receta
+                            .componentes
+                            .get(indice)
+                            .map(|capa| capa.unidad == "ml")
+                            .unwrap_or(true);
+                        let unidad = if es_liquido { "ml" } else { "mg" };
+                        let cifra = format!("{ml:.0} {unidad} · {porcentaje:.0} %");
+                        let factor_pct = factor * 100.0;
+                        let valor_lector = if es_liquido {
+                            format!("{ml:.0} mililitros, {factor_pct:.0} por ciento")
+                        } else {
+                            format!(
+                                "{ml:.0} miligramos, suma {ml:.0} mililitros, {factor_pct:.0} por ciento"
+                            )
+                        };
+
                         rsx! {
                             li { class: "ajustar-capa",
                                 div { class: "ajustar-capa-cabeza",
@@ -387,7 +623,7 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                                         "aria-hidden": "true",
                                     }
                                     span { class: "ajustar-capa-nombre", "{ingrediente.nombre}" }
-                                    span { class: "ajustar-capa-cifra", "{ml:.0} ml · {porcentaje:.0} %" }
+                                    span { class: "ajustar-capa-cifra", "{cifra}" }
                                 }
                                 input {
                                     class: "ajustar-rango",
@@ -397,7 +633,7 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                                     step: "5",
                                     value: "{factor * 100.0:.0}",
                                     aria_label: etiqueta,
-                                    "aria-valuetext": "{ml:.0} mililitros, {factor * 100.0:.0} por ciento",
+                                    "aria-valuetext": "{valor_lector}",
                                     oninput: move |evento| {
                                         let porcentaje = evento.value().parse::<f64>().unwrap_or(100.0);
                                         let mut nuevos = factores.read().clone();
@@ -409,7 +645,98 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                                 }
                                 div { class: "ajustar-capa-pie",
                                     span { "{factor * 100.0:.0} % de la receta" }
-                                    span { "{porcentaje:.0} % del total" }
+                                    if es_liquido {
+                                        span { "{porcentaje:.0} % del total" }
+                                    } else {
+                                        span { "Suma {ml:.0} ml" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (indice_extra, extra) in agregados_actuales.iter().enumerate() {
+                    {
+                        let factor = extra.factor;
+                        let es_liquido = extra.unidad == "ml";
+                        let cantidad =
+                            extra.cantidad * factor * f64::from(comensales_actuales);
+
+                        // Todos los agregados ocupan volumen y por eso comparten el
+                        // índice de `capas`; la unidad solo cambia la etiqueta visible.
+                        let porcentaje = capas
+                            .capas
+                            .get(total_ingredientes + indice_extra)
+                            .map(|capa| capa.porcentaje)
+                            .unwrap_or(0.0);
+
+                        let color = extra
+                            .color
+                            .clone()
+                            .unwrap_or_else(|| COLOR_RESERVA.to_string());
+                        let etiqueta = format!("Cantidad de {}", extra.nombre);
+                        let nombre = extra.nombre.clone();
+                        let unidad = if es_liquido { "ml" } else { "mg" };
+                        let cifra = format!("{cantidad:.0} {unidad} · {porcentaje:.0} %");
+                        let valor_lector = if es_liquido {
+                            format!(
+                                "{cantidad:.0} mililitros, {:.0} por ciento",
+                                factor * 100.0
+                            )
+                        } else {
+                            format!(
+                                "{cantidad:.0} miligramos, suma {cantidad:.0} mililitros, {:.0} por ciento",
+                                factor * 100.0
+                            )
+                        };
+
+                        rsx! {
+                            li { class: "ajustar-capa",
+                                div { class: "ajustar-capa-cabeza ajustar-capa-cabeza--extra",
+                                    span {
+                                        class: "ajustar-capa-punto",
+                                        style: "background:{color}",
+                                        "aria-hidden": "true",
+                                    }
+                                    span { class: "ajustar-capa-nombre", "{nombre}" }
+                                    span { class: "ajustar-capa-cifra", "{cifra}" }
+                                    button {
+                                        class: "ajustar-capa-quitar",
+                                        r#type: "button",
+                                        aria_label: "Quitar {nombre}",
+                                        onclick: move |_| {
+                                            agregados.write().remove(indice_extra);
+                                        },
+                                        "Quitar"
+                                    }
+                                }
+                                input {
+                                    class: "ajustar-rango",
+                                    r#type: "range",
+                                    min: "0",
+                                    max: "{FACTOR_MAXIMO * 100.0:.0}",
+                                    step: "5",
+                                    value: "{factor * 100.0:.0}",
+                                    aria_label: etiqueta,
+                                    "aria-valuetext": "{valor_lector}",
+                                    oninput: move |evento| {
+                                        let porcentaje = evento.value().parse::<f64>().unwrap_or(100.0);
+                                        let mut nuevos = agregados.read().clone();
+                                        if let Some(slot) = nuevos.get_mut(indice_extra) {
+                                            slot.factor =
+                                                (porcentaje / 100.0).clamp(0.0, FACTOR_MAXIMO);
+                                        }
+                                        agregados.set(nuevos);
+                                    },
+                                }
+                                div { class: "ajustar-capa-pie",
+                                    span { "{factor * 100.0:.0} % del agregado" }
+                                    if es_liquido {
+                                        span { "{porcentaje:.0} % del total" }
+                                    } else {
+                                        span { "Suma {cantidad:.0} ml" }
+                                    }
                                 }
                             }
                         }
@@ -424,6 +751,8 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                 r#type: "button",
                 onclick: move |_| {
                     factores.set(vec![1.0; total_ingredientes]);
+                    agregados.set(Vec::new());
+                    seleccion_ingrediente.set(String::new());
                     comensales.set(1);
                     indice_vaso.set(indice_inicial);
                 },
@@ -448,18 +777,16 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                     // siguen siendo un ajuste de la vista y no una propiedad de la receta.
                     let factores_guardar = factores.read().clone();
                     let mut componentes = Vec::new();
-                    let mut indice_liquido = 0;
 
-                    for capa in &receta_para_guardar.componentes {
-                        if capa.unidad != "ml" {
-                            continue;
-                        }
-
+                    // C1 muestra todas las capas del motor, también las mg (1 mg = 1 ml),
+                    // así que se envían todas con su factor y conservan su unidad original.
+                    for (indice_capa, capa) in
+                        receta_para_guardar.componentes.iter().enumerate()
+                    {
                         let factor = factores_guardar
-                            .get(indice_liquido)
+                            .get(indice_capa)
                             .copied()
                             .unwrap_or(1.0);
-                        indice_liquido += 1;
 
                         // Un factor cero quita la capa; no se guarda una cantidad invalida.
                         if factor <= 0.0 {
@@ -470,6 +797,20 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                             ingrediente_id: capa.ingrediente_id.clone(),
                             posicion: capa.posicion,
                             cantidad: capa.cantidad * factor,
+                        });
+                    }
+
+                    // Las capas nuevas viajan aparte: el servidor valida su metadata
+                    // contra el catálogo y las coloca encima de las del origen.
+                    let mut agregados_guardar = Vec::new();
+                    for extra in agregados.read().iter() {
+                        if extra.factor <= 0.0 {
+                            continue;
+                        }
+
+                        agregados_guardar.push(ComponenteAgregado {
+                            ingrediente_id: extra.ingrediente_id.clone(),
+                            cantidad: extra.cantidad * extra.factor,
                         });
                     }
 
@@ -487,6 +828,7 @@ fn Editor(receta: RecetaCompleta, vasos: Vec<VasoOpcion>) -> Element {
                         vaso_id: vaso_para_guardar.id.clone(),
                         capacidad_ml: vaso_para_guardar.vaso.capacidad_ml,
                         componentes,
+                        agregados: agregados_guardar,
                     };
 
                     guardando.set(true);
@@ -557,22 +899,15 @@ fn factores_preset(
         Preset::Original => factores.fill(1.0),
         Preset::Fuerte => {
             for (factor, ingrediente) in factores.iter_mut().zip(ingredientes) {
-                if aporta_fuerza(ingrediente) {
+                if aporta_fuerza(&ingrediente.nombre, ingrediente.graduacion) {
                     *factor = (*factor * 1.25).clamp(0.0, FACTOR_MAXIMO);
                 }
             }
         }
-        Preset::Lacteo => {
+        Preset::Debil => {
             for (factor, ingrediente) in factores.iter_mut().zip(ingredientes) {
-                if es_lacteo(&ingrediente.nombre) {
-                    *factor = (*factor * 1.3).clamp(0.0, FACTOR_MAXIMO);
-                }
-            }
-        }
-        Preset::SinEspuma => {
-            for (factor, ingrediente) in factores.iter_mut().zip(ingredientes) {
-                if es_espuma(&ingrediente.nombre) {
-                    *factor = 0.0;
+                if aporta_fuerza(&ingrediente.nombre, ingrediente.graduacion) {
+                    *factor = (*factor * 0.75).clamp(0.0, FACTOR_MAXIMO);
                 }
             }
         }
@@ -581,46 +916,29 @@ fn factores_preset(
     factores
 }
 
+/// Calcula el factor de una capa agregada para el preset elegido.
+fn factor_preset(preset: Preset, nombre: &str, graduacion: f64, actual: f64) -> f64 {
+    match preset {
+        Preset::Original => 1.0,
+        Preset::Fuerte if aporta_fuerza(nombre, graduacion) => {
+            (actual * 1.25).clamp(0.0, FACTOR_MAXIMO)
+        }
+        Preset::Debil if aporta_fuerza(nombre, graduacion) => {
+            (actual * 0.75).clamp(0.0, FACTOR_MAXIMO)
+        }
+        Preset::Fuerte | Preset::Debil => actual,
+    }
+}
+
 /// Indica si la capa aporta fuerza: alcohol o la parte concentrada del café.
-fn aporta_fuerza(componente: &proporciones::Componente) -> bool {
-    componente.graduacion > 0.0
-        || contiene(
-            &componente.nombre,
-            &["espresso", "café", "cafe", "cold brew"],
-        )
-}
-
-/// Indica si la capa es leche, crema, nata o yogur.
-fn es_lacteo(nombre: &str) -> bool {
-    contiene(
-        nombre,
-        &["leche", "crema", "nata", "yogur", "lácteo", "lacteo"],
-    )
-}
-
-/// Indica si la capa es espuma.
-fn es_espuma(nombre: &str) -> bool {
-    contiene(nombre, &["espuma", "foam"])
+fn aporta_fuerza(nombre: &str, graduacion: f64) -> bool {
+    graduacion > 0.0 || contiene(nombre, &["espresso", "café", "cafe", "cold brew"])
 }
 
 /// Compara sin distinguir mayúsculas y acepta cualquiera de las palabras.
 fn contiene(nombre: &str, palabras: &[&str]) -> bool {
     let nombre = nombre.to_lowercase();
     palabras.iter().any(|palabra| nombre.contains(palabra))
-}
-
-/// Devuelve la escala común de todas las capas, si comparten el mismo factor.
-fn escala_activa(factores: &[f64]) -> Option<f64> {
-    let primero = *factores.first()?;
-
-    if factores
-        .iter()
-        .all(|factor| (factor - primero).abs() < 0.005)
-    {
-        Some(primero)
-    } else {
-        None
-    }
 }
 
 /// Texto accesible del vaso: nombre y porcentaje de cada capa.
