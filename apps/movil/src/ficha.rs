@@ -151,7 +151,7 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                 for (indice, capa) in capas.capas.iter().enumerate() {
                     {
                         // El motor mide todo en ml; la unidad original solo cambia la
-                        // etiqueta. De momento 1 mg se dibuja como 1 ml.
+                        // etiqueta. De momento 1 g se dibuja como 1 ml.
                         let unidad = receta
                             .componentes
                             .get(indice)
@@ -159,6 +159,11 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                                 if componente.unidad == "mg" { "mg" } else { "ml" }
                             })
                             .unwrap_or("ml");
+                        let cantidad = if unidad == "mg" {
+                            capa.ml * 1000.0
+                        } else {
+                            capa.ml
+                        };
 
                         rsx! {
                             li { class: "leyenda-fila",
@@ -168,7 +173,7 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                                     "aria-hidden": "true",
                                 }
                                 span { class: "leyenda-nombre", "{capa.nombre}" }
-                                span { class: "leyenda-ml", "{capa.ml:.0} {unidad}" }
+                                span { class: "leyenda-ml", "{cantidad:.0} {unidad}" }
                                 span { class: "leyenda-pct", "{capa.porcentaje:.0} %" }
                             }
                         }

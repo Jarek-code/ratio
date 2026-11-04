@@ -33,6 +33,18 @@ pub struct Sesion {
     pub mayor_de_edad: bool,
 }
 
+/// Convierte la cantidad de un ingrediente a mililitros equivalentes.
+///
+/// De momento la equivalencia temporal es `1 g = 1 ml`. Como el catálogo guarda los
+/// sólidos en `mg`, hay que dividir entre 1000; los líquidos ya vienen en `ml`.
+pub fn ml_equivalentes(cantidad: f64, unidad: &str) -> f64 {
+    if unidad == "mg" {
+        cantidad / 1000.0
+    } else {
+        cantidad
+    }
+}
+
 /// Lo que contesta `/salud`: si la base responde y, si no, por qué.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EstadoSalud {

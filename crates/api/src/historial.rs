@@ -126,12 +126,12 @@ fn ratio_de(total: f64, base: f64) -> String {
 
 /// Suma de las cantidades de una lista de componentes.
 ///
-/// De momento 1 mg cuenta como 1 ml, igual que en el motor de proporciones.
+/// De momento 1 g cuenta como 1 ml, igual que en el motor de proporciones.
 #[cfg(feature = "server")]
 fn total_ml_de(componentes: &[FilaComponente]) -> f64 {
     componentes
         .iter()
-        .map(|componente| componente.cantidad)
+        .map(|componente| crate::ml_equivalentes(componente.cantidad, &componente.unidad))
         .sum()
 }
 
@@ -144,7 +144,7 @@ fn base_ml_de(componentes: &[FilaComponente]) -> f64 {
         .max_by(|a, b| a.graduacion_pct.total_cmp(&b.graduacion_pct));
 
     match con_alcohol.or_else(|| componentes.first()) {
-        Some(componente) => componente.cantidad,
+        Some(componente) => crate::ml_equivalentes(componente.cantidad, &componente.unidad),
         None => 0.0,
     }
 }

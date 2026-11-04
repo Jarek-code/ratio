@@ -4,7 +4,7 @@
 //! despublica la receta original. Las capas copian la metadata del origen y cambian las
 //! cantidades que el usuario ajusto en C1. C1 tambien puede añadir ingredientes del
 //! catalogo (ml o mg); se guardan al final de la pila y su metadata se lee de la base, no
-//! del cliente. De momento 1 mg cuenta como 1 ml en la capacidad y en el motor.
+//! del cliente. De momento 1 g cuenta como 1 ml en la capacidad y en el motor.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -46,7 +46,7 @@ pub struct RecetaNueva {
     pub vaso_id: String,
     /// Capacidad efectiva elegida en C1.
     pub capacidad_ml: f64,
-    /// Capas ajustadas; los mg se cuentan como ml (1:1 temporal).
+    /// Capas ajustadas; los mg se convierten a ml (1 g = 1 ml temporal).
     pub componentes: Vec<ComponenteNuevo>,
     /// Capas nuevas que nacieron del desplegable de C1.
     #[serde(default)]
@@ -253,7 +253,7 @@ pub async fn guardar_receta(
 
     for capa in capas {
         // Un factor cero en C1 significa quitar la capa. Ahora C1 envia todas las
-        // unidades: de momento 1 mg cuenta como 1 ml para el volumen.
+        // unidades: de momento 1 g cuenta como 1 ml para el volumen.
         let Some(indice) = datos.componentes.iter().position(|enviado| {
             enviado.posicion == capa.posicion && enviado.ingrediente_id == capa.ingrediente_id
         }) else {
@@ -273,7 +273,7 @@ pub async fn guardar_receta(
                 "Las cantidades deben ser mayores que cero",
             ));
         }
-        total_ml += cantidad;
+        total_ml += crate::ml_equivalentes(cantidad, &capa.unidad);
 
         tiene_alcohol |= capa.graduacion_pct > 0.0;
         capas_nuevas.push((capa, cantidad));
@@ -320,9 +320,9 @@ pub async fn guardar_receta(
         .map_err(|_| ServerFnError::new("No se pudo leer el ingrediente agregado"))?
         .ok_or_else(|| ServerFnError::new("El ingrediente agregado no existe"))?;
 
-        // De momento 1 mg = 1 ml, igual que en C1, para que los agregados sólidos
+        // De momento 1 g = 1 ml, igual que en C1, para que los agregados sólidos
         // también cuenten en la capacidad del vaso.
-        total_ml += agregado.cantidad;
+        total_ml += crate::ml_equivalentes(agregado.cantidad, &catalogo.unidad);
         tiene_alcohol |= catalogo.graduacion_pct > 0.0;
         ids_agregados.push(agregado.ingrediente_id.clone());
 

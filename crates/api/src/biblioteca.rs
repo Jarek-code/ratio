@@ -146,13 +146,13 @@ impl FilaReceta {
             .filter(|capa| capa.receta_id == self.id)
             .collect();
 
-        // De momento 1 mg = 1 ml para que la miniatura use el mismo volumen que la
+        // De momento 1 g = 1 ml para que la miniatura use el mismo volumen que la
         // ficha. El detalle con unidad sigue en `componentes` para C7 y C2.
         let ingredientes = capas
             .iter()
             .map(|capa| proporciones::Componente {
                 nombre: capa.nombre.clone(),
-                ml: capa.cantidad,
+                ml: crate::ml_equivalentes(capa.cantidad, &capa.unidad),
                 graduacion: capa.graduacion_pct,
                 dilucion: capa.dilucion,
                 color: capa.color.clone(),

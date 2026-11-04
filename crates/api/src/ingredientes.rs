@@ -2,8 +2,8 @@
 //!
 //! El editor necesita el nombre, la unidad, la graduación, el color y la dilución del
 //! catálogo para que una capa añadida se dibuje o se mida igual que las de la receta.
-//! Se devuelven tanto líquidos (ml) como sólidos (mg); el motor de proporciones solo
-//! dibuja los que ocupan volumen y la pantalla ajusta los mg por separado.
+//! Se devuelven tanto líquidos (ml) como sólidos (mg); de momento los mg se convierten
+//! a volumen con la equivalencia temporal `1 g = 1 ml`.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};

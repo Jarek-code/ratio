@@ -155,13 +155,13 @@ impl FilaReceta {
             plato: self.plato,
         };
 
-        // De momento 1 mg = 1 ml: el motor recibe todas las capas como volumen. El
+        // De momento 1 g = 1 ml: el motor recibe todas las capas como volumen. El
         // detalle con unidad se conserva en `componentes` para guardar y listar.
         let ingredientes = capas
             .iter()
             .map(|capa| proporciones::Componente {
                 nombre: capa.nombre.clone(),
-                ml: capa.cantidad,
+                ml: crate::ml_equivalentes(capa.cantidad, &capa.unidad),
                 graduacion: capa.graduacion_pct,
                 dilucion: capa.dilucion,
                 color: capa.color.clone(),

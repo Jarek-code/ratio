@@ -7,8 +7,8 @@
 //!
 //! La escala global se expresa en mililitros por comensal y tiene un tope de 500 ml.
 //! Además de las capas de la receta, C1 permite añadir ingredientes del catálogo (ml o
-//! mg). De momento los mg se tratan como ml (1 mg = 1 ml) para que también sumen volumen
-//! mientras el catálogo de sólidos termina de definirse.
+//! mg). De momento los sólidos se convierten con `1 g = 1 ml` para que también sumen
+//! volumen mientras el catálogo termina de definirse.
 
 use api::guardar::{ComponenteAgregado, ComponenteNuevo, RecetaNueva, guardar_receta};
 use api::ingredientes::{IngredienteOpcion, catalogo as catalogo_ingredientes};
@@ -46,9 +46,9 @@ const ML_AGREGADO_POR_DEFECTO: f64 = 30.0;
 
 /// Cantidad inicial de un ingrediente añadido en miligramos.
 ///
-/// De momento cada mg se cuenta como un ml para que la capa nueva también suba el
-/// volumen; es una equivalencia temporal hasta definir el catálogo de sólidos.
-const MG_AGREGADO_POR_DEFECTO: f64 = 10.0;
+/// Se parte de 1 g para que, con la equivalencia temporal `1 g = 1 ml`, la capa nueva
+/// suba el volumen de forma visible antes de ajustarla con su deslizador.
+const MG_AGREGADO_POR_DEFECTO: f64 = 1000.0;
 
 /// Atajo de proporción que se aplica a todas las capas a la vez.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,7 +78,7 @@ impl Preset {
 /// Capa que nació del desplegable de nuevos ingredientes.
 ///
 /// Guarda la metadata del catálogo para dibujarla o medirla, más su unidad, su cantidad
-/// base y el factor que comparten los controles. Los mg se suman al volumen 1:1.
+/// base y el factor que comparten los controles. Los mg suman volumen con 1 g = 1 ml.
 #[derive(Debug, Clone, PartialEq)]
 struct CapaAgregada {
     /// Ingrediente del catálogo.
@@ -231,11 +231,13 @@ fn Editor(
     }
 
     // Las capas agregadas se suman al final de la pila, encima de las de la receta.
-    // De momento 1 mg cuenta como 1 ml para que los sólidos también suban el volumen.
+    // De momento 1 g cuenta como 1 ml para que los sólidos también suban el volumen.
     for extra in &agregados_actuales {
         ajustada.ingredientes.push(proporciones::Componente {
             nombre: extra.nombre.clone(),
-            ml: extra.cantidad * extra.factor * f64::from(comensales_actuales),
+            ml: api::ml_equivalentes(extra.cantidad, &extra.unidad)
+                * extra.factor
+                * f64::from(comensales_actuales),
             graduacion: extra.graduacion,
             dilucion: extra.dilucion,
             color: extra.color.clone(),
@@ -262,7 +264,7 @@ fn Editor(
     let total_base: f64 = receta.receta.ingredientes.iter().map(|c| c.ml).sum::<f64>()
         + agregados_actuales
             .iter()
-            .map(|extra| extra.cantidad)
+            .map(|extra| api::ml_equivalentes(extra.cantidad, &extra.unidad))
             .sum::<f64>();
     let volumen_porcion = capas.total_ml / f64::from(comensales_actuales.max(1));
     let volumen_escala = volumen_porcion.clamp(0.0, VOLUMEN_MAXIMO_ML);
@@ -501,7 +503,7 @@ fn Editor(
         section { class: "seccion", "aria-labelledby": "titulo-agregados",
             div { class: "seccion-cabeza",
                 p { id: "titulo-agregados", class: "eyebrow", "Nuevos ingredientes" }
-                span { class: "mini", "Líquidos o sólidos · 1 mg = 1 ml" }
+                span { class: "mini", "Líquidos o sólidos · 1 g = 1 ml" }
             }
 
             div { class: "ajustar-agregar",
@@ -597,20 +599,21 @@ fn Editor(
                         let etiqueta = format!("Cantidad de {}", ingrediente.nombre);
 
                         // La capa del motor siempre es volumen; la unidad original solo
-                        // cambia cómo se rotula. Los mg suman 1 ml por mg.
+                        // cambia cómo se rotula. Los mg se convierten con 1 g = 1 ml.
                         let es_liquido = receta
                             .componentes
                             .get(indice)
                             .map(|capa| capa.unidad == "ml")
                             .unwrap_or(true);
                         let unidad = if es_liquido { "ml" } else { "mg" };
-                        let cifra = format!("{ml:.0} {unidad} · {porcentaje:.0} %");
+                        let cantidad = if es_liquido { ml } else { ml * 1000.0 };
+                        let cifra = format!("{cantidad:.0} {unidad} · {porcentaje:.0} %");
                         let factor_pct = factor * 100.0;
                         let valor_lector = if es_liquido {
-                            format!("{ml:.0} mililitros, {factor_pct:.0} por ciento")
+                            format!("{cantidad:.0} mililitros, {factor_pct:.0} por ciento")
                         } else {
                             format!(
-                                "{ml:.0} miligramos, suma {ml:.0} mililitros, {factor_pct:.0} por ciento"
+                                "{cantidad:.0} miligramos, suma {ml:.2} mililitros, {factor_pct:.0} por ciento"
                             )
                         };
 
@@ -648,7 +651,7 @@ fn Editor(
                                     if es_liquido {
                                         span { "{porcentaje:.0} % del total" }
                                     } else {
-                                        span { "Suma {ml:.0} ml" }
+                                        span { "Suma {ml:.2} ml" }
                                     }
                                 }
                             }
@@ -662,6 +665,9 @@ fn Editor(
                         let es_liquido = extra.unidad == "ml";
                         let cantidad =
                             extra.cantidad * factor * f64::from(comensales_actuales);
+                        let volumen = api::ml_equivalentes(extra.cantidad, &extra.unidad)
+                            * factor
+                            * f64::from(comensales_actuales);
 
                         // Todos los agregados ocupan volumen y por eso comparten el
                         // índice de `capas`; la unidad solo cambia la etiqueta visible.
@@ -686,7 +692,7 @@ fn Editor(
                             )
                         } else {
                             format!(
-                                "{cantidad:.0} miligramos, suma {cantidad:.0} mililitros, {:.0} por ciento",
+                                "{cantidad:.0} miligramos, suma {volumen:.2} mililitros, {:.0} por ciento",
                                 factor * 100.0
                             )
                         };
@@ -735,7 +741,7 @@ fn Editor(
                                     if es_liquido {
                                         span { "{porcentaje:.0} % del total" }
                                     } else {
-                                        span { "Suma {cantidad:.0} ml" }
+                                        span { "Suma {volumen:.2} ml" }
                                     }
                                 }
                             }
@@ -778,7 +784,7 @@ fn Editor(
                     let factores_guardar = factores.read().clone();
                     let mut componentes = Vec::new();
 
-                    // C1 muestra todas las capas del motor, también las mg (1 mg = 1 ml),
+                    // C1 muestra todas las capas del motor, también las mg (1 g = 1 ml),
                     // así que se envían todas con su factor y conservan su unidad original.
                     for (indice_capa, capa) in
                         receta_para_guardar.componentes.iter().enumerate()
