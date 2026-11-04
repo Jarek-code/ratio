@@ -1,8 +1,8 @@
 //! Guardados (C5): las recetas que la cuenta quiere volver a preparar.
 //!
-//! La lista solo muestra recetas publicadas y visibles, ordenadas por la fecha en que se
-//! guardaron. El detalle de cada receta se reutiliza de `RecetaResumen`, igual que en la
-//! biblioteca y en el recetario propio.
+//! La lista muestra las recetas públicas visibles y también las privadas propias, ordenadas
+//! por la fecha en que se guardaron. El detalle de cada receta se reutiliza de
+//! `RecetaResumen`, igual que en la biblioteca y en el recetario propio.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -52,8 +52,8 @@ impl FilaGuardada {
 
 /// Trae las recetas guardadas por la cuenta, de la más reciente a la más antigua.
 ///
-/// Solo aparecen recetas publicadas y no ocultas; si una receta se retira, deja de
-/// mostrarse aunque la fila de `guardado` siga existiendo.
+/// Aparecen las recetas públicas no ocultas y las privadas del autor; si una receta
+/// pública se retira, deja de mostrarse aunque la fila de `guardado` siga existiendo.
 ///
 /// # Errores
 ///
@@ -99,8 +99,10 @@ pub async fn guardados(token: String) -> Result<Vec<RecetaGuardada>, ServerFnErr
                ON p.receta_id = r.id
               AND p.usuario_id = g.usuario_id
         WHERE g.usuario_id = $1::uuid
-          AND r.publicada_en IS NOT NULL
-          AND NOT r.oculta
+          AND (
+                (r.publicada_en IS NOT NULL AND NOT r.oculta)
+                OR r.autor_id = $1::uuid
+              )
         GROUP BY g.creado_en, r.id, u.alias, v.id
         ORDER BY g.creado_en DESC
         "#,
@@ -125,8 +127,10 @@ pub async fn guardados(token: String) -> Result<Vec<RecetaGuardada>, ServerFnErr
         JOIN guardado g ON g.receta_id = c.receta_id
         JOIN receta r ON r.id = c.receta_id
         WHERE g.usuario_id = $1::uuid
-          AND r.publicada_en IS NOT NULL
-          AND NOT r.oculta
+          AND (
+                (r.publicada_en IS NOT NULL AND NOT r.oculta)
+                OR r.autor_id = $1::uuid
+              )
         ORDER BY c.receta_id, c.posicion
         "#,
     )
