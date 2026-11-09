@@ -1,9 +1,10 @@
-//! Catálogo de ingredientes para añadir capas nuevas desde la pantalla Ajustar (C1).
+//! Catálogo de ingredientes para añadir capas nuevas (C1) y para el glosario (B5).
 //!
 //! El editor necesita el nombre, la unidad, la graduación, el color y la dilución del
 //! catálogo para que una capa añadida se dibuje o se mida igual que las de la receta.
-//! Se devuelven tanto líquidos (ml) como sólidos (mg); de momento los mg se convierten
-//! a volumen con la equivalencia temporal `1 g = 1 ml`.
+//! B5 además usa `tipo` para agrupar el glosario por familia. Se devuelven tanto
+//! líquidos (ml) como sólidos (mg); de momento los mg se convierten a volumen con la
+//! equivalencia temporal `1 g = 1 ml`.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,8 @@ pub struct IngredienteOpcion {
     pub color: Option<String>,
     /// Si el ingrediente diluye la bebida (agua o hielo derretido).
     pub dilucion: bool,
+    /// Familia del ingrediente para agrupar el glosario de B5 (NULL = sin clasificar).
+    pub tipo: Option<String>,
 }
 
 /// Fila de la consulta del catálogo (solo servidor).
@@ -35,6 +38,7 @@ struct FilaIngrediente {
     graduacion_pct: f64,
     color: Option<String>,
     dilucion: bool,
+    tipo: Option<String>,
 }
 
 /// Trae los ingredientes del catálogo que C1 puede añadir a una capa.
@@ -58,9 +62,10 @@ pub async fn catalogo() -> Result<Vec<IngredienteOpcion>, ServerFnError> {
                unidad,
                graduacion_pct,
                color,
-               es_dilucion AS dilucion
+               es_dilucion AS dilucion,
+               tipo
         FROM ingrediente
-        ORDER BY nombre
+        ORDER BY tipo NULLS LAST, nombre
         "#,
     )
     .fetch_all(pool)
@@ -76,6 +81,7 @@ pub async fn catalogo() -> Result<Vec<IngredienteOpcion>, ServerFnError> {
             graduacion_pct: fila.graduacion_pct,
             color: fila.color,
             dilucion: fila.dilucion,
+            tipo: fila.tipo,
         })
         .collect())
 }

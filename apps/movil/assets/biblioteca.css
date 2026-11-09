@@ -36,6 +36,11 @@
     text-decoration: none;
 }
 
+/* Accesos a las pantallas secundarias de la biblioteca (compra e ingredientes). */
+.biblioteca-accion {
+    text-decoration: none;
+}
+
 .biblioteca-cuenta {
     margin: 0;
     color: var(--tinta-suave);

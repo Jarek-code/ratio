@@ -26,7 +26,12 @@ enum Orden {
 
 impl Orden {
     /// Los cuatro órdenes, en el orden en que se ofrecen.
-    const TODOS: [Orden; 4] = [Orden::Nombre, Orden::Intensidad, Orden::Dificultad, Orden::Tiempo];
+    const TODOS: [Orden; 4] = [
+        Orden::Nombre,
+        Orden::Intensidad,
+        Orden::Dificultad,
+        Orden::Tiempo,
+    ];
 
     /// Texto del botón de orden.
     fn etiqueta(self) -> &'static str {
@@ -42,7 +47,10 @@ impl Orden {
     fn clave(self, receta: &RecetaResumen) -> i32 {
         match self {
             Orden::Nombre => 0,
-            Orden::Intensidad => receta.intensidad.map_or(i32::MAX, i32::from).saturating_neg(),
+            Orden::Intensidad => receta
+                .intensidad
+                .map_or(i32::MAX, i32::from)
+                .saturating_neg(),
             Orden::Dificultad => receta.dificultad.map_or(i32::MAX, i32::from),
             Orden::Tiempo => receta.minutos.map_or(i32::MAX, i32::from),
         }
@@ -66,10 +74,17 @@ pub fn PantallaBiblioteca() -> Element {
                 p { class: "eyebrow", "Recetario" }
                 h1 { "Biblioteca" }
                 p { class: "biblioteca-sub", "Todas las recetas publicadas, con su proporción a la vista." }
-                Link {
-                    to: Rutas::ListaCompra,
-                    class: "chip biblioteca-compra",
-                    "Lista de compra"
+                div { class: "chips",
+                    Link {
+                        to: Rutas::ListaCompra,
+                        class: "chip biblioteca-accion",
+                        "Lista de compra"
+                    }
+                    Link {
+                        to: Rutas::Ingredientes,
+                        class: "chip biblioteca-accion",
+                        "Ingredientes"
+                    }
                 }
             }
 
@@ -204,7 +219,10 @@ fn RecetaEnLista(receta: RecetaResumen) -> Element {
     let graduacion = proporciones::graduacion(&receta.receta);
     let svg = proporciones::svg(
         &receta.receta,
-        &proporciones::Opciones { escalas: false, mini: true },
+        &proporciones::Opciones {
+            escalas: false,
+            mini: true,
+        },
     );
     let mut datos: Vec<String> = Vec::new();
 
@@ -277,9 +295,7 @@ fn filtrar(
     let mut salida: Vec<RecetaResumen> = lista
         .iter()
         .filter(|receta| familia.as_deref().is_none_or(|f| receta.familia == f))
-        .filter(|receta| {
-            texto.is_empty() || receta.receta.nombre.to_lowercase().contains(&texto)
-        })
+        .filter(|receta| texto.is_empty() || receta.receta.nombre.to_lowercase().contains(&texto))
         .cloned()
         .collect();
 

@@ -7,6 +7,7 @@ mod descubrir;
 mod ficha;
 mod guardados;
 mod historial;
+mod ingredientes;
 mod lista_compra;
 mod login;
 mod marca;
