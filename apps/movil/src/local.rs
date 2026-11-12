@@ -12,6 +12,8 @@ use std::io::Read; // Lectura de bytes de /dev/urandom
 use std::path::PathBuf; // Rutas de los archivos locales
 use std::time::Duration; // Espera entre dos intentos de envío
 
+use api::foro::ComentarioNuevo; // Comentario que espera a ser enviado
+use api::foro::ReporteNuevo; // Reporte que espera a ser enviado
 use api::guardados::alternar_guardado; // Envío de un guardado pendiente
 use api::guardar::guardar_receta; // Envío de una versión pendiente
 use api::guardar::RecetaNueva; // Versión que espera a ser enviada
@@ -63,6 +65,26 @@ pub enum Cambio
         receta_id: String,
         /// `true` para guardar, `false` para quitar.
         guardar: bool,
+    },
+    /// Comentar en el hilo de una receta (D3).
+    Comentario(ComentarioNuevo),
+    /// Valorar si la receta salió (D4).
+    Valoracion
+    {
+        /// Receta valorada.
+        receta_id: String,
+        /// `true` si salió igual a la ficha.
+        me_salio: bool,
+    },
+    /// Reportar una receta o un comentario (D7).
+    Reporte(ReporteNuevo),
+    /// Publicar o retirar una receta propia de La Barra (D1).
+    Publicacion
+    {
+        /// Receta propia.
+        receta_id: String,
+        /// `true` para publicar, `false` para retirar.
+        publica: bool,
     },
 }
 
@@ -305,6 +327,16 @@ async fn enviar(token: String, cambio: Cambio) -> Result<(), ServerFnError>
         Cambio::Guardado { receta_id, guardar } =>
         {
             alternar_guardado(token, receta_id, guardar).await.map(|_| ())
+        }
+        Cambio::Comentario(nuevo) => api::foro::comentar(token, nuevo).await.map(|_| ()),
+        Cambio::Valoracion { receta_id, me_salio } =>
+        {
+            api::foro::valorar(token, receta_id, me_salio).await.map(|_| ())
+        }
+        Cambio::Reporte(reporte) => api::foro::reportar(token, reporte).await,
+        Cambio::Publicacion { receta_id, publica } =>
+        {
+            api::foro::publicar(token, receta_id, publica).await.map(|_| ())
         }
     }
 }

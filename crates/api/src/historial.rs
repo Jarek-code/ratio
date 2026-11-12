@@ -107,7 +107,7 @@ WITH RECURSIVE arriba AS (
 
 /// Nombres de los meses en español, para la fecha legible.
 #[cfg(feature = "server")]
-const MESES: [&str; 12] = [
+pub(crate) const MESES: [&str; 12] = [
     "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic",
 ];
 

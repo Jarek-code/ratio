@@ -17,6 +17,20 @@ pub struct PasoFicha {
     pub instruccion: String,
     /// Duración del temporizador en segundos, si el paso lo necesita.
     pub temporizador_s: Option<i32>,
+    /// Posición del paso en la base; ancla los comentarios de La Barra.
+    #[serde(default)]
+    pub posicion: i16,
+}
+
+/// Receta de la que deriva una versión, para dar crédito al original (D5).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OrigenReceta {
+    /// Identificador de la receta original (UUID en texto).
+    pub id: String,
+    /// Nombre de la receta original.
+    pub nombre: String,
+    /// Alias de quien la creó.
+    pub autor: String,
 }
 
 /// Receta completa para la ficha: el vaso y las capas en el formato del motor,
@@ -49,6 +63,9 @@ pub struct RecetaCompleta {
     pub intensidad: Option<i16>,
     /// Notas de sabor de la ficha.
     pub notas: Vec<String>,
+    /// Receta de la que deriva, si es una versión y el original es visible para la cuenta.
+    #[serde(default)]
+    pub origen: Option<OrigenReceta>,
 }
 
 /// Fila de la consulta de cabecera, con las medidas del vaso (solo servidor).
@@ -82,6 +99,12 @@ struct FilaReceta {
     intensidad: Option<i16>,
     /// Notas de sabor.
     notas: Vec<String>,
+    /// Receta original, si es visible para la cuenta.
+    origen_id: Option<String>,
+    /// Nombre de la receta original.
+    origen_nombre: Option<String>,
+    /// Alias de quien creó el original.
+    origen_autor: Option<String>,
 }
 
 /// Capa compartida con las demás consultas (solo servidor).
@@ -92,6 +115,8 @@ use crate::filas::FilaCapa;
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
 struct FilaPaso {
+    /// Posición del paso en la receta.
+    posicion: i16,
     /// Encabezado corto.
     titulo: Option<String>,
     /// Texto del paso.
@@ -126,6 +151,14 @@ impl FilaReceta {
             dificultad: self.dificultad,
             intensidad: self.intensidad,
             notas: self.notas,
+            origen: match (self.origen_id, self.origen_nombre) {
+                (Some(id), Some(nombre)) => Some(OrigenReceta {
+                    id,
+                    nombre,
+                    autor: self.origen_autor.unwrap_or_else(|| "Anónimo".to_string()),
+                }),
+                _ => None,
+            },
         }
     }
 }
@@ -174,10 +207,21 @@ pub async fn completa(
                r.minutos,
                r.dificultad,
                r.intensidad,
-               r.notas
+               r.notas,
+               o.id::text AS origen_id,
+               o.nombre AS origen_nombre,
+               ou.alias AS origen_autor
         FROM receta r
         JOIN vaso v ON v.id = r.vaso_id
         JOIN usuario u ON u.id = r.autor_id
+        LEFT JOIN receta o ON o.id = r.receta_origen_id
+          AND NOT o.oculta
+          AND (o.publicada_en IS NOT NULL OR o.autor_id = $2::uuid)
+          AND ($3 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol_origen
+                WHERE alcohol_origen.receta_id = o.id AND alcohol_origen.graduacion_pct > 0
+              ))
+        LEFT JOIN usuario ou ON ou.id = o.autor_id
         WHERE r.id = $1::uuid
           AND NOT r.oculta
           AND (r.publicada_en IS NOT NULL OR r.autor_id = $2::uuid)
@@ -221,7 +265,7 @@ pub async fn completa(
 
     let pasos = sqlx::query_as::<_, FilaPaso>(
         r#"
-        SELECT titulo, instruccion, temporizador_s
+        SELECT posicion, titulo, instruccion, temporizador_s
         FROM paso
         WHERE receta_id = $1::uuid
         ORDER BY posicion
@@ -238,6 +282,7 @@ pub async fn completa(
             titulo: paso.titulo.unwrap_or_default(),
             instruccion: paso.instruccion,
             temporizador_s: paso.temporizador_s,
+            posicion: paso.posicion,
         })
         .collect();
 

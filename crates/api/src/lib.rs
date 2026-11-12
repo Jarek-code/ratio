@@ -11,6 +11,7 @@ pub mod db;
 #[cfg(feature = "server")]
 mod filas; // Filas de vaso y capa compartidas por las consultas
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
+pub mod foro; // La Barra: publicar, hilo, comentar, valorar, actividad y reportes (D1-D7)
 pub mod guardados; // Recetas guardadas por la cuenta (C5)
 pub mod guardar; // C2: guardar una version privada ajustada
 pub mod historial; // Árbol de versiones de una bebida (B6)

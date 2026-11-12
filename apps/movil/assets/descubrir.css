@@ -646,3 +646,88 @@ button {
     background: var(--papel);
     font-size: 14px;
 }
+
+/* La Barra (D1-D4): valoración, hilo y formulario de comentario */
+.barra-valoracion,
+.barra-formulario,
+.propia-acciones {
+    display: grid;
+    gap: 10px;
+}
+
+.barra-recuento,
+.barra-aviso,
+.barra-respondiendo {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 14px;
+}
+
+.chip--activo {
+    border-color: var(--cobre);
+    color: var(--cobre);
+    font-weight: 600;
+}
+
+.barra-hilo {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0;
+    padding: 0;
+    list-style: none;
+}
+
+.barra-comentario {
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: var(--papel);
+    color: var(--tinta);
+}
+
+.barra-comentario p {
+    margin: 0 0 6px;
+}
+
+.barra-comentario--respuesta {
+    margin-left: 18px;
+    border-left: 3px solid var(--cobre);
+}
+
+.barra-meta,
+.barra-ancla-texto,
+.barra-propuesta-texto {
+    color: var(--tinta-suave);
+    font-size: 13px;
+}
+
+.barra-texto,
+.barra-select,
+.barra-propuesta {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: var(--papel);
+    color: var(--tinta);
+    font: inherit;
+}
+
+.barra-texto:focus-visible,
+.barra-select:focus-visible,
+.barra-propuesta:focus-visible {
+    outline: 2px solid var(--cobre);
+    outline-offset: 2px;
+}
+
+.barra-ancla {
+    display: grid;
+    gap: 6px;
+    font-size: 14px;
+}
+
+.barra-evento {
+    display: block;
+    text-decoration: none;
+}

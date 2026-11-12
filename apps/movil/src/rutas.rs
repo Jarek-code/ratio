@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::actividad;
 use crate::ajustar;
 use crate::biblioteca;
 use crate::descubrir;
@@ -50,6 +51,9 @@ pub enum Rutas {
     /// Lista de compra a partir de las recetas elegidas (C7).
     #[route("/lista-compra")]
     ListaCompra,
+    /// Novedades de La Barra sobre las recetas propias (D6).
+    #[route("/actividad")]
+    Actividad,
 }
 
 impl Rutas {
@@ -147,5 +151,13 @@ fn MisRecetas() -> Element {
 fn ListaCompra() -> Element {
     rsx! {
         lista_compra::PantallaListaCompra {}
+    }
+}
+
+/// Actividad de La Barra (D6).
+#[component]
+fn Actividad() -> Element {
+    rsx! {
+        actividad::PantallaActividad {}
     }
 }

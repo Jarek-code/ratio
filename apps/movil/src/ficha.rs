@@ -93,6 +93,14 @@ fn Contenido(receta: RecetaCompleta) -> Element {
             p { class: "eyebrow", "{receta.familia}" }
             h1 { "{receta.receta.nombre}" }
             p { class: "ficha-autor", "por {receta.autor}" }
+            // Versión derivada: crédito al original (D5)
+            if let Some(origen) = receta.origen.clone() {
+                p { class: "ficha-autor",
+                    "Versión de "
+                    Link { to: Rutas::Ficha { id: origen.id }, "{origen.nombre}" }
+                    " · original de {origen.autor}"
+                }
+            }
         }
 
         article { class: "tarjeta ficha-vaso",
@@ -200,13 +208,11 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                     Link {
                         to: Rutas::Ajustar { id: receta.id.clone() },
                         class: "chip chip--enlace",
-                        "Ajustar"
+                        aria_label: "Ajustar las proporciones o derivar una versión propia",
+                        "Ajustar o derivar"
                     }
                     Proximamente {
                         button { class: "chip", r#type: "button", "aria-disabled": "true", "Comparar" }
-                    }
-                    Proximamente {
-                        button { class: "chip", r#type: "button", "aria-disabled": "true", "Derivar" }
                     }
                     button {
                         class: "chip",
@@ -301,14 +307,16 @@ fn Contenido(receta: RecetaCompleta) -> Element {
             }
         }
 
-        section { class: "seccion", "aria-labelledby": "titulo-barra",
-            p { id: "titulo-barra", class: "eyebrow", "La Barra · comentarios anclados" }
-            p { class: "estado", "El hilo de esta receta llegará con el foro." }
-        }
+        crate::foro::LaBarra { receta: receta.clone() }
 
         section { class: "seccion", "aria-labelledby": "titulo-versiones",
             p { id: "titulo-versiones", class: "eyebrow", "Versiones" }
-            p { class: "estado", "Las versiones derivadas llegarán con el versionado." }
+            p { class: "mini", "Cada versión deriva de otra y conserva el crédito a su original." }
+            Link {
+                to: Rutas::Historial { id: receta.id.clone() },
+                class: "chip chip--enlace",
+                "Ver el historial de versiones"
+            }
         }
     }
 }

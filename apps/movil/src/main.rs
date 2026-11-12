@@ -1,10 +1,12 @@
 //! Ratio · cliente móvil: rutas, backend y componente raíz.
 
+mod actividad;
 mod ajustar;
 mod barra;
 mod biblioteca;
 mod descubrir;
 mod ficha;
+mod foro;
 mod guardados;
 mod historial;
 mod lista_compra;

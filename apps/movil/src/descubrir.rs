@@ -132,6 +132,13 @@ fn Encabezado() -> Element
                                 "Guardados"
                             }
 
+                            Link
+                            {
+                                to: crate::rutas::Rutas::Actividad,
+                                class: "perfil-enlace",
+                                "Actividad"
+                            }
+
                             button
                             {
                                 class: "perfil-salir",
