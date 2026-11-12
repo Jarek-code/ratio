@@ -49,6 +49,14 @@ pub enum Rutas {
 #[component]
 fn Entrar() -> Element {
     let navegador = navigator();
+    let sesion = use_context::<crate::sesion::SenalSesion>();
+
+    // Con una sesión guardada no hace falta volver a entrar
+    use_effect(move || {
+        if sesion.read().is_some() {
+            navegador.replace(Rutas::Descubrir);
+        }
+    });
 
     rsx! {
         login::Login {

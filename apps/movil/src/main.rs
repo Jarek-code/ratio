@@ -32,7 +32,9 @@ pub const SERVIDOR: &str = match option_env!("RATIO_SERVIDOR") {
 /// Componente raíz: el router decide la pantalla.
 #[component]
 fn App() -> Element {
-    use_context_provider(|| Signal::new(None::<sesion::SesionApp>));
+    // La sesión guardada se recupera al abrir y se renueva mientras la app siga abierta
+    let sesion = use_context_provider(|| Signal::new(sesion::cargar()));
+    use_future(move || sesion::mantener(sesion));
 
     rsx! {
         // Fuentes usadas por el diseño de Penpot.

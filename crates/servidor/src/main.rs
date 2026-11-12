@@ -42,6 +42,7 @@ fn enlazar_contratos() {
         api::salud,
         api::auth::entrar,
         api::auth::registrar,
+        api::auth::renovar,
         api::auth::sesion,
         api::biblioteca::catalogo,
         api::descubrir::sugerencias_dia,

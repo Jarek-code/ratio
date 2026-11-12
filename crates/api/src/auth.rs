@@ -42,6 +42,12 @@ pub struct Registro {
 pub struct SesionIniciada {
     /// Token de acceso de Supabase, que la app guarda y reenvía.
     pub token: String,
+    /// Token de renovación: con él se pide un token de acceso nuevo antes de que caduque.
+    #[serde(default)]
+    pub refresco: String,
+    /// Momento en que caduca `token`, en segundos desde 1970 (0 si no se conoce).
+    #[serde(default)]
+    pub caduca_en: i64,
     /// Perfil del usuario que corresponde al token.
     pub perfil: crate::Sesion,
 }
@@ -91,9 +97,12 @@ fn motivo_de(cuerpo: &serde_json::Value) -> String {
     String::new()
 }
 
-/// Pide el token a Supabase con correo y contraseña.
+/// Pide el token a Supabase con correo y contraseña; devuelve el cuerpo de la respuesta.
 #[cfg(feature = "server")]
-async fn token_con_contrasena(correo: &str, contrasena: &str) -> Result<String, String> {
+async fn token_con_contrasena(
+    correo: &str,
+    contrasena: &str,
+) -> Result<serde_json::Value, String> {
     let (url, anon) = supabase()?;
 
     let respuesta = reqwest::Client::new()
@@ -124,10 +133,24 @@ async fn token_con_contrasena(correo: &str, contrasena: &str) -> Result<String, 
         });
     }
 
-    cuerpo["access_token"]
+    Ok(cuerpo)
+}
+
+/// Arma la sesión con la respuesta de Supabase Auth: verifica el token y lee el perfil.
+#[cfg(feature = "server")]
+async fn iniciada_de(cuerpo: &serde_json::Value) -> Result<SesionIniciada, String> {
+    let token = cuerpo["access_token"]
         .as_str()
-        .map(|token| token.to_string())
-        .ok_or_else(|| "Supabase Auth no devolvió un token".to_string())
+        .ok_or_else(|| "Supabase Auth no devolvió un token".to_string())?;
+    let cuenta = cuenta_del_token(token).await?;
+    let perfil = perfil_de(&cuenta).await?;
+
+    Ok(SesionIniciada {
+        token: token.to_string(),
+        refresco: cuerpo["refresh_token"].as_str().unwrap_or("").to_string(),
+        caduca_en: cuerpo["expires_at"].as_i64().unwrap_or(0),
+        perfil,
+    })
 }
 
 /// Claves públicas con las que Supabase firma los tokens; se descargan una vez y se
@@ -253,13 +276,45 @@ async fn perfil_de(cuenta: &str) -> Result<Sesion, String> {
 /// válidas o si la cuenta todavía no tiene perfil en Ratio.
 #[server(endpoint = "entrar")]
 pub async fn entrar(credenciales: Credenciales) -> Result<SesionIniciada, ServerFnError> {
-    let token = token_con_contrasena(&credenciales.correo, &credenciales.contrasena)
+    let cuerpo = token_con_contrasena(&credenciales.correo, &credenciales.contrasena)
         .await
         .map_err(ServerFnError::new)?;
-    let cuenta = cuenta_del_token(&token).await.map_err(ServerFnError::new)?;
-    let perfil = perfil_de(&cuenta).await.map_err(ServerFnError::new)?;
 
-    Ok(SesionIniciada { token, perfil })
+    iniciada_de(&cuerpo).await.map_err(ServerFnError::new)
+}
+
+/// Pide a Supabase Auth un token de acceso nuevo con el token de renovación.
+///
+/// Devuelve `Ok(None)` si Supabase rechaza el token de renovación (caducado o revocado): la
+/// app debe pedir que se vuelva a entrar. Un fallo de red llega como `Err` y se reintenta.
+///
+/// # Errores
+///
+/// Devuelve `ServerFnError` si faltan las variables de Supabase o si no se pudo hablar con él.
+#[server(endpoint = "renovar")]
+pub async fn renovar(refresco: String) -> Result<Option<SesionIniciada>, ServerFnError> {
+    let (url, anon) = supabase().map_err(ServerFnError::new)?;
+
+    let respuesta = reqwest::Client::new()
+        .post(format!("{url}/auth/v1/token?grant_type=refresh_token"))
+        .header("apikey", anon)
+        .json(&serde_json::json!({ "refresh_token": refresco }))
+        .send()
+        .await
+        .map_err(|_| ServerFnError::new("Auth service unreachable"))?;
+
+    // Un 4xx es rechazo del token; un 5xx es fallo de Supabase y se reintenta
+    let rechazado = respuesta.status().is_client_error();
+    let (exito, cuerpo) = leer_respuesta(respuesta).await;
+
+    if rechazado {
+        return Ok(None);
+    }
+    if !exito {
+        return Err(ServerFnError::new("Auth service error"));
+    }
+
+    iniciada_de(&cuerpo).await.map(Some).map_err(ServerFnError::new)
 }
 
 /// Da de alta una cuenta y, si Supabase la deja entrar de inmediato, inicia la sesión.
@@ -318,21 +373,13 @@ pub async fn registrar(datos: Registro) -> Result<SesionIniciada, ServerFnError>
         ));
     }
 
-    let Some(token) = cuerpo["access_token"].as_str() else {
+    if cuerpo["access_token"].as_str().is_none() {
         return Err(ServerFnError::new(
             "Cuenta creada. Confirma el correo que te enviamos y luego entra",
         ));
-    };
+    }
 
-    let cuenta = cuenta_del_token(token)
-        .await
-        .map_err(ServerFnError::new)?;
-    let perfil = perfil_de(&cuenta).await.map_err(ServerFnError::new)?;
-
-    Ok(SesionIniciada {
-        token: token.to_string(),
-        perfil,
-    })
+    iniciada_de(&cuerpo).await.map_err(ServerFnError::new)
 }
 
 /// Revalida un token guardado y devuelve el perfil que le corresponde.

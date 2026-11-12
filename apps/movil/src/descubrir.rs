@@ -159,7 +159,7 @@ fn Encabezado() -> Element
                                 r#type: "button",
                                 onclick: move |_|
                                 {
-                                    sesion.set(None);
+                                    crate::sesion::salir(&mut sesion);
                                     abierto.set(false);
                                     navegador.push(crate::rutas::Rutas::Entrar);
                                 },
