@@ -52,6 +52,7 @@ fn enlazar_contratos() {
         api::ingredientes::catalogo,
         api::receta::completa,
         api::recetario::mis_recetas,
+        api::reporte::reportar,
         api::vasos::vasos,
     );
 }

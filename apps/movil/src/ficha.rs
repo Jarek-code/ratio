@@ -5,6 +5,7 @@ use api::receta::{PasoFicha, RecetaCompleta, completa};
 use dioxus::prelude::*;
 
 use crate::proximamente::Proximamente;
+use crate::reportar::ModalReportar;
 use crate::rutas::Rutas;
 
 /// Hoja de estilos propia de la ficha.
@@ -75,6 +76,7 @@ fn Contenido(receta: RecetaCompleta) -> Element {
     let mut guardando = use_signal(|| false);
     let mut guardada = use_signal(|| false);
     let mut aviso_guardado = use_signal(|| None::<String>);
+    let mut reportando = use_signal(|| false);
     let id_guardar = receta.id.clone();
     let capas = proporciones::capas(&receta.receta);
     let graduacion = proporciones::graduacion(&receta.receta);
@@ -209,6 +211,12 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                     button {
                         class: "chip",
                         r#type: "button",
+                        onclick: move |_| reportando.set(true),
+                        "Reportar"
+                    }
+                    button {
+                        class: "chip",
+                        r#type: "button",
                         disabled: *guardando.read() || *guardada.read(),
                         onclick: move |_| {
                             if *guardando.read() || *guardada.read() {
@@ -288,6 +296,13 @@ fn Contenido(receta: RecetaCompleta) -> Element {
         section { class: "seccion", "aria-labelledby": "titulo-versiones",
             p { id: "titulo-versiones", class: "eyebrow", "Versiones" }
             p { class: "estado", "Las versiones derivadas llegarán con el versionado." }
+        }
+
+        if reportando() {
+            ModalReportar {
+                receta_id: receta.id.clone(),
+                on_cerrar: move |_| reportando.set(false),
+            }
         }
     }
 }

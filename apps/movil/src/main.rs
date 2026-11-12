@@ -13,6 +13,7 @@ mod login;
 mod marca;
 mod mis_recetas;
 mod proximamente;
+mod reportar;
 mod rutas;
 mod salud;
 mod sesion;
