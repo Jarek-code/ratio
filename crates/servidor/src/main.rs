@@ -119,14 +119,17 @@ async fn abrir_pool(config: &config::Config) {
 
 /// Aplica `migrations/` con el pool ya instalado.
 ///
-/// Si una migración falla, o la base registra una que el repositorio no tiene, devuelve el
-/// error y el servidor no arranca: es preferible a servir con un esquema a medias.
+/// Si una migración falla devuelve el error y el servidor no arranca: es preferible a servir
+/// con un esquema a medias. Las que la base registra y el repositorio no tiene se ignoran,
+/// porque Supabase ya guarda una aplicada a mano (20261021000000).
 async fn aplicar_migraciones() -> Result<(), Error> {
     let Some(pool) = api::db::pool() else {
         return Ok(());
     };
 
-    sqlx::migrate!("../../migrations").run(pool).await?;
+    let mut migrador = sqlx::migrate!("../../migrations");
+    migrador.set_ignore_missing(true);
+    migrador.run(pool).await?;
     info!("migrations applied");
 
     Ok(())
