@@ -89,22 +89,21 @@ fn ruta(nombre: &str) -> Option<PathBuf>
     crate::sesion::carpeta_datos().map(|carpeta| carpeta.join(nombre))
 }
 
+/// Lee un valor guardado en un archivo JSON de la carpeta privada, si existe y es válido.
+pub fn leer_valor<T: DeserializeOwned>(nombre: &str) -> Option<T>
+{
+    let texto = fs::read_to_string(ruta(nombre)?).ok()?; // Sin carpeta o sin archivo: nada guardado
+    serde_json::from_str(&texto).ok() // Archivo dañado: nada guardado
+}
+
 /// Lee una lista guardada; un archivo ausente o dañado se trata como lista vacía.
 fn leer<T: DeserializeOwned>(nombre: &str) -> Vec<T>
 {
-    let Some(archivo) = ruta(nombre) else
-    {
-        return Vec::new(); // Sin carpeta de datos no hay nada guardado
-    };
-
-    fs::read_to_string(archivo)
-        .ok()
-        .and_then(|texto| serde_json::from_str(&texto).ok())
-        .unwrap_or_default() // Archivo ausente o dañado: lista vacía
+    leer_valor(nombre).unwrap_or_default()
 }
 
-/// Escribe una lista completa; si falla, lo deja anotado y la app sigue en memoria.
-fn escribir<T: Serialize>(nombre: &str, lista: &[T])
+/// Escribe un valor completo en un archivo JSON; si falla, lo anota y la app sigue en memoria.
+pub fn escribir<T: Serialize + ?Sized>(nombre: &str, valor: &T)
 {
     let Some(archivo) = ruta(nombre) else
     {
@@ -116,7 +115,7 @@ fn escribir<T: Serialize>(nombre: &str, lista: &[T])
         let _ = fs::create_dir_all(carpeta);
     }
 
-    let escrito = serde_json::to_string(lista)
+    let escrito = serde_json::to_string(valor)
         .ok()
         .map(|texto| fs::write(&archivo, texto).is_ok());
 

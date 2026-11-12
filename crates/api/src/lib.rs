@@ -8,6 +8,8 @@ pub mod auth; // Acceso, alta y verificación de la sesión
 pub mod biblioteca; // Catálogo completo de la pantalla Biblioteca (B2)
 #[cfg(feature = "server")]
 pub mod db;
+#[cfg(feature = "server")]
+mod filas; // Filas de vaso y capa compartidas por las consultas
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
 pub mod guardados; // Recetas guardadas por la cuenta (C5)
 pub mod guardar; // C2: guardar una version privada ajustada

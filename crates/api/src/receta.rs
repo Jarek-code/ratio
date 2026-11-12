@@ -71,24 +71,9 @@ struct FilaReceta {
     vaso_nombre: String,
     /// Volumen servido (ml, el del vaso si la receta no fija uno).
     capacidad_ml: f64,
-    /// Volumen útil del vaso (ml).
-    vaso_capacidad_ml: f64,
-    /// Media anchura de la boca.
-    radio_boca: f64,
-    /// Media anchura del fondo.
-    radio_fondo: f64,
-    /// Altura interior del vaso.
-    altura: f64,
-    /// Grosor de la pared.
-    pared: f64,
-    /// Labio sobre el nivel máximo del líquido.
-    borde: f64,
-    /// Altura del tallo.
-    tallo: f64,
-    /// Tamaño del asa, si tiene.
-    asa: Option<String>,
-    /// Si el vaso lleva plato.
-    plato: bool,
+    /// Medidas del vaso, leídas de las columnas del vaso.
+    #[sqlx(flatten)]
+    vaso: crate::filas::MedidasVaso,
     /// Tiempo de preparación (min).
     minutos: Option<i16>,
     /// Dificultad (1-5).
@@ -99,27 +84,9 @@ struct FilaReceta {
     notas: Vec<String>,
 }
 
-/// Fila de una capa (solo servidor).
+/// Capa compartida con las demás consultas (solo servidor).
 #[cfg(feature = "server")]
-#[derive(sqlx::FromRow)]
-struct FilaCapa {
-    /// Ingrediente del catalogo al que apunta la capa.
-    ingrediente_id: String,
-    /// Orden de la capa dentro de la receta.
-    posicion: i16,
-    /// Nombre del ingrediente en esta receta.
-    nombre: String,
-    /// Unidad de la cantidad: "ml" o "mg".
-    unidad: String,
-    /// Cantidad en la unidad indicada.
-    cantidad: f64,
-    /// Alcohol por volumen (0-100).
-    graduacion_pct: f64,
-    /// Color de la capa en hex, si lo tiene.
-    color: Option<String>,
-    /// Si la capa es agua o hielo derretido.
-    dilucion: bool,
-}
+use crate::filas::FilaCapa;
 
 /// Fila de un paso de preparación (solo servidor).
 #[cfg(feature = "server")]
@@ -137,51 +104,8 @@ struct FilaPaso {
 impl FilaReceta {
     /// Convierte la cabecera y sus capas en la receta que consume el motor.
     fn a_completa(self, capas: Vec<FilaCapa>, pasos: Vec<PasoFicha>) -> RecetaCompleta {
-        let asa = match self.asa.as_deref() {
-            Some("chica") => Some(proporciones::Asa::Chica),
-            Some("grande") => Some(proporciones::Asa::Grande),
-            _ => None,
-        };
-
-        let vaso = proporciones::Vaso {
-            capacidad_ml: self.vaso_capacidad_ml,
-            radio_boca: self.radio_boca,
-            radio_fondo: self.radio_fondo,
-            altura: self.altura,
-            pared: self.pared,
-            borde: self.borde,
-            tallo: self.tallo,
-            asa,
-            plato: self.plato,
-        };
-
-        // De momento 1 g = 1 ml: el motor recibe todas las capas como volumen. El
-        // detalle con unidad se conserva en `componentes` para guardar y listar.
-        let ingredientes = capas
-            .iter()
-            .map(|capa| proporciones::Componente {
-                nombre: capa.nombre.clone(),
-                ml: crate::ml_equivalentes(capa.cantidad, &capa.unidad),
-                graduacion: capa.graduacion_pct,
-                dilucion: capa.dilucion,
-                color: capa.color.clone(),
-                superficie: None,
-            })
-            .collect();
-
-        let componentes = capas
-            .into_iter()
-            .map(|capa| ComponenteFicha {
-                ingrediente_id: capa.ingrediente_id,
-                posicion: capa.posicion,
-                nombre: capa.nombre,
-                unidad: capa.unidad,
-                cantidad: capa.cantidad,
-                graduacion_pct: capa.graduacion_pct,
-                color: capa.color,
-                dilucion: capa.dilucion,
-            })
-            .collect();
+        let ingredientes = capas.iter().map(|capa| capa.a_componente()).collect();
+        let componentes = capas.iter().map(|capa| capa.a_ficha()).collect();
 
         RecetaCompleta {
             id: self.id,
@@ -192,7 +116,7 @@ impl FilaReceta {
             vaso_nombre: self.vaso_nombre,
             receta: proporciones::Receta {
                 nombre: self.nombre,
-                vaso,
+                vaso: self.vaso.a_vaso(),
                 capacidad_ml: self.capacidad_ml,
                 ingredientes,
             },
@@ -276,7 +200,8 @@ pub async fn completa(
 
     let capas = sqlx::query_as::<_, FilaCapa>(
         r#"
-        SELECT ingrediente_id::text AS ingrediente_id,
+        SELECT receta_id::text AS receta_id,
+               ingrediente_id::text AS ingrediente_id,
                posicion,
                nombre,
                unidad,

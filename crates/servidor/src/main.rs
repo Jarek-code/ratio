@@ -68,7 +68,7 @@ async fn arrancar(config: Option<config::Config>) -> Result<axum::Router, Error>
                 aplicar_migraciones().await?;
             }
         }
-        None => warn!("sin DATABASE_URL: se arranca en modo degradado"),
+        None => warn!("no DATABASE_URL: starting in degraded mode"),
     }
 
     Ok(axum::Router::new()
@@ -87,7 +87,7 @@ async fn registrar_peticion(
     let ruta = peticion.uri().path().to_string();
     let respuesta = siguiente.run(peticion).await;
 
-    tracing::debug!(%metodo, %ruta, estado = respuesta.status().as_u16(), "petición");
+    tracing::debug!(%metodo, %ruta, estado = respuesta.status().as_u16(), "request");
 
     respuesta
 }
@@ -97,14 +97,14 @@ async fn registrar_peticion(
 async fn abrir_pool(config: &config::Config) {
     let pool = match db::conectar(&config.database_url).await {
         Ok(pool) => {
-            info!(base = %config.destino(), "conectado a la base de datos");
+            info!(base = %config.destino(), "connected to database");
             pool
         }
         Err(causa) => {
             warn!(
                 base = %config.destino(),
                 error = %causa,
-                "sin conexión a la base de datos; se arranca en modo degradado"
+                "database unreachable: starting in degraded mode"
             );
             db::perezoso(&config.database_url)
         }
@@ -114,7 +114,7 @@ async fn abrir_pool(config: &config::Config) {
 
     match (&config.supabase_url, &config.supabase_anon) {
         (Some(url), Some(anon)) => api::auth::configurar(url.clone(), anon.clone()),
-        _ => warn!("sin SUPABASE_URL o SUPABASE_ANON_KEY: el acceso no podrá validar credenciales"),
+        _ => warn!("no SUPABASE_URL or SUPABASE_ANON_KEY: sign-in cannot validate credentials"),
     }
 }
 
