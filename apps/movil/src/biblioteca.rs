@@ -50,12 +50,16 @@ impl Orden {
 }
 
 /// Catálogo completo de recetas publicadas, con buscador, chips de familia y orden.
+///
+/// `busqueda`, `familia` y `tipo` llegan de la ruta (por ejemplo, desde Descubrir) y son los
+/// filtros con los que se abre; vacíos, no filtran.
 #[component]
-pub fn PantallaBiblioteca() -> Element {
+pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>();
     let mut catalogo_res = use_resource(move || catalogo(crate::sesion::token(&sesion)));
-    let busqueda = use_signal(String::new);
-    let familia = use_signal(|| None::<String>);
+    let busqueda = use_signal(|| busqueda);
+    let familia = use_signal(|| Some(familia).filter(|valor| !valor.is_empty()));
+    let tipo = use_signal(|| Some(tipo).filter(|valor| !valor.is_empty()));
     let orden = use_signal(|| Orden::Nombre);
 
     rsx! {
@@ -92,11 +96,11 @@ pub fn PantallaBiblioteca() -> Element {
                     }
                 },
                 Some(Ok(lista)) => rsx! {
-                    ChipsFamilia { lista: lista.clone(), familia }
+                    ChipsFamilia { lista: lista.clone(), familia, tipo }
                     Ordenes { orden }
 
                     {
-                        let filtradas = filtrar(lista, &busqueda.read(), &familia.read(), *orden.read());
+                        let filtradas = filtrar(lista, &busqueda.read(), &familia.read(), &tipo.read(), *orden.read());
 
                         rsx! {
                             if filtradas.is_empty() {
@@ -145,8 +149,13 @@ fn Buscador(busqueda: Signal<String>) -> Element {
 
 /// Filtros por familia, sacados de las recetas que hay.
 #[component]
-fn ChipsFamilia(lista: Vec<RecetaResumen>, familia: Signal<Option<String>>) -> Element {
+fn ChipsFamilia(
+    lista: Vec<RecetaResumen>,
+    familia: Signal<Option<String>>,
+    tipo: Signal<Option<String>>,
+) -> Element {
     let mut familia = familia;
+    let mut tipo = tipo;
     let mut familias: Vec<String> = lista.iter().map(|r| r.familia.clone()).collect();
     familias.sort();
     familias.dedup();
@@ -155,10 +164,22 @@ fn ChipsFamilia(lista: Vec<RecetaResumen>, familia: Signal<Option<String>>) -> E
     rsx! {
         div { class: "chips", role: "group", "aria-label": "Filtrar por familia",
             button {
-                class: if activa.is_none() { "chip activo" } else { "chip" },
+                class: if activa.is_none() && tipo.read().is_none() { "chip activo" } else { "chip" },
                 r#type: "button",
-                onclick: move |_| familia.set(None),
+                onclick: move |_| {
+                    familia.set(None);
+                    tipo.set(None);
+                },
                 "Todas"
+            }
+            if tipo.read().as_deref() == Some("cocteleria") {
+                button {
+                    class: "chip activo",
+                    r#type: "button",
+                    "aria-pressed": "true",
+                    onclick: move |_| tipo.set(None),
+                    "Cócteles"
+                }
             }
             for nombre in familias {
                 button {
@@ -272,12 +293,14 @@ fn filtrar(
     lista: &[RecetaResumen],
     busqueda: &str,
     familia: &Option<String>,
+    tipo: &Option<String>,
     orden: Orden,
 ) -> Vec<RecetaResumen> {
     let texto = busqueda.trim().to_lowercase();
     let mut salida: Vec<RecetaResumen> = lista
         .iter()
         .filter(|receta| familia.as_deref().is_none_or(|f| receta.familia == f))
+        .filter(|receta| tipo.as_deref().is_none_or(|t| receta.tipo == t))
         .filter(|receta| {
             texto.is_empty() || receta.receta.nombre.to_lowercase().contains(&texto)
         })

@@ -110,7 +110,7 @@ fn ListaGuardados(lista: Vec<RecetaGuardada>, recarga: Signal<u32>) -> Element {
         return rsx! {
             div { class: "estado",
                 p { "Todavía no has guardado recetas. Abre una ficha y usa «Guardar»." }
-                Link { to: Rutas::Biblioteca, class: "guardados-accion", "Ir a la biblioteca" }
+                Link { to: Rutas::biblioteca(), class: "guardados-accion", "Ir a la biblioteca" }
             }
         };
     }

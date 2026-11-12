@@ -22,9 +22,16 @@ pub enum Rutas {
     /// Descubrir: sugerencia del día y accesos del recetario (B1).
     #[route("/descubrir")]
     Descubrir,
-    /// Biblioteca con el catálogo completo (B2).
-    #[route("/biblioteca")]
-    Biblioteca,
+    /// Biblioteca con el catálogo completo (B2), con búsqueda y filtros opcionales.
+    ///
+    /// `familia` filtra por familia (`espresso`, `con_leche`…) y `tipo` por pestaña
+    /// (`cafe` o `cocteleria`); vacíos, no filtran.
+    #[route("/biblioteca?:busqueda&:familia&:tipo")]
+    Biblioteca {
+        busqueda: String,
+        familia: String,
+        tipo: String,
+    },
     /// Ficha de una receta (B3).
     #[route("/receta/:id")]
     Ficha { id: String },
@@ -43,6 +50,17 @@ pub enum Rutas {
     /// Lista de compra a partir de las recetas elegidas (C7).
     #[route("/lista-compra")]
     ListaCompra,
+}
+
+impl Rutas {
+    /// Biblioteca sin búsqueda ni filtros.
+    pub fn biblioteca() -> Self {
+        Rutas::Biblioteca {
+            busqueda: String::new(),
+            familia: String::new(),
+            tipo: String::new(),
+        }
+    }
 }
 
 /// Acceso; al validar el formulario continúa a Descubrir.
@@ -86,9 +104,9 @@ fn Historial(id: String) -> Element {
 
 /// Biblioteca (B2).
 #[component]
-fn Biblioteca() -> Element {
+fn Biblioteca(busqueda: String, familia: String, tipo: String) -> Element {
     rsx! {
-        biblioteca::PantallaBiblioteca {}
+        biblioteca::PantallaBiblioteca { busqueda, familia, tipo }
     }
 }
 

@@ -205,7 +205,7 @@ fn BarraSuperior() -> Element {
     rsx! {
         header { class: "lista-compra-barra",
             Link {
-                to: Rutas::Biblioteca,
+                to: Rutas::biblioteca(),
                 class: "lista-compra-volver",
                 aria_label: "Volver a la biblioteca",
                 "‹ Biblioteca"

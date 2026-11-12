@@ -220,6 +220,17 @@ fn copia(cuenta: &Option<String>, id: &str) -> Option<RecetaCompleta>
         .map(|vista| vista.receta) // Ficha tal como se vio la última vez
 }
 
+/// Últimas recetas vistas por la cuenta, de la más reciente a la más antigua.
+pub fn recientes(cuenta: &Option<String>, cuantas: usize) -> Vec<RecetaCompleta>
+{
+    leer::<RecetaVista>(ARCHIVO_VISTAS)
+        .into_iter()
+        .filter(|vista| &vista.cuenta == cuenta)
+        .take(cuantas)
+        .map(|vista| vista.receta)
+        .collect() // Fichas en el orden en que se vieron
+}
+
 /// Pide la ficha al servidor y la guarda en A2; sin conexión devuelve la copia guardada.
 ///
 /// `cuenta` es el `usuario_id` de la sesión (`None` sin sesión) y `token` el que se reenvía.

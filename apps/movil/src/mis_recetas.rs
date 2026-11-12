@@ -211,7 +211,7 @@ fn ListaPropia(lista: Vec<RecetaPropia>, filtro: Signal<Filtro>) -> Element {
         if visibles.is_empty() {
             div { class: "estado",
                 p { "{activo.vacio()}" }
-                Link { to: Rutas::Biblioteca, class: "mi-recetario-accion", "Ir a la biblioteca" }
+                Link { to: Rutas::biblioteca(), class: "mi-recetario-accion", "Ir a la biblioteca" }
             }
         } else {
             ul { class: "mi-recetario-lista",
