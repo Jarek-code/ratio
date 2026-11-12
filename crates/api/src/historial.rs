@@ -36,7 +36,9 @@ pub struct VersionHistorial {
     pub fecha: String,
     /// Si cualquiera puede verla; las privadas solo las ve su autor.
     pub publica: bool,
-    /// Nombre de la versión de la que deriva; `None` en la original.
+    /// Si deriva de otra versión, aunque esa otra no sea visible para quien pregunta.
+    pub derivada: bool,
+    /// Nombre de la versión de la que deriva; `None` en la original o si el origen está oculto.
     pub origen: Option<String>,
     /// Volumen total de la bebida en mililitros.
     pub total_ml: f64,
@@ -302,6 +304,7 @@ pub async fn versiones(
                     fila.anio
                 ),
                 publica: fila.publica,
+                derivada: fila.origen_id.is_some(),
                 origen: origen_visible.map(|otra| otra.nombre.clone()),
                 total_ml,
                 ratio: ratio_de(total_ml, base_ml_de(&propias)),
