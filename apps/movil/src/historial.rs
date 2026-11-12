@@ -246,7 +246,9 @@ fn VersionCard(indice: usize, version: VersionHistorial) -> Element {
                 // Origen oculto: no se muestran sus cantidades
                 p { class: "version-note", "Deriva de una versión que no está disponible" }
             } else if version.cambios.is_empty() {
-                p { class: "version-note", "Receta original · sin cambios" }
+                p { class: "version-note",
+                    if version.derivada { "Sin cambios frente a su origen" } else { "Receta original · sin cambios" }
+                }
             } else {
                 div { class: "diff-list",
                     for cambio in version.cambios.iter() {

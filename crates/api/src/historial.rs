@@ -37,6 +37,7 @@ pub struct VersionHistorial {
     /// Si cualquiera puede verla; las privadas solo las ve su autor.
     pub publica: bool,
     /// Si deriva de otra versión, aunque esa otra no sea visible para quien pregunta.
+    #[serde(default)] // Un servidor anterior no manda el campo
     pub derivada: bool,
     /// Nombre de la versión de la que deriva; `None` en la original o si el origen está oculto.
     pub origen: Option<String>,
