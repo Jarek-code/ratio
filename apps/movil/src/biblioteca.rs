@@ -52,7 +52,8 @@ impl Orden {
 /// Catálogo completo de recetas publicadas, con buscador, chips de familia y orden.
 #[component]
 pub fn PantallaBiblioteca() -> Element {
-    let mut catalogo_res = use_resource(catalogo);
+    let sesion = use_context::<crate::sesion::SenalSesion>();
+    let mut catalogo_res = use_resource(move || catalogo(crate::sesion::token(&sesion)));
     let busqueda = use_signal(String::new);
     let familia = use_signal(|| None::<String>);
     let orden = use_signal(|| Orden::Nombre);

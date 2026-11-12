@@ -1,8 +1,8 @@
 //! Acceso y alta contra Supabase Auth, y verificación del token de sesión.
 //!
 //! Las contraseñas nunca pasan por este código más allá del reenvío: Supabase Auth guarda su
-//! hash en `auth.users.encrypted_password` y devuelve un token. Aquí solo se pide el token y,
-//! con él, se lee el perfil de `usuario` para armar la `Sesion`.
+//! hash en `auth.users.encrypted_password` y devuelve un token. Aquí solo se pide el token, se
+//! verifica su firma con las claves públicas del proyecto y se lee el perfil de `usuario`.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -130,32 +130,90 @@ async fn token_con_contrasena(correo: &str, contrasena: &str) -> Result<String, 
         .ok_or_else(|| "Supabase Auth no devolvió un token".to_string())
 }
 
-/// Comprueba un token contra Supabase y devuelve el id de su cuenta.
+/// Claves públicas con las que Supabase firma los tokens; se descargan una vez y se
+/// renuevan cuando llega un token firmado con una clave que aún no está aquí.
 #[cfg(feature = "server")]
-async fn cuenta_del_token(token: &str) -> Result<String, String> {
-    let (url, anon) = supabase()?;
+static CLAVES: std::sync::RwLock<Option<(jsonwebtoken::jwk::JwkSet, std::time::Instant)>> =
+    std::sync::RwLock::new(None);
 
-    let respuesta = reqwest::Client::new()
-        .get(format!("{url}/auth/v1/user"))
-        .header("apikey", anon)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|causa| format!("no se pudo verificar la sesión: {causa}"))?;
+/// Espera mínima entre dos descargas de claves: un token con una clave inventada no puede
+/// obligar al servidor a llamar a Supabase en cada petición.
+#[cfg(feature = "server")]
+const ESPERA_ENTRE_DESCARGAS: std::time::Duration = std::time::Duration::from_secs(60);
 
-    if !respuesta.status().is_success() {
+/// Lo único que se lee del token: la cuenta a la que pertenece.
+#[cfg(feature = "server")]
+#[derive(Deserialize)]
+struct Declaraciones {
+    /// Id de la cuenta en `auth.users`.
+    sub: String,
+}
+
+/// Clave de verificación con ese identificador entre las ya descargadas, si está.
+#[cfg(feature = "server")]
+fn clave_en_cache(kid: &str) -> Option<jsonwebtoken::DecodingKey> {
+    let claves = CLAVES.read().ok()?;
+    let clave = claves.as_ref()?.0.find(kid)?;
+
+    jsonwebtoken::DecodingKey::from_jwk(clave).ok()
+}
+
+/// Clave pública que firmó el token: la de la caché o, si no está, la que publique Supabase.
+#[cfg(feature = "server")]
+async fn clave_de(kid: &str) -> Result<jsonwebtoken::DecodingKey, String> {
+    if let Some(clave) = clave_en_cache(kid) {
+        return Ok(clave);
+    }
+
+    let recientes = match CLAVES.read() {
+        Ok(claves) => claves
+            .as_ref()
+            .is_some_and(|(_, descarga)| descarga.elapsed() < ESPERA_ENTRE_DESCARGAS),
+        Err(_) => false,
+    };
+
+    if recientes {
         return Err("La sesión caducó; vuelve a entrar".to_string());
     }
 
-    let cuerpo: serde_json::Value = respuesta
+    let (url, anon) = supabase()?;
+
+    let descargadas: jsonwebtoken::jwk::JwkSet = reqwest::Client::new()
+        .get(format!("{url}/auth/v1/.well-known/jwks.json"))
+        .header("apikey", anon)
+        .send()
+        .await
+        .map_err(|causa| format!("no se pudo verificar la sesión: {causa}"))?
         .json()
         .await
-        .map_err(|causa| format!("respuesta ilegible de Supabase Auth: {causa}"))?;
+        .map_err(|causa| format!("claves ilegibles de Supabase Auth: {causa}"))?;
 
-    cuerpo["id"]
-        .as_str()
-        .map(|id| id.to_string())
-        .ok_or_else(|| "la cuenta del token no tiene id".to_string())
+    if let Ok(mut claves) = CLAVES.write() {
+        *claves = Some((descargadas, std::time::Instant::now()));
+    }
+
+    clave_en_cache(kid).ok_or_else(|| "La sesión caducó; vuelve a entrar".to_string())
+}
+
+/// Verifica la firma, la caducidad y el emisor de un token y devuelve el id de su cuenta.
+///
+/// La comprobación es local: Supabase solo se consulta para descargar sus claves públicas.
+#[cfg(feature = "server")]
+async fn cuenta_del_token(token: &str) -> Result<String, String> {
+    let caducada = || "La sesión caducó; vuelve a entrar".to_string();
+    let (url, _) = supabase()?;
+
+    let cabecera = jsonwebtoken::decode_header(token).map_err(|_| caducada())?;
+    let kid = cabecera.kid.ok_or_else(caducada)?;
+    let clave = clave_de(&kid).await?;
+
+    let mut reglas = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::ES256);
+    reglas.set_audience(&["authenticated"]);
+    reglas.set_issuer(&[format!("{url}/auth/v1")]);
+
+    jsonwebtoken::decode::<Declaraciones>(token, &clave, &reglas)
+        .map(|verificado| verificado.claims.sub)
+        .map_err(|_| caducada())
 }
 
 /// Lee el perfil de la cuenta en `usuario`.

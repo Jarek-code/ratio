@@ -210,7 +210,8 @@ impl FilaReceta {
 ///
 /// Devuelve la receta si esta publicada o si pertenece a la cuenta del token. Los
 /// borradores y las versiones privadas ajenas se tratan como inexistentes; una receta
-/// oculta no se devuelve ni a su autor.
+/// oculta no se devuelve ni a su autor. Sin mayoría de edad declarada, una receta con
+/// alcohol también se trata como inexistente.
 ///
 /// # Errores
 ///
@@ -225,6 +226,7 @@ pub async fn completa(
     };
 
     let cuenta = crate::auth::cuenta(token.as_deref()).await;
+    let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
     let cabecera = sqlx::query_as::<_, FilaReceta>(
         r#"
@@ -255,10 +257,15 @@ pub async fn completa(
         WHERE r.id = $1::uuid
           AND NOT r.oculta
           AND (r.publicada_en IS NOT NULL OR r.autor_id = $2::uuid)
+          AND ($3 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol
+                WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+              ))
         "#,
     )
     .bind(&id)
     .bind(&cuenta)
+    .bind(adulto)
     .fetch_optional(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;

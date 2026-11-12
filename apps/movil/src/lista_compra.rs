@@ -158,7 +158,8 @@ struct Compra {
 /// Pantalla C7: carga el catalogo, deja elegir recetas y arma la lista.
 #[component]
 pub fn PantallaListaCompra() -> Element {
-    let mut recurso = use_resource(catalogo);
+    let sesion = use_context::<crate::sesion::SenalSesion>();
+    let mut recurso = use_resource(move || catalogo(crate::sesion::token(&sesion)));
 
     rsx! {
         document::Stylesheet { href: CSS_BASE }

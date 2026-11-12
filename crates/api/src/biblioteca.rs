@@ -195,6 +195,8 @@ impl FilaReceta {
 
 /// Trae todas las recetas publicadas, de la A a la Z, con su vaso y sus capas.
 ///
+/// Sin una sesión que haya declarado mayoría de edad se omiten las recetas con alcohol.
+///
 /// La búsqueda y los filtros se resuelven en el cliente: el catálogo del piloto son unas
 /// pocas decenas de recetas y así el buscador responde sin una petición por tecla.
 ///
@@ -202,10 +204,12 @@ impl FilaReceta {
 ///
 /// Devuelve `ServerFnError` si el servidor no tiene pool o si alguna consulta falla.
 #[server(endpoint = "catalogo")]
-pub async fn catalogo() -> Result<Vec<RecetaResumen>, ServerFnError> {
+pub async fn catalogo(token: Option<String>) -> Result<Vec<RecetaResumen>, ServerFnError> {
     let Some(pool) = db::pool() else {
         return Err(ServerFnError::new("Database unavailable"));
     };
+
+    let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
     let recetas = sqlx::query_as::<_, FilaReceta>(
         r#"
@@ -232,9 +236,14 @@ pub async fn catalogo() -> Result<Vec<RecetaResumen>, ServerFnError> {
         JOIN usuario u ON u.id = r.autor_id
         WHERE r.publicada_en IS NOT NULL
           AND NOT r.oculta
+          AND ($1 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol
+                WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+              ))
         ORDER BY r.nombre
         "#,
     )
+    .bind(adulto)
     .fetch_all(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;
@@ -254,9 +263,14 @@ pub async fn catalogo() -> Result<Vec<RecetaResumen>, ServerFnError> {
         JOIN receta r ON r.id = c.receta_id
         WHERE r.publicada_en IS NOT NULL
           AND NOT r.oculta
+          AND ($1 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol
+                WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+              ))
         ORDER BY c.receta_id, c.posicion
         "#,
     )
+    .bind(adulto)
     .fetch_all(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;

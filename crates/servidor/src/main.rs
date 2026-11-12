@@ -64,7 +64,7 @@ async fn arrancar(config: Option<config::Config>) -> Result<axum::Router, Error>
             abrir_pool(config).await;
 
             if config.migrar {
-                aplicar_migraciones().await;
+                aplicar_migraciones().await?;
             }
         }
         None => warn!("sin DATABASE_URL: se arranca en modo degradado"),
@@ -118,18 +118,18 @@ async fn abrir_pool(config: &config::Config) {
 }
 
 /// Aplica `migrations/` con el pool ya instalado.
-async fn aplicar_migraciones() {
+///
+/// Si una migración falla, o la base registra una que el repositorio no tiene, devuelve el
+/// error y el servidor no arranca: es preferible a servir con un esquema a medias.
+async fn aplicar_migraciones() -> Result<(), Error> {
     let Some(pool) = api::db::pool() else {
-        return;
+        return Ok(());
     };
 
-    let mut migrador = sqlx::migrate!("../../migrations");
-    migrador.set_ignore_missing(true);
+    sqlx::migrate!("../../migrations").run(pool).await?;
+    info!("migrations applied");
 
-    match migrador.run(pool).await {
-        Ok(()) => info!("migraciones aplicadas"),
-        Err(causa) => error!(error = %causa, "las migraciones fallaron; se arranca sin aplicarlas"),
-    }
+    Ok(())
 }
 
 /// Lo que consulta Render y lo que enseña el cliente. `200` si la base contesta;

@@ -204,6 +204,7 @@ fn cambios_de(version: &[FilaComponente], origen: &[FilaComponente]) -> Vec<Camb
 /// Trae las versiones publicadas de una bebida y, si hay sesión, también las privadas de su autor.
 ///
 /// Sin token solo se devuelven las versiones públicas; las privadas quedan para quien las creó.
+/// Sin mayoría de edad declarada se omiten las versiones con alcohol.
 ///
 /// # Errores
 ///
@@ -218,6 +219,7 @@ pub async fn versiones(
     };
 
     let cuenta = crate::auth::cuenta(token.as_deref()).await;
+    let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
     let filas = sqlx::query_as::<_, FilaVersion>(&format!(
         r#"{ARBOL}
@@ -233,11 +235,16 @@ pub async fn versiones(
         LEFT JOIN usuario u ON u.id = r.autor_id
         WHERE r.id IN (SELECT id FROM arbol)
           AND ((r.publicada_en IS NOT NULL AND NOT r.oculta) OR r.autor_id = $2::uuid)
+          AND ($3 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol
+                WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+              ))
         ORDER BY r.creada_en, r.nombre
         "#
     ))
     .bind(&id)
     .bind(&cuenta)
+    .bind(adulto)
     .fetch_all(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;
