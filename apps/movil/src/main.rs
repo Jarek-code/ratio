@@ -8,6 +8,7 @@ mod ficha;
 mod guardados;
 mod historial;
 mod lista_compra;
+mod local;
 mod login;
 mod marca;
 mod mis_recetas;
@@ -35,6 +36,9 @@ fn App() -> Element {
     // La sesión guardada se recupera al abrir y se renueva mientras la app siga abierta
     let sesion = use_context_provider(|| Signal::new(sesion::cargar()));
     use_future(move || sesion::mantener(sesion));
+    // Los cambios hechos sin conexión se envían cuando vuelve la red
+    let pendientes = use_context_provider(|| Signal::new(0_usize));
+    use_future(move || local::vaciar(sesion, pendientes));
 
     rsx! {
         // Fuentes usadas por el diseño de Penpot.

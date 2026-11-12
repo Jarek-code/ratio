@@ -635,3 +635,14 @@ button {
         grid-column: 1 / -1;
     }
 }
+
+/* Cambios guardados sin conexión que esperan a enviarse (A2 y cola) */
+.aviso-pendientes {
+    margin: 0;
+    border: 1px solid var(--cobre);
+    border-radius: 14px;
+    padding: 12px 16px;
+    color: var(--tinta);
+    background: var(--papel);
+    font-size: 14px;
+}

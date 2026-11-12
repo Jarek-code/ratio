@@ -12,7 +12,7 @@
 
 use api::guardar::{ComponenteAgregado, ComponenteNuevo, RecetaNueva, guardar_receta};
 use api::ingredientes::{IngredienteOpcion, catalogo as catalogo_ingredientes};
-use api::receta::{RecetaCompleta, completa};
+use api::receta::RecetaCompleta;
 use api::vasos::{VasoOpcion, vasos as catalogo_vasos};
 use dioxus::prelude::*;
 
@@ -107,8 +107,9 @@ pub fn PantallaAjustar(id: String) -> Element {
     let mut recurso = use_resource(move || {
         let id = id_recurso.clone();
         let token = crate::sesion::token(&sesion);
+        let cuenta = crate::sesion::cuenta(&sesion);
         async move {
-            let receta = completa(id, token).await?;
+            let receta = crate::local::receta(id, token, cuenta).await?;
             let vasos = catalogo_vasos().await?;
             let ingredientes = catalogo_ingredientes().await?;
             Ok::<_, ServerFnError>((receta, vasos, ingredientes))
@@ -203,6 +204,7 @@ fn Editor(
     let mut seleccion_ingrediente = use_signal(String::new);
     let mut comensales = use_signal(|| 1_u32);
     let mut indice_vaso = use_signal(move || indice_inicial);
+    let mut pendientes = use_context::<crate::local::SenalPendientes>();
     let mut guardando = use_signal(|| false);
     let mut guardada = use_signal(|| None::<String>);
     let mut aviso = use_signal(|| None::<String>);
@@ -835,6 +837,7 @@ fn Editor(
                         capacidad_ml: vaso_para_guardar.vaso.capacidad_ml,
                         componentes,
                         agregados: agregados_guardar,
+                        id: crate::local::nuevo_id(),
                     };
 
                     guardando.set(true);
@@ -842,7 +845,7 @@ fn Editor(
                     aviso.set(None);
 
                     spawn(async move {
-                        match guardar_receta(token, datos).await {
+                        match guardar_receta(token, datos.clone()).await {
                             Ok(resultado) => {
                                 let mensaje = if resultado.advertencias.is_empty() {
                                     "Versión guardada. Ya aparece en Mi recetario.".to_string()
@@ -854,6 +857,20 @@ fn Editor(
                                 };
                                 aviso.set(Some(mensaje));
                                 guardada.set(Some(resultado.receta_id));
+                            }
+                            // Sin red: la versión queda en la cola con su mismo id
+                            Err(causa)
+                                if crate::local::es_sin_conexion(&causa)
+                                    && crate::local::encolar(
+                                        &sesion,
+                                        &mut pendientes,
+                                        crate::local::Cambio::Version(datos),
+                                    ) =>
+                            {
+                                aviso.set(Some(
+                                    "Sin conexión: la versión se enviará cuando vuelva la red y aparecerá en Mi recetario."
+                                        .to_string(),
+                                ));
                             }
                             Err(causa) => {
                                 aviso.set(Some(format!("No pudimos guardar la versión: {causa}")));

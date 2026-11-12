@@ -120,6 +120,8 @@ pub fn PantallaMisRecetas() -> Element {
                 p { class: "mi-recetario-sub", "Tus versiones, tus publicaciones y lo que aún no sale de casa." }
             }
 
+            crate::local::AvisoPendientes {}
+
             match &*recurso.read() {
                 None => rsx! {
                     p { class: "estado", role: "status", "Cargando tu recetario…" }

@@ -1,7 +1,7 @@
 //! Ficha de receta (B3): el vaso con sus capas, las proporciones, los datos y los pasos.
 
 use api::guardados::alternar_guardado;
-use api::receta::{PasoFicha, RecetaCompleta, completa};
+use api::receta::{PasoFicha, RecetaCompleta};
 use dioxus::prelude::*;
 
 use crate::proximamente::Proximamente;
@@ -22,7 +22,8 @@ pub fn PantallaFicha(id: String) -> Element {
     let mut receta_res = use_resource(move || {
         let id = id.clone();
         let token = crate::sesion::token(&sesion);
-        async move { completa(id, token).await }
+        let cuenta = crate::sesion::cuenta(&sesion);
+        crate::local::receta(id, token, cuenta)
     });
 
     rsx! {
@@ -72,6 +73,7 @@ fn BarraSuperior() -> Element {
 #[component]
 fn Contenido(receta: RecetaCompleta) -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>();
+    let mut pendientes = use_context::<crate::local::SenalPendientes>();
     let mut guardando = use_signal(|| false);
     let mut guardada = use_signal(|| false);
     let mut aviso_guardado = use_signal(|| None::<String>);
@@ -226,10 +228,29 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                             guardando.set(true);
                             aviso_guardado.set(None);
                             spawn(async move {
-                                match alternar_guardado(token, id, true).await {
+                                match alternar_guardado(token, id.clone(), true).await {
                                     Ok(_) => {
                                         guardada.set(true);
                                         guardando.set(false);
+                                    }
+                                    // Sin red: el guardado queda en la cola
+                                    Err(causa)
+                                        if crate::local::es_sin_conexion(&causa)
+                                            && crate::local::encolar(
+                                                &sesion,
+                                                &mut pendientes,
+                                                crate::local::Cambio::Guardado {
+                                                    receta_id: id,
+                                                    guardar: true,
+                                                },
+                                            ) =>
+                                    {
+                                        guardada.set(true);
+                                        guardando.set(false);
+                                        aviso_guardado.set(Some(
+                                            "Sin conexión: se guardará cuando vuelva la red."
+                                                .to_string(),
+                                        ));
                                     }
                                     Err(causa) => {
                                         aviso_guardado.set(Some(format!(

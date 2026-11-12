@@ -27,6 +27,14 @@ pub fn token(sesion: &SenalSesion) -> Option<String> {
     sesion.read().as_ref().map(|guardada| guardada.token.clone())
 }
 
+/// Cuenta (`usuario_id`) de la sesión actual, si la hay.
+pub fn cuenta(sesion: &SenalSesion) -> Option<String> {
+    sesion
+        .read()
+        .as_ref()
+        .map(|guardada| guardada.perfil.usuario_id.clone())
+}
+
 /// Carpeta privada de la app, donde nadie más puede leer.
 ///
 /// iOS y el escritorio la dan con `HOME`; Android no tiene `HOME`, así que se arma con el

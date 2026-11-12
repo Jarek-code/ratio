@@ -51,6 +51,10 @@ pub struct RecetaNueva {
     /// Capas nuevas que nacieron del desplegable de C1.
     #[serde(default)]
     pub agregados: Vec<ComponenteAgregado>,
+    /// UUID que genera la app: si la misma version se reenvia desde la cola sin conexion,
+    /// el servidor devuelve la que ya existe en vez de duplicarla.
+    #[serde(default)]
+    pub id: Option<String>,
 }
 
 /// Resultado de guardar una version.
@@ -163,6 +167,25 @@ pub async fn guardar_receta(
     let cuenta = crate::auth::cuenta(Some(&token))
         .await
         .ok_or_else(|| ServerFnError::new("Inicia sesion para guardar una version"))?;
+
+    // Un reenvio de la cola: la version ya existe y no se crea otra
+    if let Some(id) = &datos.id {
+        let existente = sqlx::query_scalar::<_, String>(
+            "SELECT id::text FROM receta WHERE id = $1::uuid AND autor_id = $2::uuid",
+        )
+        .bind(id)
+        .bind(&cuenta)
+        .fetch_optional(pool)
+        .await
+        .map_err(|_| ServerFnError::new("No se pudo leer la version"))?;
+
+        if let Some(receta_id) = existente {
+            return Ok(VersionGuardada {
+                receta_id,
+                advertencias: Vec::new(),
+            });
+        }
+    }
 
     let nombre = datos.nombre.trim();
     if nombre.is_empty() || nombre.chars().count() > 120 {
@@ -355,12 +378,12 @@ pub async fn guardar_receta(
         INSERT INTO receta (
             autor_id, receta_origen_id, nombre, tipo, familia, vaso_id, capacidad_ml,
             fotos_rutas, equipo, tecnica, temperatura, dificultad, intensidad,
-            minutos, dosis_g, notas, etiquetas
+            minutos, dosis_g, notas, etiquetas, id
         )
         VALUES (
             $1::uuid, $2::uuid, $3, $4, $5, $6::uuid, $7,
             $8, $9, $10, $11, $12, $13,
-            $14, $15, $16, $17
+            $14, $15, $16, $17, COALESCE($18::uuid, gen_random_uuid())
         )
         RETURNING id::text
         "#,
@@ -382,6 +405,7 @@ pub async fn guardar_receta(
     .bind(origen.dosis_g)
     .bind(&origen.notas)
     .bind(&origen.etiquetas)
+    .bind(&datos.id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| ServerFnError::new("No se pudo crear la version"))?;

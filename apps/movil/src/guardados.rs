@@ -46,6 +46,8 @@ pub fn PantallaGuardados() -> Element {
                 p { class: "guardados-sub", "Las recetas que quieres volver a preparar." }
             }
 
+            crate::local::AvisoPendientes {}
+
             match &*recurso.read() {
                 None => rsx! {
                     p { class: "estado", role: "status", "Cargando tus guardados…" }
@@ -139,6 +141,7 @@ fn ListaGuardados(lista: Vec<RecetaGuardada>, recarga: Signal<u32>) -> Element {
 #[component]
 fn TarjetaGuardada(receta: RecetaGuardada, recarga: Signal<u32>) -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>();
+    let mut pendientes = use_context::<crate::local::SenalPendientes>();
     let mut quitando = use_signal(|| false);
     let mut aviso = use_signal(|| None::<String>);
     let mut recarga = recarga;
@@ -204,8 +207,24 @@ fn TarjetaGuardada(receta: RecetaGuardada, recarga: Signal<u32>) -> Element {
                     quitando.set(true);
                     aviso.set(None);
                     spawn(async move {
-                        match alternar_guardado(token, id, false).await {
+                        match alternar_guardado(token, id.clone(), false).await {
                             Ok(_) => recarga.set(recarga() + 1),
+                            // Sin red: quitarla queda en la cola
+                            Err(causa)
+                                if crate::local::es_sin_conexion(&causa)
+                                    && crate::local::encolar(
+                                        &sesion,
+                                        &mut pendientes,
+                                        crate::local::Cambio::Guardado {
+                                            receta_id: id,
+                                            guardar: false,
+                                        },
+                                    ) =>
+                            {
+                                aviso.set(Some(
+                                    "Sin conexión: se quitará cuando vuelva la red.".to_string(),
+                                ));
+                            }
                             Err(causa) => {
                                 aviso.set(Some(format!("No se pudo quitar: {causa}")));
                                 quitando.set(false);
