@@ -284,12 +284,11 @@ pub async fn versiones(
         .iter()
         .map(|fila| {
             let propias = de_receta(&fila.id);
-            let origen = fila.origen_id.as_deref().unwrap_or_default();
-            let del_origen = if fila.origen_id.is_some() {
-                de_receta(origen)
-            } else {
-                Vec::new()
-            };
+            // Comparar solo contra un origen visible: uno privado o con alcohol filtraría sus cantidades
+            let origen_visible = fila
+                .origen_id
+                .as_ref()
+                .and_then(|origen_id| filas.iter().find(|otra| &otra.id == origen_id));
             let total_ml = total_ml_de(&propias);
 
             VersionHistorial {
@@ -303,18 +302,12 @@ pub async fn versiones(
                     fila.anio
                 ),
                 publica: fila.publica,
-                origen: fila.origen_id.as_ref().and_then(|origen_id| {
-                    filas
-                        .iter()
-                        .find(|otra| &otra.id == origen_id)
-                        .map(|otra| otra.nombre.clone())
-                }),
+                origen: origen_visible.map(|otra| otra.nombre.clone()),
                 total_ml,
                 ratio: ratio_de(total_ml, base_ml_de(&propias)),
-                cambios: if fila.origen_id.is_some() {
-                    cambios_de(&propias, &del_origen)
-                } else {
-                    Vec::new()
+                cambios: match origen_visible {
+                    Some(otra) => cambios_de(&propias, &de_receta(&otra.id)),
+                    None => Vec::new(),
                 },
             }
         })
