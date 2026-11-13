@@ -414,7 +414,7 @@ fn FormularioComentario(
     }
 }
 
-/// Enlace «Reportar» que despliega el formulario de reporte de una receta o un comentario (D7).
+/// Enlace «Reportar» que despliega el formulario de reporte de un comentario (D7).
 ///
 /// Se pasa `receta_id` para reportar la receta o `comentario_id` para reportar un comentario.
 #[component]
@@ -527,7 +527,9 @@ fn Reportar(receta_id: Option<String>, comentario_id: Option<String>) -> Element
     }
 }
 
-/// Sección «La Barra» de la ficha: valoración, hilo, formulario y reportes (D2, D3, D4 y D7).
+/// Sección «La Barra» de la ficha: valoración, hilo, formulario y reporte de comentarios (D2, D3, D4 y D7).
+///
+/// La receta se reporta con el modal de la ficha (`reportar.rs`).
 #[component]
 pub fn LaBarra(receta: RecetaCompleta) -> Element
 {
@@ -658,11 +660,6 @@ pub fn LaBarra(receta: RecetaCompleta) -> Element
                 p { class: "nota", "Entra para comentar y valorar." }
             }
 
-            // Con sesión y receta ajena: permitir reportarla
-            if sesion.read().is_some() && !propia
-            {
-                Reportar { receta_id: Some(receta.id.clone()), comentario_id: None }
-            }
         }
     }
 }

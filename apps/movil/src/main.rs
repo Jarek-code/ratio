@@ -19,6 +19,7 @@ mod marca;
 mod mis_recetas;
 mod perfil;
 mod preparar;
+mod reportar;
 mod rutas;
 mod salud;
 #[cfg(target_os = "ios")]

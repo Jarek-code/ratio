@@ -1,0 +1,221 @@
+/* Modal D7: reportar una receta. Usa los tokens de descubrir.css y ficha.css. */
+
+.reportar-fondo {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(42, 27, 20, 0.45);
+    padding: 18px;
+}
+
+.reportar-panel {
+    position: relative;
+    display: flex;
+    width: 100%;
+    max-width: 460px;
+    max-height: calc(100vh - 36px);
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    border: 1px solid var(--borde);
+    border-radius: 24px;
+    background: var(--papel);
+    padding: 22px 20px 20px;
+    box-shadow: 0 24px 60px rgba(42, 27, 20, 0.28);
+    animation: reportar-entrar 180ms ease-out;
+}
+
+@keyframes reportar-entrar {
+    from {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reportar-panel {
+        animation: none;
+    }
+}
+
+@media (min-width: 640px) {
+    .reportar-fondo {
+        align-items: center;
+    }
+}
+
+.reportar-agarre {
+    width: 44px;
+    height: 4px;
+    margin: 0 auto;
+    border-radius: 999px;
+    background: var(--borde);
+}
+
+.reportar-cerrar {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    background: var(--papel);
+    color: var(--tinta-suave);
+    font-size: 20px;
+    line-height: 1;
+}
+
+.reportar-cerrar:hover,
+.reportar-cerrar:focus-visible {
+    border-color: var(--cobre);
+    color: var(--cobre-oscuro);
+}
+
+.reportar-titulo {
+    margin: 0;
+    padding-right: 36px;
+    font-family: "DM Serif Display", Georgia, "Times New Roman", serif;
+    font-size: 26px;
+    font-weight: 400;
+    line-height: 1.15;
+}
+
+.reportar-intro {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 13.5px;
+    line-height: 1.45;
+}
+
+.reportar-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    border: 0;
+    padding: 0;
+}
+
+.reportar-grupo legend {
+    padding: 0;
+}
+
+.reportar-motivos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.reportar-motivo {
+    min-height: 40px;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    background: var(--papel);
+    padding: 8px 15px;
+    color: var(--tinta);
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.reportar-motivo:hover,
+.reportar-motivo:focus-visible {
+    border-color: var(--cobre);
+    color: var(--cobre-oscuro);
+}
+
+.reportar-motivo--activo {
+    border-color: var(--cobre);
+    background: var(--cobre);
+    color: #FFF9F2;
+}
+
+.reportar-motivo--activo:hover,
+.reportar-motivo--activo:focus-visible {
+    color: #FFF9F2;
+}
+
+.reportar-detalle {
+    width: 100%;
+    min-height: 96px;
+    resize: vertical;
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    background: #FAF4EA;
+    padding: 12px 14px;
+    color: var(--tinta);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.reportar-detalle::placeholder {
+    color: var(--tinta-suave);
+}
+
+.reportar-detalle:focus-visible {
+    border-color: var(--cobre);
+    outline: 2px solid rgba(185, 99, 59, 0.25);
+    outline-offset: 1px;
+}
+
+.reportar-pie {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: -6px;
+    color: var(--tinta-suave);
+    font-size: 11.5px;
+}
+
+.reportar-aviso {
+    margin: 0;
+    border: 1px solid #F3C9C1;
+    border-radius: 12px;
+    background: #FCEDEA;
+    padding: 10px 12px;
+    color: #8E2C22;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.reportar-gracias {
+    margin: 0;
+    border: 1px solid #CBE3CE;
+    border-radius: 12px;
+    background: #EDF7EF;
+    padding: 10px 12px;
+    color: #2F6B3B;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.reportar-acciones {
+    display: flex;
+    gap: 10px;
+}
+
+.reportar-acciones .chip {
+    flex: 0 0 auto;
+}
+
+.reportar-acciones .primario {
+    flex: 1 1 auto;
+    width: auto;
+}
+
+.reportar-acciones button:disabled {
+    opacity: 0.55;
+}
