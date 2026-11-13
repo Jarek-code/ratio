@@ -119,10 +119,17 @@ pub async fn mantener(mut sesion: SenalSesion) {
 
         match (actual, falta) {
             (Some(guardada), Some(falta)) if falta <= 0 => {
-                match api::auth::renovar(guardada.refresco).await {
+                // Renovar con plazo: si el servidor no contesta, se reintenta en la vuelta siguiente
+                match crate::red::con_plazo(api::auth::renovar(guardada.refresco)).await {
                     Ok(Some(nueva)) => iniciar(&mut sesion, nueva),
-                    Ok(None) => salir(&mut sesion),
-                    Err(_) => tokio::time::sleep(Duration::from_secs(REVISAR_CADA as u64)).await,
+                    Ok(None) => salir(&mut sesion), // Supabase rechazó el token: hay que volver a entrar
+                    Err(causa) => {
+                        dioxus::logger::tracing::warn!(
+                            "no se pudo renovar la sesión: {}",
+                            crate::red::mensaje(&causa)
+                        );
+                        tokio::time::sleep(Duration::from_secs(REVISAR_CADA as u64)).await
+                    }
                 }
             }
             (_, falta) => {

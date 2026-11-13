@@ -130,7 +130,7 @@ pub(super) fn Acciones(
                     aviso.set(None);
 
                     spawn(async move {
-                        match guardar_receta(token, datos.clone()).await {
+                        match crate::red::con_plazo(guardar_receta(token, datos.clone())).await {
                             Ok(resultado) => {
                                 let mensaje = if resultado.advertencias.is_empty() {
                                     "Versión guardada. Ya aparece en Mi recetario.".to_string()
@@ -158,7 +158,10 @@ pub(super) fn Acciones(
                                 ));
                             }
                             Err(causa) => {
-                                aviso.set(Some(format!("No pudimos guardar la versión: {causa}")));
+                                aviso.set(Some(format!(
+                                    "No pudimos guardar la versión: {}",
+                                    crate::red::mensaje(&causa)
+                                )));
                             }
                         }
 

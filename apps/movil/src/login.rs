@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::marca::Marca; // Logo compartido, dibujado inline
+use crate::red::mensaje; // Texto de un fallo del servidor o de la red
 
 /// Hoja de estilos del acceso; también define la paleta que reutiliza el historial.
 const CSS_LOGIN: Asset = asset!("/assets/login.css");
@@ -14,15 +15,69 @@ enum Modo {
     Crear,
 }
 
-/// Texto del error del servidor, sin los prefijos que añade el transporte.
-fn mensaje_de_error(causa: ServerFnError) -> String {
-    let texto = causa.to_string();
-    let texto = texto
-        .strip_prefix("error running server function: ")
-        .unwrap_or(&texto);
-    let texto = texto.strip_suffix(" (details: None)").unwrap_or(texto);
+/// Largo mínimo y máximo del alias, igual que el CHECK de la tabla `usuario`.
+const ALIAS_MINIMO: usize = 3;
+const ALIAS_MAXIMO: usize = 24;
 
-    texto.to_string()
+/// Revisa el correo antes de mandarlo: vacío, sin arroba o sin dominio.
+///
+/// Devuelve el aviso que se le muestra a la persona, o `None` si el correo tiene forma de
+/// correo. La comprobación no sustituye a la de Supabase: solo evita un viaje inútil.
+fn revisar_correo(correo: &str) -> Option<&'static str> {
+    let correo = correo.trim();
+
+    if correo.is_empty() {
+        return Some("Escribe tu correo.");
+    }
+    if correo.contains(char::is_whitespace) {
+        return Some("El correo no lleva espacios.");
+    }
+
+    let Some((usuario, dominio)) = correo.split_once('@') else {
+        return Some("Escribe un correo válido, con arroba y dominio.");
+    };
+
+    let dominio_valido = dominio.contains('.')
+        && !dominio.starts_with('.')
+        && !dominio.ends_with('.')
+        && !dominio.contains('@');
+    if usuario.is_empty() || !dominio_valido {
+        return Some("Escribe un correo válido, con arroba y dominio.");
+    }
+
+    None
+}
+
+/// Revisa la contraseña antes de mandarla.
+fn revisar_contrasena(contrasena: &str) -> Option<&'static str> {
+    if contrasena.is_empty() {
+        return Some("Escribe tu contraseña.");
+    }
+    if contrasena.chars().count() < 6 {
+        return Some("La contraseña necesita al menos 6 caracteres.");
+    }
+
+    None
+}
+
+/// Revisa el alias del alta: obligatorio, con largo acotado y sin espacios al inicio ni al final.
+fn revisar_alias(alias: &str) -> Option<&'static str> {
+    let largo = alias.chars().count();
+
+    if largo == 0 {
+        return Some("Escribe un alias.");
+    }
+    if largo < ALIAS_MINIMO {
+        return Some("El alias necesita 3 caracteres o más.");
+    }
+    if largo > ALIAS_MAXIMO {
+        return Some("El alias no puede pasar de 24 caracteres.");
+    }
+    if alias.contains('@') {
+        return Some("El alias no lleva arroba: es el nombre que verán los demás.");
+    }
+
+    None
 }
 
 /// Acceso y alta contra Supabase Auth; guarda la sesión y avisa con `on_entrar`.
@@ -59,16 +114,16 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
         let nombre = alias().trim().to_string();
         let es_adulto = adulto();
 
-        if email.is_empty() || !email.contains('@') {
-            error.set(Some("Escribe un correo válido.".into()));
+        if let Some(aviso) = revisar_correo(&email) {
+            error.set(Some(aviso.to_string()));
             return;
         }
-        if clave.len() < 6 {
-            error.set(Some("La contraseña necesita al menos 6 caracteres.".into()));
+        if let Some(aviso) = revisar_contrasena(&clave) {
+            error.set(Some(aviso.to_string()));
             return;
         }
-        if es_alta && nombre.len() < 3 {
-            error.set(Some("Escribe un alias de 3 caracteres o más.".into()));
+        if es_alta && let Some(aviso) = revisar_alias(&nombre) {
+            error.set(Some(aviso.to_string()));
             return;
         }
         if es_alta && !es_adulto {
@@ -82,18 +137,21 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
         enviando.set(true);
 
         spawn(async move {
+            // El acceso se puede repetir sin efectos dobles; el alta no, para no crear dos cuentas
             let resultado = if es_alta {
-                api::auth::registrar(api::auth::Registro {
+                crate::red::con_plazo(api::auth::registrar(api::auth::Registro {
                     correo: email,
                     contrasena: clave,
                     alias: nombre,
                     mayor_de_edad: es_adulto,
-                })
+                }))
                 .await
             } else {
-                api::auth::entrar(api::auth::Credenciales {
-                    correo: email,
-                    contrasena: clave,
+                crate::red::con_reintentos(move || {
+                    api::auth::entrar(api::auth::Credenciales {
+                        correo: email.clone(),
+                        contrasena: clave.clone(),
+                    })
                 })
                 .await
             };
@@ -105,7 +163,7 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
                     crate::sesion::iniciar(&mut sesion, iniciada);
                     on_entrar.call(());
                 }
-                Err(causa) => error.set(Some(mensaje_de_error(causa))),
+                Err(causa) => error.set(Some(mensaje(&causa))),
             }
         });
     };

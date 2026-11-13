@@ -4,6 +4,7 @@ use api::EstadoSalud;
 use dioxus::prelude::*;
 
 use crate::SERVIDOR;
+use crate::red;
 
 /// Pregunta al backend por su estado: la app va a Render y Render a Supabase.
 #[component]
@@ -19,7 +20,8 @@ pub fn PruebaSalud() -> Element {
                 onclick: move |_| {
                     cargando.set(true);
                     spawn(async move {
-                        resultado.set(Some(api::salud().await));
+                        // La prueba se repite sola si el servidor tarda en despertar
+                        resultado.set(Some(red::con_reintentos(api::salud).await));
                         cargando.set(false);
                     });
                 },
@@ -34,10 +36,11 @@ pub fn PruebaSalud() -> Element {
                     p { "Backend y base de datos: conectados" }
                 },
                 Some(Ok(estado)) => rsx! {
-                    p { "Backend responde, base de datos no: {estado.detalle}" }
+                    p { role: "alert", "Backend responde, base de datos no: {estado.detalle}" }
                 },
                 Some(Err(causa)) => rsx! {
-                    p { "Sin respuesta del backend: {causa} (probado en {SERVIDOR})" }
+                    p { role: "alert", "{red::mensaje(causa)} (probado en {SERVIDOR})" }
+                    p { class: "nota", "El botón de arriba repite la prueba cuando quieras." }
                 },
             }
         }

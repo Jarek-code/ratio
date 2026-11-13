@@ -142,7 +142,7 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                             enviando.set(true);
                             aviso.set(None);
                             spawn(async move {
-                                match reportar(token, datos.clone()).await {
+                                match crate::red::con_plazo(reportar(token, datos.clone())).await {
                                     Ok(_) => {
                                         enviado.set(true);
                                         enviando.set(false);
@@ -161,7 +161,8 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                                     }
                                     Err(causa) => {
                                         aviso.set(Some(format!(
-                                            "No se pudo enviar el reporte: {causa}"
+                                            "No se pudo enviar el reporte: {}",
+                                            crate::red::mensaje(&causa)
                                         )));
                                         enviando.set(false);
                                     }

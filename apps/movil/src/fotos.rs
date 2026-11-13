@@ -25,6 +25,9 @@ const BUCKET: &str = "fotos-recetas";
 /// Tamaño máximo de una foto, igual que el límite del bucket (5 MB).
 const BYTES_MAXIMOS: u64 = 5 * 1024 * 1024;
 
+/// Segundos que se espera a que la foto termine de subir antes de cortar el envío.
+const SUBE_SEGUNDOS: u64 = 45;
+
 /// Si la plataforma tiene cómo elegir una foto.
 ///
 /// Dioxus 0.7 intercepta `<input type="file">` y en móvil no abre nada: iOS usa su galería
@@ -88,7 +91,11 @@ async fn subir_bytes(
     let ruta = format!("{cuenta}/{receta_id}/{nombre}.{ext}"); // Carpeta propia de la cuenta
 
     // Subir directo a Storage con el token de la sesión
-    let respuesta = reqwest::Client::new()
+    let respuesta = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(crate::red::SEGUNDOS_CONEXION))
+        .timeout(std::time::Duration::from_secs(SUBE_SEGUNDOS))
+        .build()
+        .map_err(|_| "No se pudo preparar la subida de la foto.".to_string())?
         .post(format!("{url}/storage/v1/object/{BUCKET}/{ruta}"))
         .bearer_auth(&token)
         .header("apikey", anon)
@@ -96,16 +103,30 @@ async fn subir_bytes(
         .body(bytes)
         .send()
         .await
-        .map_err(|_| "Sin conexión: intenta subir la foto cuando vuelva la red.".to_string())?;
+        .map_err(|causa| {
+            if causa.is_timeout()
+            {
+                format!("La foto no terminó de subir en {SUBE_SEGUNDOS} s: revisa tu conexión y vuelve a intentarlo.")
+            }
+            else
+            {
+                "Sin conexión: intenta subir la foto cuando vuelva la red.".to_string()
+            }
+        })?;
     if !respuesta.status().is_success()
     {
         return Err("Storage rechazó la foto.".to_string());
     }
 
     // Registrar la ruta en la receta
-    api::foro::agregar_foto(token, receta_id, ruta)
+    crate::red::con_plazo(api::foro::agregar_foto(token, receta_id, ruta))
         .await
-        .map_err(|_| "La foto se subió, pero no se pudo agregar a la receta.".to_string())
+        .map_err(|causa| {
+            format!(
+                "La foto se subió, pero no se pudo agregar a la receta: {}",
+                crate::red::mensaje(&causa)
+            )
+        })
 }
 
 /// Obtiene la foto que elige la persona: la galería nativa en iOS, el selector de archivos
