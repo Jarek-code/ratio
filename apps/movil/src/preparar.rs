@@ -9,6 +9,7 @@ use std::time::Duration; // Tic del temporizador
 
 use dioxus::prelude::*; // Componentes, señales y recursos
 
+use crate::red::AvisoRed; // Aviso de fallo con su botón de reintentar
 use crate::rutas::Rutas; // Ruta para volver a la ficha
 use crate::sesion::SenalSesion; // Cuenta, alias y token
 
@@ -31,9 +32,11 @@ pub fn PantallaPreparar(id: String) -> Element
 {
     let sesion = use_context::<SenalSesion>(); // Cuenta y token
     let id_recurso = id.clone();
-    let recurso = use_resource(use_reactive!(|(id_recurso,)|
+    let mut recurso = use_resource(use_reactive!(|(id_recurso,)|
     {
-        crate::local::receta(id_recurso, crate::sesion::token(&sesion), crate::sesion::cuenta(&sesion))
+        let token = crate::sesion::token(&sesion);
+        let cuenta = crate::sesion::cuenta(&sesion);
+        crate::red::con_reintentos(move || crate::local::receta(id_recurso.clone(), token.clone(), cuenta.clone()))
     })); // Receta de la ficha
     let mut paso_sel = use_signal(|| 0_usize); // Paso visible (el último + 1 es «terminado»)
     let mut restante_sel = use_signal(|| None::<u32>); // Segundos que faltan del temporizador
@@ -92,11 +95,14 @@ pub fn PantallaPreparar(id: String) -> Element
             match &*recurso.read()
             {
                 None => rsx! { p { class: "estado", role: "status", "Cargando la receta…" } },
-                Some(Err(causa)) if crate::local::es_sin_conexion(causa) => rsx!
+                Some(Err(causa)) => rsx!
                 {
-                    p { class: "estado estado-aviso", role: "alert", "Sin conexión y sin copia guardada de esta receta." }
+                    AvisoRed
+                    {
+                        causa: causa.clone(),
+                        reintentar: move |_| recurso.restart(),
+                    }
                 },
-                Some(Err(_)) => rsx! { p { class: "estado estado-error", role: "alert", "No pudimos cargar la receta." } },
                 Some(Ok(None)) => rsx! { p { class: "estado", "Esta receta no existe o ya no está disponible." } },
                 Some(Ok(Some(receta))) if receta.pasos.is_empty() => rsx!
                 {

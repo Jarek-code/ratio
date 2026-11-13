@@ -13,6 +13,7 @@ use crate::barra::BarraInferior; // Barra inferior compartida
 use crate::barra::Destino; // Destino activo de la barra inferior
 use crate::local::Cambio; // Cambio que se encola sin conexión
 use crate::local::SenalPendientes; // Contador de cambios pendientes
+use crate::red::AvisoRed; // Aviso de fallo con su botón de reintentar
 use crate::rutas::Rutas; // Rutas de los accesos del perfil
 use crate::sesion::SenalSesion; // Sesión con alias y token
 
@@ -126,7 +127,7 @@ fn BotonSeguir(alias: String, lo_sigo: bool) -> Element
 
                 spawn(async move
                 {
-                    match api::perfil::seguir(token, objetivo.clone(), sigue).await
+                    match crate::red::con_plazo(api::perfil::seguir(token, objetivo.clone(), sigue)).await
                     {
                         Ok(_) => {}
                         Err(causa) if crate::local::es_sin_conexion(&causa)
@@ -134,10 +135,10 @@ fn BotonSeguir(alias: String, lo_sigo: bool) -> Element
                         {
                             aviso.set(Some("Sin conexión: se aplicará cuando vuelva la red.".to_string()));
                         }
-                        Err(_) =>
+                        Err(causa) =>
                         {
                             sigue_sel.set(!sigue); // Deshacer el cambio visible
-                            aviso.set(Some("No se pudo actualizar.".to_string()));
+                            aviso.set(Some(format!("No se pudo actualizar: {}", crate::red::mensaje(&causa))));
                         }
                     }
                 });
@@ -167,7 +168,7 @@ pub fn PantallaPerfil(alias: String) -> Element
             let buscado = if alias.is_empty() { propio } else { Some(alias) };
             match buscado
             {
-                Some(buscado) => api::perfil::perfil(buscado, token).await,
+                Some(buscado) => crate::red::con_reintentos(move || api::perfil::perfil(buscado.clone(), token.clone())).await,
                 None => Ok(None),
             }
         }
@@ -195,24 +196,13 @@ pub fn PantallaPerfil(alias: String) -> Element
                 {
                     p { class: "estado", role: "status", "Cargando el perfil…" }
                 },
-                Some(Err(causa)) if crate::local::es_sin_conexion(causa) => rsx!
+                Some(Err(causa)) => rsx!
                 {
-                    div
+                    // Fallo de red o del servidor: explicar qué pasó y ofrecer reintentar
+                    AvisoRed
                     {
-                        class: "estado estado-aviso",
-                        role: "alert",
-                        p { "Sin conexión. Revisa tu red y vuelve a intentarlo." }
-                        button { class: "enlace", r#type: "button", onclick: move |_| recurso.restart(), "Reintentar" }
-                    }
-                },
-                Some(Err(_)) => rsx!
-                {
-                    div
-                    {
-                        class: "estado estado-error",
-                        role: "alert",
-                        p { "No pudimos traer el perfil." }
-                        button { class: "enlace", r#type: "button", onclick: move |_| recurso.restart(), "Reintentar" }
+                        causa: causa.clone(),
+                        reintentar: move |_| recurso.restart(),
                     }
                 },
                 Some(Ok(None)) if !con_sesion => rsx!

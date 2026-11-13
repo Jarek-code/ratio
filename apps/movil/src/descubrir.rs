@@ -7,6 +7,7 @@ use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (úni
 use api::descubrir; // Tipo RecetaSugerida y server function sugerencias_dia
 use crate::barra::{BarraInferior, Destino}; // Barra inferior compartida
 use crate::marca::Marca; // Logo compartido, dibujado inline
+use crate::red::AvisoRed;
 use crate::rutas::Rutas; // Rutas de la app, para abrir la ficha de una receta
 
 // CONSTANTES Y VARIABLES GLOBALES
@@ -322,7 +323,8 @@ fn SeccionSugerencias() -> Element
 {
     let sesion = use_context::<crate::sesion::SenalSesion>(); // Sesión con la que se pide el catálogo
     let mut sugerencias_res = use_resource(move || {
-        descubrir::sugerencias_dia(crate::sesion::token(&sesion))
+        let token = crate::sesion::token(&sesion);
+        crate::red::con_reintentos(move || descubrir::sugerencias_dia(token.clone()))
     }); // Sugerencias del día pedidas al servidor
     let mut indice_sel = use_signal(|| 0_usize); // Sugerencia visible en el carrusel
 
@@ -389,30 +391,14 @@ fn SeccionSugerencias() -> Element
                         TarjetaSugerencia { sugerencia: sugerencias_vec[indice_val].clone() }
                     }
                 }
-                Some(Err(ServerFnError::Request(error_val))) if !matches!(error_val, dioxus::fullstack::RequestError::Status(..)) => rsx!
+                Some(Err(causa)) => rsx!
                 {
-                    // Sin conexión (el servidor no respondió): avisar y permitir reintentar
+                    // Fallo de red o del servidor: explicar qué pasó y ofrecer reintentar
                     p { id: "titulo-sugerencia", class: "eyebrow", "Sugerencia del día" }
-                    div
+                    AvisoRed
                     {
-                        class: "estado estado-aviso",
-                        role: "alert",
-
-                        p { "Sin conexión. Revisa tu red y vuelve a intentarlo." }
-                        button { class: "enlace", r#type: "button", onclick: move |_| sugerencias_res.restart(), "Reintentar" }
-                    }
-                },
-                Some(Err(_)) => rsx!
-                {
-                    // Error del servidor (respondió con fallo): avisar y permitir reintentar
-                    p { id: "titulo-sugerencia", class: "eyebrow", "Sugerencia del día" }
-                    div
-                    {
-                        class: "estado estado-error",
-                        role: "alert",
-
-                        p { "No pudimos traer la sugerencia de hoy." }
-                        button { class: "enlace", r#type: "button", onclick: move |_| sugerencias_res.restart(), "Reintentar" }
+                        causa: causa.clone(),
+                        reintentar: move |_| sugerencias_res.restart(),
                     }
                 },
             }

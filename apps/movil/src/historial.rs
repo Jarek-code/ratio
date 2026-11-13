@@ -10,6 +10,7 @@ use dioxus::router::Link;
 use api::historial::{CambioHistorial, VersionHistorial, versiones};
 
 use crate::marca::Marca;
+use crate::red::AvisoRed;
 use crate::rutas::Rutas;
 use crate::sesion::SenalSesion;
 
@@ -96,7 +97,7 @@ pub fn Historial(id: String) -> Element {
     let id_recurso = id.clone();
     let mut versiones_res = use_resource(use_reactive!(|(id_recurso,)| {
         let token = crate::sesion::token(&sesion);
-        versiones(id_recurso, token)
+        crate::red::con_reintentos(move || versiones(id_recurso.clone(), token.clone()))
     }));
 
     rsx! {
@@ -129,14 +130,10 @@ pub fn Historial(id: String) -> Element {
                         p { class: "historial-estado", role: "status", "Cargando el historial…" }
                     },
                     Some(Err(causa)) => rsx! {
-                        div { class: "historial-estado", role: "alert",
-                            p { "No pudimos traer el historial: {causa}" }
-                            button {
-                                class: "version-open",
-                                r#type: "button",
-                                onclick: move |_| versiones_res.restart(),
-                                "Reintentar"
-                            }
+                        AvisoRed {
+                            causa: causa.clone(),
+                            clase: Some("historial-estado".to_string()),
+                            reintentar: move |_| versiones_res.restart(),
                         }
                     },
                     Some(Ok(lista)) if lista.is_empty() => rsx! {

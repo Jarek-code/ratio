@@ -9,6 +9,7 @@ use dioxus::prelude::*;
 
 use crate::barra::{BarraInferior, Destino};
 use crate::biblioteca::familia_legible;
+use crate::red::AvisoRed;
 use crate::rutas::Rutas;
 
 /// Hoja de estilos propia de la pantalla Guardados.
@@ -27,7 +28,7 @@ pub fn PantallaGuardados() -> Element {
         let token = crate::sesion::token(&sesion);
         async move {
             match token {
-                Some(token) => guardados(token).await.map(Some),
+                Some(token) => crate::red::con_reintentos(move || guardados(token.clone())).await.map(Some),
                 None => Ok(None),
             }
         }
@@ -53,14 +54,9 @@ pub fn PantallaGuardados() -> Element {
                     p { class: "estado", role: "status", "Cargando tus guardados…" }
                 },
                 Some(Err(causa)) => rsx! {
-                    div { class: "estado estado-error", role: "alert",
-                        p { "No pudimos traer tus guardados: {causa}" }
-                        button {
-                            class: "enlace",
-                            r#type: "button",
-                            onclick: move |_| recurso.restart(),
-                            "Reintentar"
-                        }
+                    AvisoRed {
+                        causa: causa.clone(),
+                        reintentar: move |_| recurso.restart(),
                     }
                 },
                 Some(Ok(None)) => rsx! {
@@ -226,7 +222,10 @@ fn TarjetaGuardada(receta: RecetaGuardada, recarga: Signal<u32>) -> Element {
                                 ));
                             }
                             Err(causa) => {
-                                aviso.set(Some(format!("No se pudo quitar: {causa}")));
+                                aviso.set(Some(format!(
+                                    "No se pudo quitar: {}",
+                                    crate::red::mensaje(&causa)
+                                )));
                                 quitando.set(false);
                             }
                         }

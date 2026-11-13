@@ -19,6 +19,7 @@ mod marca;
 mod mis_recetas;
 mod perfil;
 mod preparar;
+mod red;
 mod reportar;
 mod rutas;
 mod salud;
@@ -62,6 +63,8 @@ fn App() -> Element {
 }
 
 fn main() {
+    // Plazo de conexión y de respuesta de las peticiones al servidor
+    red::configurar();
     dioxus::fullstack::set_server_url(SERVIDOR);
     dioxus::launch(App);
 }

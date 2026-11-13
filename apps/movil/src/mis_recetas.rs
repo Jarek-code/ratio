@@ -9,6 +9,7 @@ use dioxus::prelude::*;
 
 use crate::barra::{BarraInferior, Destino};
 use crate::biblioteca::familia_legible;
+use crate::red::AvisoRed;
 use crate::rutas::Rutas;
 
 /// Hoja de estilos propia del recetario.
@@ -101,7 +102,7 @@ pub fn PantallaMisRecetas() -> Element {
         let token = crate::sesion::token(&sesion);
         async move {
             match token {
-                Some(token) => mis_recetas(token).await.map(Some),
+                Some(token) => crate::red::con_reintentos(move || mis_recetas(token.clone())).await.map(Some),
                 None => Ok(None),
             }
         }
@@ -127,14 +128,9 @@ pub fn PantallaMisRecetas() -> Element {
                     p { class: "estado", role: "status", "Cargando tu recetario…" }
                 },
                 Some(Err(causa)) => rsx! {
-                    div { class: "estado estado-error", role: "alert",
-                        p { "No pudimos traer tu recetario: {causa}" }
-                        button {
-                            class: "enlace",
-                            r#type: "button",
-                            onclick: move |_| recurso.restart(),
-                            "Reintentar"
-                        }
+                    AvisoRed {
+                        causa: causa.clone(),
+                        reintentar: move |_| recurso.restart(),
                     }
                 },
                 Some(Ok(None)) => rsx! {

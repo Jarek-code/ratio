@@ -20,6 +20,7 @@ use api::receta::RecetaCompleta;
 use api::vasos::{VasoOpcion, vasos as catalogo_vasos};
 use dioxus::prelude::*;
 
+use crate::red::AvisoRed;
 use crate::rutas::Rutas;
 
 /// Hoja de estilos propia del editor de proporciones.
@@ -88,9 +89,13 @@ pub fn PantallaAjustar(id: String) -> Element {
         let token = crate::sesion::token(&sesion);
         let cuenta = crate::sesion::cuenta(&sesion);
         async move {
-            let receta = crate::local::receta(id, token, cuenta).await?;
-            let vasos = catalogo_vasos().await?;
-            let ingredientes = catalogo_ingredientes().await?;
+            // Las tres peticiones llevan plazo y reintentos: el editor no se queda cargando
+            let receta = crate::red::con_reintentos(move || {
+                crate::local::receta(id.clone(), token.clone(), cuenta.clone())
+            })
+            .await?;
+            let vasos = crate::red::con_reintentos(catalogo_vasos).await?;
+            let ingredientes = crate::red::con_reintentos(catalogo_ingredientes).await?;
             Ok::<_, ServerFnError>((receta, vasos, ingredientes))
         }
     });
@@ -107,14 +112,9 @@ pub fn PantallaAjustar(id: String) -> Element {
                     p { class: "estado", role: "status", "Cargando las proporciones…" }
                 },
                 Some(Err(causa)) => rsx! {
-                    div { class: "estado estado-error", role: "alert",
-                        p { "No pudimos cargar el editor: {causa}" }
-                        button {
-                            class: "enlace",
-                            r#type: "button",
-                            onclick: move |_| recurso.restart(),
-                            "Reintentar"
-                        }
+                    AvisoRed {
+                        causa: causa.clone(),
+                        reintentar: move |_| recurso.restart(),
                     }
                 },
                 Some(Ok((None, _, _))) => rsx! {

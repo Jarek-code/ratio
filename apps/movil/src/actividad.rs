@@ -11,6 +11,7 @@ use dioxus::prelude::*; // Componentes, señales y recursos
 
 use crate::barra::BarraInferior; // Barra inferior compartida
 use crate::barra::Destino; // Destino activo de la barra inferior
+use crate::red::AvisoRed; // Aviso de fallo con su botón de reintentar
 use crate::rutas::Rutas; // Rutas para abrir la receta y volver
 
 // CONSTANTES Y VARIABLES GLOBALES
@@ -71,7 +72,7 @@ pub fn PantallaActividad() -> Element
         {
             match token
             {
-                Some(token) => api::foro::actividad(token).await.map(Some), // Con sesión: pedir la actividad
+                Some(token) => crate::red::con_reintentos(move || api::foro::actividad(token.clone())).await.map(Some), // Con sesión: pedir la actividad
                 None => Ok(None), // Sin sesión: invitar a entrar
             }
         }
@@ -101,24 +102,13 @@ pub fn PantallaActividad() -> Element
                 {
                     p { class: "estado", role: "status", "Cargando tu actividad…" }
                 },
-                Some(Err(causa)) if crate::local::es_sin_conexion(causa) => rsx!
+                Some(Err(causa)) => rsx!
                 {
-                    div
+                    // Fallo de red o del servidor: explicar qué pasó y ofrecer reintentar
+                    AvisoRed
                     {
-                        class: "estado estado-aviso",
-                        role: "alert",
-                        p { "Sin conexión. Revisa tu red y vuelve a intentarlo." }
-                        button { class: "enlace", r#type: "button", onclick: move |_| recurso.restart(), "Reintentar" }
-                    }
-                },
-                Some(Err(_)) => rsx!
-                {
-                    div
-                    {
-                        class: "estado estado-error",
-                        role: "alert",
-                        p { "No pudimos traer tu actividad." }
-                        button { class: "enlace", r#type: "button", onclick: move |_| recurso.restart(), "Reintentar" }
+                        causa: causa.clone(),
+                        reintentar: move |_| recurso.restart(),
                     }
                 },
                 Some(Ok(None)) => rsx!

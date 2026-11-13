@@ -4,6 +4,7 @@ use api::biblioteca::{RecetaResumen, catalogo};
 use dioxus::prelude::*;
 
 use crate::barra::{BarraInferior, Destino};
+use crate::red::AvisoRed;
 use crate::rutas::Rutas;
 
 /// Hoja de estilos propia de la biblioteca.
@@ -56,7 +57,11 @@ impl Orden {
 #[component]
 pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>();
-    let mut catalogo_res = use_resource(move || catalogo(crate::sesion::token(&sesion)));
+    // El catálogo se pide con plazo y reintentos: si el servidor tarda, la pantalla no se cuelga
+    let mut catalogo_res = use_resource(move || {
+        let token = crate::sesion::token(&sesion);
+        crate::red::con_reintentos(move || catalogo(token.clone()))
+    });
     let busqueda = use_signal(|| busqueda);
     let familia = use_signal(|| Some(familia).filter(|valor| !valor.is_empty()));
     let tipo = use_signal(|| Some(tipo).filter(|valor| !valor.is_empty()));
@@ -85,14 +90,9 @@ pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> El
                     p { class: "estado", role: "status", "Cargando el catálogo…" }
                 },
                 Some(Err(causa)) => rsx! {
-                    div { class: "estado estado-error", role: "alert",
-                        p { "No pudimos traer el catálogo: {causa}" }
-                        button {
-                            class: "enlace",
-                            r#type: "button",
-                            onclick: move |_| catalogo_res.restart(),
-                            "Reintentar"
-                        }
+                    AvisoRed {
+                        causa: causa.clone(),
+                        reintentar: move |_| catalogo_res.restart(),
                     }
                 },
                 Some(Ok(lista)) => rsx! {

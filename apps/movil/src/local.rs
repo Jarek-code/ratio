@@ -191,10 +191,13 @@ fn respaldo_id() -> String
     format!("local-{nanos}")
 }
 
-/// Indica si el error es de red (sin conexión) y no una respuesta del servidor.
+/// Indica si el fallo se arregla reintentando: sin red, plazo agotado o servidor caído.
+///
+/// Con `true` la app usa la copia guardada (A2) y deja el cambio en la cola, en vez de
+/// dar la petición por perdida.
 pub fn es_sin_conexion(causa: &ServerFnError) -> bool
 {
-    matches!(causa, ServerFnError::Request(_))
+    crate::red::es_red(causa) || api::fallos::es_reintentable(causa)
 }
 
 /// Cuenta de la sesión actual, si la hay.
@@ -371,7 +374,9 @@ pub async fn vaciar(sesion: SenalSesion, mut pendientes: SenalPendientes)
             // Enviar uno por uno hasta vaciar o perder la red
             for pendiente in propios_vec
             {
-                let resultado_res = enviar(token_val.clone(), pendiente.cambio.clone()).await;
+                // Cada envío lleva plazo: un servidor que no contesta no frena la cola
+                let resultado_res =
+                    crate::red::con_plazo(enviar(token_val.clone(), pendiente.cambio.clone())).await;
 
                 if let Err(causa) = &resultado_res
                 {

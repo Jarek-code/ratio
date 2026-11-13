@@ -19,6 +19,7 @@ use dioxus::prelude::*; // Componentes, señales y recursos
 
 use crate::local::Cambio; // Cambio que se encola sin conexión
 use crate::local::SenalPendientes; // Contador de cambios pendientes
+use crate::red::AvisoRed; // Aviso de fallo con su botón de reintentar
 use crate::sesion::SenalSesion; // Sesión con cuenta, alias y token
 
 // FUNCIONES
@@ -113,7 +114,7 @@ pub fn BotonPublicar(receta_id: String, publicada: bool, al_cambiar: EventHandle
 
                     spawn(async move
                     {
-                        match api::foro::publicar(token, id.clone(), publica).await
+                        match crate::red::con_plazo(api::foro::publicar(token, id.clone(), publica)).await
                         {
                             Ok(_) => al_cambiar.call(()), // Recargar la lista con el estado nuevo
                             Err(causa) if crate::local::es_sin_conexion(&causa)
@@ -121,7 +122,7 @@ pub fn BotonPublicar(receta_id: String, publicada: bool, al_cambiar: EventHandle
                             {
                                 aviso.set(Some("Sin conexión: se aplicará cuando vuelva la red.".to_string()));
                             }
-                            Err(_) => aviso.set(Some("No se pudo cambiar la publicación.".to_string())),
+                            Err(causa) => aviso.set(Some(format!("No se pudo cambiar la publicación: {}", crate::red::mensaje(&causa)))),
                         }
                         enviando.set(false);
                     });
@@ -147,10 +148,11 @@ pub fn PanelValoracion(receta_id: String, propia: bool) -> Element
     let sesion = use_context::<SenalSesion>(); // Token para leer y valorar
     let mut pendientes = use_context::<SenalPendientes>(); // Cola sin conexión
     let id_recurso = receta_id.clone();
-    let recurso = use_resource(move ||
+    let mut recurso = use_resource(move ||
     {
         let token = crate::sesion::token(&sesion);
-        api::foro::valoraciones(id_recurso.clone(), token)
+        let id = id_recurso.clone(); // Copia propia para los reintentos
+        crate::red::con_reintentos(move || api::foro::valoraciones(id.clone(), token.clone()))
     }); // Recuento del servidor
     let mut local_sel = use_signal(|| None::<Valoraciones>); // Recuento tras valorar
     let mut aviso = use_signal(|| None::<String>); // Resultado visible
@@ -170,7 +172,7 @@ pub fn PanelValoracion(receta_id: String, propia: bool) -> Element
 
         spawn(async move
         {
-            match api::foro::valorar(token, id.clone(), me_salio).await
+            match crate::red::con_plazo(api::foro::valorar(token, id.clone(), me_salio)).await
             {
                 Ok(recuento) => local_sel.set(Some(recuento)),
                 Err(causa) if crate::local::es_sin_conexion(&causa)
@@ -178,7 +180,7 @@ pub fn PanelValoracion(receta_id: String, propia: bool) -> Element
                 {
                     aviso.set(Some("Sin conexión: tu valoración se enviará cuando vuelva la red.".to_string()));
                 }
-                Err(_) => aviso.set(Some("No se pudo guardar tu valoración.".to_string())),
+                Err(causa) => aviso.set(Some(format!("No se pudo guardar tu valoración: {}", crate::red::mensaje(&causa)))),
             }
         });
     });
@@ -230,6 +232,16 @@ pub fn PanelValoracion(receta_id: String, propia: bool) -> Element
             if propia
             {
                 p { class: "nota", "Es tu receta: quienes la preparen dirán si les salió." }
+            }
+
+            // El recuento no llegó: avisar sin dejar la pantalla muda
+            if let Some(Err(causa)) = &*recurso.read()
+            {
+                AvisoRed
+                {
+                    causa: causa.clone(),
+                    reintentar: move |_| recurso.restart(),
+                }
             }
 
             if let Some(texto) = aviso()
@@ -312,7 +324,7 @@ fn FormularioComentario(
 
                 spawn(async move
                 {
-                    match api::foro::comentar(token, nuevo.clone()).await
+                    match crate::red::con_plazo(api::foro::comentar(token, nuevo.clone())).await
                     {
                         Ok(_) =>
                         {
@@ -330,7 +342,7 @@ fn FormularioComentario(
                             respuesta_a.set(None);
                             aviso.set(Some("Sin conexión: tu comentario se publicará cuando vuelva la red.".to_string()));
                         }
-                        Err(_) => aviso.set(Some("No se pudo publicar el comentario.".to_string())),
+                        Err(causa) => aviso.set(Some(format!("No se pudo publicar el comentario: {}", crate::red::mensaje(&causa)))),
                     }
                     enviando.set(false);
                 });
@@ -472,7 +484,7 @@ fn Reportar(receta_id: Option<String>, comentario_id: Option<String>) -> Element
 
                     spawn(async move
                     {
-                        match api::foro::reportar(token, reporte.clone()).await
+                        match crate::red::con_plazo(api::foro::reportar(token, reporte.clone())).await
                         {
                             Ok(()) => aviso.set(Some("Gracias: el equipo de moderación lo revisará.".to_string())),
                             Err(causa) if crate::local::es_sin_conexion(&causa)
@@ -480,7 +492,7 @@ fn Reportar(receta_id: Option<String>, comentario_id: Option<String>) -> Element
                             {
                                 aviso.set(Some("Sin conexión: el reporte se enviará cuando vuelva la red.".to_string()));
                             }
-                            Err(_) => aviso.set(Some("No se pudo enviar el reporte.".to_string())),
+                            Err(causa) => aviso.set(Some(format!("No se pudo enviar el reporte: {}", crate::red::mensaje(&causa)))),
                         }
                     });
                 },
@@ -538,7 +550,8 @@ pub fn LaBarra(receta: RecetaCompleta) -> Element
     let mut hilo_res = use_resource(move ||
     {
         let token = crate::sesion::token(&sesion);
-        api::foro::hilo(id_recurso.clone(), token)
+        let id = id_recurso.clone(); // Copia propia para los reintentos
+        crate::red::con_reintentos(move || api::foro::hilo(id.clone(), token.clone()))
     }); // Hilo del servidor
     let mut respuesta_a = use_signal(|| None::<Comentario>); // Comentario al que se responde
 
@@ -563,24 +576,13 @@ pub fn LaBarra(receta: RecetaCompleta) -> Element
                 {
                     p { class: "estado", role: "status", "Cargando comentarios…" }
                 },
-                Some(Err(causa)) if crate::local::es_sin_conexion(causa) => rsx!
+                Some(Err(causa)) => rsx!
                 {
-                    div
+                    // Fallo de red o del servidor: explicar qué pasó y ofrecer reintentar
+                    AvisoRed
                     {
-                        class: "estado estado-aviso",
-                        role: "alert",
-                        p { "Sin conexión: los comentarios no están disponibles." }
-                        button { class: "enlace", r#type: "button", onclick: move |_| hilo_res.restart(), "Reintentar" }
-                    }
-                },
-                Some(Err(_)) => rsx!
-                {
-                    div
-                    {
-                        class: "estado estado-error",
-                        role: "alert",
-                        p { "No pudimos traer los comentarios." }
-                        button { class: "enlace", r#type: "button", onclick: move |_| hilo_res.restart(), "Reintentar" }
+                        causa: causa.clone(),
+                        reintentar: move |_| hilo_res.restart(),
                     }
                 },
                 Some(Ok(comentarios_vec)) if comentarios_vec.is_empty() => rsx!

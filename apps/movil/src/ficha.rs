@@ -4,6 +4,7 @@ use api::guardados::alternar_guardado;
 use api::receta::{PasoFicha, RecetaCompleta};
 use dioxus::prelude::*;
 
+use crate::red::AvisoRed;
 use crate::reportar::ModalReportar;
 use crate::rutas::Rutas;
 
@@ -23,7 +24,7 @@ pub fn PantallaFicha(id: String) -> Element {
         let id = id.clone();
         let token = crate::sesion::token(&sesion);
         let cuenta = crate::sesion::cuenta(&sesion);
-        crate::local::receta(id, token, cuenta)
+        crate::red::con_reintentos(move || crate::local::receta(id.clone(), token.clone(), cuenta.clone()))
     });
 
     rsx! {
@@ -38,14 +39,9 @@ pub fn PantallaFicha(id: String) -> Element {
                     p { class: "estado", role: "status", "Cargando la receta…" }
                 },
                 Some(Err(causa)) => rsx! {
-                    div { class: "estado estado-error", role: "alert",
-                        p { "No pudimos cargar la receta: {causa}" }
-                        button {
-                            class: "enlace",
-                            r#type: "button",
-                            onclick: move |_| receta_res.restart(),
-                            "Reintentar"
-                        }
+                    AvisoRed {
+                        causa: causa.clone(),
+                        reintentar: move |_| receta_res.restart(),
                     }
                 },
                 Some(Ok(None)) => rsx! {
@@ -292,7 +288,8 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                                     }
                                     Err(causa) => {
                                         aviso_guardado.set(Some(format!(
-                                            "No se pudo guardar: {causa}"
+                                            "No se pudo guardar: {}",
+                                            crate::red::mensaje(&causa)
                                         )));
                                         guardando.set(false);
                                     }

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::barra::{BarraInferior, Destino};
 use crate::biblioteca::familia_legible;
+use crate::red::AvisoRed;
 use crate::rutas::Rutas;
 
 mod calculo;
@@ -123,7 +124,11 @@ impl Unidad {
 #[component]
 pub fn PantallaListaCompra() -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>();
-    let mut recurso = use_resource(move || catalogo(crate::sesion::token(&sesion)));
+    // El catálogo se pide con plazo y reintentos: la lista no se queda cargando sin fin
+    let mut recurso = use_resource(move || {
+        let token = crate::sesion::token(&sesion);
+        crate::red::con_reintentos(move || catalogo(token.clone()))
+    });
 
     rsx! {
         document::Stylesheet { href: CSS_BASE }
@@ -143,14 +148,9 @@ pub fn PantallaListaCompra() -> Element {
                     p { class: "estado", role: "status", "Cargando el recetario…" }
                 },
                 Some(Err(causa)) => rsx! {
-                    div { class: "estado estado-error", role: "alert",
-                        p { "No pudimos traer las recetas: {causa}" }
-                        button {
-                            class: "enlace",
-                            r#type: "button",
-                            onclick: move |_| recurso.restart(),
-                            "Reintentar"
-                        }
+                    AvisoRed {
+                        causa: causa.clone(),
+                        reintentar: move |_| recurso.restart(),
                     }
                 },
                 Some(Ok(lista)) => rsx! {
