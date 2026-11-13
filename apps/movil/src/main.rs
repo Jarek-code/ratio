@@ -1,19 +1,29 @@
 //! Ratio · cliente móvil: rutas, backend y componente raíz.
 
+mod actividad;
 mod ajustar;
+mod ajustes;
 mod barra;
 mod biblioteca;
+mod comparar;
 mod descubrir;
 mod ficha;
+mod foro;
+mod fotos;
 mod guardados;
 mod historial;
 mod lista_compra;
+mod local;
 mod login;
 mod marca;
 mod mis_recetas;
-mod proximamente;
+mod perfil;
+mod preparar;
+mod reportar;
 mod rutas;
 mod salud;
+#[cfg(target_os = "ios")]
+mod selector_ios;
 mod sesion;
 
 use dioxus::prelude::*;
@@ -32,7 +42,14 @@ pub const SERVIDOR: &str = match option_env!("RATIO_SERVIDOR") {
 /// Componente raíz: el router decide la pantalla.
 #[component]
 fn App() -> Element {
-    use_context_provider(|| Signal::new(None::<sesion::SesionApp>));
+    // La sesión guardada se recupera al abrir y se renueva mientras la app siga abierta
+    let sesion = use_context_provider(|| Signal::new(sesion::cargar()));
+    use_future(move || sesion::mantener(sesion));
+    // Los cambios hechos sin conexión se envían cuando vuelve la red
+    let pendientes = use_context_provider(|| Signal::new(0_usize));
+    use_future(move || local::vaciar(sesion, pendientes));
+    // Unidad preferida y bienvenida, leídas del archivo de ajustes
+    use_context_provider(|| Signal::new(ajustes::cargar()));
 
     rsx! {
         // Fuentes usadas por el diseño de Penpot.

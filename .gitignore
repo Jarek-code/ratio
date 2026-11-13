@@ -21,6 +21,10 @@ dist/
 *.log
 .tmp*/
 
+# Planeación local del agente
+/tasks/plan.md
+/tasks/todo.md
+
 # Sistema y editores
 .DS_Store
 Thumbs.db

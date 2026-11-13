@@ -6,7 +6,7 @@
 use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (única importación con comodín permitida)
 use api::descubrir; // Tipo RecetaSugerida y server function sugerencias_dia
 use crate::barra::{BarraInferior, Destino}; // Barra inferior compartida
-use crate::proximamente::Proximamente; // Aviso de las funciones que aún no tienen pantalla
+use crate::marca::Marca; // Logo compartido, dibujado inline
 use crate::rutas::Rutas; // Rutas de la app, para abrir la ficha de una receta
 
 // CONSTANTES Y VARIABLES GLOBALES
@@ -38,28 +38,6 @@ fn descripcion_capas(receta: &proporciones::Receta) -> String
         .collect();
 
     format!("{}: {}", receta.nombre, capas_vec.join(", ")) // Retornar descripción completa
-}
-
-/// Dibuja el logo de Ratio: un vaso con tres capas de bebida
-#[component]
-fn Marca() -> Element
-{
-    rsx!
-    {
-        // Dibujar la silueta del vaso y sus tres capas
-        svg
-        {
-            class: "marca",
-            view_box: "0 0 64 64",
-            "aria-hidden": "true",
-
-            path { d: "M18 9 H46 L43.4 50.5 Q43 56 37.5 56 H26.5 Q21 56 20.6 50.5 Z", fill: "none", stroke: "currentColor", stroke_width: "2.6", stroke_linejoin: "round" }
-            path { d: "M24.3 43.5 H39.7 L38.9 50.2 Q38.7 53.5 35.7 53.5 H28.3 Q25.3 53.5 25.1 50.2 Z", fill: "#B9633B" }
-            path { d: "M22.8 31 H41.2 L40.2 43.5 H23.8 Z", fill: "#D8A44C" }
-            path { d: "M21.3 20 H42.7 L41.7 31 H22.3 Z", fill: "#6E4A32" }
-            path { d: "M27 62 H37", fill: "none", stroke: "currentColor", stroke_width: "2.6", stroke_linecap: "round" }
-        }
-    }
 }
 
 /// Dibuja el vaso de una receta con sus capas reales usando el motor de proporciones
@@ -141,6 +119,13 @@ fn Encabezado() -> Element
 
                             Link
                             {
+                                to: crate::rutas::Rutas::Perfil,
+                                class: "perfil-enlace",
+                                "Mi perfil"
+                            }
+
+                            Link
+                            {
                                 to: crate::rutas::Rutas::MisRecetas,
                                 class: "perfil-enlace",
                                 "Mi recetario"
@@ -153,13 +138,27 @@ fn Encabezado() -> Element
                                 "Guardados"
                             }
 
+                            Link
+                            {
+                                to: crate::rutas::Rutas::Actividad,
+                                class: "perfil-enlace",
+                                "Actividad"
+                            }
+
+                            Link
+                            {
+                                to: crate::rutas::Rutas::Ajustes,
+                                class: "perfil-enlace",
+                                "Ajustes"
+                            }
+
                             button
                             {
                                 class: "perfil-salir",
                                 r#type: "button",
                                 onclick: move |_|
                                 {
-                                    sesion.set(None);
+                                    crate::sesion::salir(&mut sesion);
                                     abierto.set(false);
                                     navegador.push(crate::rutas::Rutas::Entrar);
                                 },
@@ -170,24 +169,20 @@ fn Encabezado() -> Element
                 }
                 else
                 {
-                    // Sin sesión, el perfil sigue pendiente
-                    Proximamente
+                    // Sin sesión: el avatar lleva al acceso
+                    Link
                     {
-                        button
+                        to: crate::rutas::Rutas::Entrar,
+                        class: "avatar",
+                        "aria-label": "Entrar a tu cuenta",
+
+                        svg
                         {
-                            class: "avatar",
-                            r#type: "button",
-                            "aria-label": "Perfil",
-                            "aria-disabled": "true",
+                            view_box: "0 0 24 24",
+                            "aria-hidden": "true",
 
-                            svg
-                            {
-                                view_box: "0 0 24 24",
-                                "aria-hidden": "true",
-
-                                circle { cx: "12", cy: "9", r: "4", fill: "none", stroke: "currentColor", stroke_width: "1.8" }
-                                path { d: "M4.5 20 Q12 13.5 19.5 20", fill: "none", stroke: "currentColor", stroke_width: "1.8", stroke_linecap: "round" }
-                            }
+                            circle { cx: "12", cy: "9", r: "4", fill: "none", stroke: "currentColor", stroke_width: "1.8" }
+                            path { d: "M4.5 20 Q12 13.5 19.5 20", fill: "none", stroke: "currentColor", stroke_width: "1.8", stroke_linecap: "round" }
                         }
                     }
                 }
@@ -196,55 +191,82 @@ fn Encabezado() -> Element
     }
 }
 
+/// Busca por nombre de bebida y abre Biblioteca con la búsqueda ya escrita
 #[component]
 fn Buscador() -> Element
 {
+    let mut texto_sel = use_signal(String::new); // Texto escrito en el buscador
+    let navegador = navigator(); // Para abrir Biblioteca al buscar
+
     rsx!
     {
-        // Formulario de búsqueda que no recarga la vista
+        // Formulario de búsqueda que abre Biblioteca sin recargar la vista
         form
         {
             class: "buscador",
             role: "search",
-            onsubmit: move |evento_val| evento_val.prevent_default(),
+            onsubmit: move |evento_val|
+            {
+                evento_val.prevent_default();
+                navegador.push(Rutas::Biblioteca
+                {
+                    busqueda: texto_sel().trim().to_string(),
+                    familia: String::new(),
+                    tipo: String::new(),
+                });
+            },
 
             label { class: "solo-lector", r#for: "buscar", "Buscar recetas" }
             input
             {
                 id: "buscar",
                 r#type: "search",
-                placeholder: "Buscar por bebida, ingrediente o método",
+                placeholder: "Buscar por nombre de bebida",
                 autocomplete: "off",
+                value: "{texto_sel}",
+                oninput: move |evento_val| texto_sel.set(evento_val.value()),
             }
 
-            // Botón de búsqueda (abre Biblioteca cuando exista)
-            Proximamente
+            // Botón que envía la búsqueda
+            button
             {
-                button
-                {
-                    class: "buscador-boton",
-                    r#type: "submit",
-                    "aria-label": "Buscar",
-                    "aria-disabled": "true",
+                class: "buscador-boton",
+                r#type: "submit",
+                "aria-label": "Buscar",
 
-                    svg
+                svg
                     {
                         view_box: "0 0 24 24",
                         "aria-hidden": "true",
 
-                        circle { cx: "11", cy: "11", r: "6.5", fill: "none", stroke: "currentColor", stroke_width: "2" }
-                        path { d: "M16 16 L20.5 20.5", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round" }
-                    }
+                    circle { cx: "11", cy: "11", r: "6.5", fill: "none", stroke: "currentColor", stroke_width: "2" }
+                    path { d: "M16 16 L20.5 20.5", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round" }
                 }
             }
         }
     }
 }
 
-/// Muestra los accesos por familia de bebida, que abrirán Biblioteca ya filtrada
+/// Arma la ruta de Biblioteca filtrada por familia o por tipo de bebida
+fn biblioteca_filtrada(familia: &str, tipo: &str) -> Rutas
+{
+    Rutas::Biblioteca
+    {
+        busqueda: String::new(),
+        familia: familia.to_string(),
+        tipo: tipo.to_string(),
+    }
+}
+
+/// Muestra los accesos por familia de bebida, que abren Biblioteca ya filtrada
+///
+/// «Cócteles» solo aparece si la sesión declaró mayoría de edad.
 #[component]
 fn ChipsFamilia() -> Element
 {
+    let sesion = use_context::<crate::sesion::SenalSesion>(); // Sesión con la declaración de edad
+    let adulto_val = sesion.read().as_ref().is_some_and(|guardada| guardada.perfil.mayor_de_edad); // Mayoría de edad declarada
+
     rsx!
     {
         // Lista de familias en forma de píldora
@@ -253,16 +275,14 @@ fn ChipsFamilia() -> Element
             class: "chips",
             "aria-label": "Familias de bebida",
 
-            Proximamente
-            {
-                button { class: "chip", r#type: "button", "aria-disabled": "true", "Espresso" }
-            }
-            Proximamente
-            {
-                button { class: "chip", r#type: "button", "aria-disabled": "true", "Con leche" }
-            }
+            Link { to: biblioteca_filtrada("espresso", ""), class: "chip", "Espresso" }
+            Link { to: biblioteca_filtrada("con_leche", ""), class: "chip", "Con leche" }
 
-            // shortcut: «Cócteles» se omite para todos porque sin JWT la persona cuenta como menor de edad, mostrarlo cuando la sesión declare mayoría de edad
+            // Mayor de edad: mostrar el acceso a coctelería
+            if adulto_val
+            {
+                Link { to: biblioteca_filtrada("", "cocteleria"), class: "chip", "Cócteles" }
+            }
         }
     }
 }
@@ -400,10 +420,15 @@ fn SeccionSugerencias() -> Element
     }
 }
 
-/// Muestra las últimas recetas vistas, que salen del historial local del dispositivo
+/// Muestra las últimas recetas vistas, que salen del repositorio local del dispositivo (A2)
+///
+/// Funciona sin conexión: solo lee el archivo local de la cuenta actual.
 #[component]
 fn SeccionUltimasVistas() -> Element
 {
+    let sesion = use_context::<crate::sesion::SenalSesion>(); // Cuenta cuyas recetas se muestran
+    let vistas_vec = crate::local::recientes(&crate::sesion::cuenta(&sesion), 3); // Últimas tres vistas
+
     rsx!
     {
         section
@@ -417,11 +442,28 @@ fn SeccionUltimasVistas() -> Element
                 class: "seccion-cabeza",
 
                 p { id: "titulo-ultimas", class: "eyebrow", "Sigue donde lo dejaste" }
-                Link { to: Rutas::Biblioteca, class: "enlace", "Biblioteca" }
+                Link { to: Rutas::biblioteca(), class: "enlace", "Biblioteca" }
             }
 
-            // shortcut: siempre se muestra el estado vacío porque el repositorio local (A2) no existe, leer de A2 y agregar los estados de carga, error y sin conexión cuando exista
-            p { class: "estado", "Aún no has preparado nada. Empieza por la sugerencia de hoy." }
+            // Sin recetas vistas: invitar a empezar por la sugerencia
+            if vistas_vec.is_empty()
+            {
+                p { class: "estado", "Aún no has abierto ninguna receta. Empieza por la sugerencia de hoy." }
+            }
+
+            for vista in vistas_vec
+            {
+                TarjetaSugerencia
+                {
+                    key: "{vista.id}",
+                    sugerencia: descubrir::RecetaSugerida
+                    {
+                        id: vista.id.clone(),
+                        tipo: vista.tipo.clone(),
+                        receta: vista.receta.clone(),
+                    },
+                }
+            }
         }
     }
 }

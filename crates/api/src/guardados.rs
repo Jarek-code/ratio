@@ -68,6 +68,7 @@ pub async fn guardados(token: String) -> Result<Vec<RecetaGuardada>, ServerFnErr
     let cuenta = crate::auth::cuenta(Some(&token))
         .await
         .ok_or_else(|| ServerFnError::new("La sesión caducó; vuelve a entrar"))?;
+    let adulto = crate::auth::es_adulto(Some(&token)).await;
 
     let filas = sqlx::query_as::<_, FilaGuardada>(
         r#"
@@ -103,11 +104,16 @@ pub async fn guardados(token: String) -> Result<Vec<RecetaGuardada>, ServerFnErr
                 (r.publicada_en IS NOT NULL AND NOT r.oculta)
                 OR r.autor_id = $1::uuid
               )
+          AND ($2 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol
+                WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+              ))
         GROUP BY g.creado_en, r.id, u.alias, v.id
         ORDER BY g.creado_en DESC
         "#,
     )
     .bind(&cuenta)
+    .bind(adulto)
     .fetch_all(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;
@@ -131,10 +137,15 @@ pub async fn guardados(token: String) -> Result<Vec<RecetaGuardada>, ServerFnErr
                 (r.publicada_en IS NOT NULL AND NOT r.oculta)
                 OR r.autor_id = $1::uuid
               )
+          AND ($2 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol
+                WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+              ))
         ORDER BY c.receta_id, c.posicion
         "#,
     )
     .bind(&cuenta)
+    .bind(adulto)
     .fetch_all(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;
@@ -167,6 +178,7 @@ pub async fn alternar_guardado(
     let cuenta = crate::auth::cuenta(Some(&token))
         .await
         .ok_or_else(|| ServerFnError::new("La sesión caducó; vuelve a entrar"))?;
+    let adulto = crate::auth::es_adulto(Some(&token)).await;
 
     let visible = sqlx::query_scalar::<_, bool>(
         r#"
@@ -178,11 +190,16 @@ pub async fn alternar_guardado(
                     (r.publicada_en IS NOT NULL AND NOT r.oculta)
                     OR r.autor_id = $2::uuid
                   )
+              AND ($3 OR NOT EXISTS (
+                    SELECT 1 FROM componente_receta alcohol
+                    WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+                  ))
         )
         "#,
     )
     .bind(&receta_id)
     .bind(&cuenta)
+    .bind(adulto)
     .fetch_one(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;

@@ -36,7 +36,10 @@ pub struct VersionHistorial {
     pub fecha: String,
     /// Si cualquiera puede verla; las privadas solo las ve su autor.
     pub publica: bool,
-    /// Nombre de la versión de la que deriva; `None` en la original.
+    /// Si deriva de otra versión, aunque esa otra no sea visible para quien pregunta.
+    #[serde(default)] // Un servidor anterior no manda el campo
+    pub derivada: bool,
+    /// Nombre de la versión de la que deriva; `None` en la original o si el origen está oculto.
     pub origen: Option<String>,
     /// Volumen total de la bebida en mililitros.
     pub total_ml: f64,
@@ -104,7 +107,7 @@ WITH RECURSIVE arriba AS (
 
 /// Nombres de los meses en español, para la fecha legible.
 #[cfg(feature = "server")]
-const MESES: [&str; 12] = [
+pub(crate) const MESES: [&str; 12] = [
     "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic",
 ];
 
@@ -204,6 +207,7 @@ fn cambios_de(version: &[FilaComponente], origen: &[FilaComponente]) -> Vec<Camb
 /// Trae las versiones publicadas de una bebida y, si hay sesión, también las privadas de su autor.
 ///
 /// Sin token solo se devuelven las versiones públicas; las privadas quedan para quien las creó.
+/// Sin mayoría de edad declarada se omiten las versiones con alcohol.
 ///
 /// # Errores
 ///
@@ -218,6 +222,7 @@ pub async fn versiones(
     };
 
     let cuenta = crate::auth::cuenta(token.as_deref()).await;
+    let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
     let filas = sqlx::query_as::<_, FilaVersion>(&format!(
         r#"{ARBOL}
@@ -233,11 +238,16 @@ pub async fn versiones(
         LEFT JOIN usuario u ON u.id = r.autor_id
         WHERE r.id IN (SELECT id FROM arbol)
           AND ((r.publicada_en IS NOT NULL AND NOT r.oculta) OR r.autor_id = $2::uuid)
+          AND ($3 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol
+                WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+              ))
         ORDER BY r.creada_en, r.nombre
         "#
     ))
     .bind(&id)
     .bind(&cuenta)
+    .bind(adulto)
     .fetch_all(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;
@@ -277,12 +287,11 @@ pub async fn versiones(
         .iter()
         .map(|fila| {
             let propias = de_receta(&fila.id);
-            let origen = fila.origen_id.as_deref().unwrap_or_default();
-            let del_origen = if fila.origen_id.is_some() {
-                de_receta(origen)
-            } else {
-                Vec::new()
-            };
+            // Comparar solo contra un origen visible: uno privado o con alcohol filtraría sus cantidades
+            let origen_visible = fila
+                .origen_id
+                .as_ref()
+                .and_then(|origen_id| filas.iter().find(|otra| &otra.id == origen_id));
             let total_ml = total_ml_de(&propias);
 
             VersionHistorial {
@@ -296,18 +305,13 @@ pub async fn versiones(
                     fila.anio
                 ),
                 publica: fila.publica,
-                origen: fila.origen_id.as_ref().and_then(|origen_id| {
-                    filas
-                        .iter()
-                        .find(|otra| &otra.id == origen_id)
-                        .map(|otra| otra.nombre.clone())
-                }),
+                derivada: fila.origen_id.is_some(),
+                origen: origen_visible.map(|otra| otra.nombre.clone()),
                 total_ml,
                 ratio: ratio_de(total_ml, base_ml_de(&propias)),
-                cambios: if fila.origen_id.is_some() {
-                    cambios_de(&propias, &del_origen)
-                } else {
-                    Vec::new()
+                cambios: match origen_visible {
+                    Some(otra) => cambios_de(&propias, &de_receta(&otra.id)),
+                    None => Vec::new(),
                 },
             }
         })

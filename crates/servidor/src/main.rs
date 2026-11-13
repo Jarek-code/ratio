@@ -42,14 +42,25 @@ fn enlazar_contratos() {
         api::salud,
         api::auth::entrar,
         api::auth::registrar,
+        api::auth::renovar,
         api::auth::sesion,
         api::biblioteca::catalogo,
         api::descubrir::sugerencias_dia,
+        api::foro::actividad,
+        api::foro::agregar_foto,
+        api::foro::comentar,
+        api::foro::hilo,
+        api::foro::publicar,
+        api::foro::reportar,
+        api::foro::valoraciones,
+        api::foro::valorar,
         api::guardados::alternar_guardado,
         api::guardados::guardados,
         api::guardar::guardar_receta,
         api::historial::versiones,
         api::ingredientes::catalogo,
+        api::perfil::perfil,
+        api::perfil::seguir,
         api::receta::completa,
         api::recetario::mis_recetas,
         api::vasos::vasos,
@@ -64,10 +75,10 @@ async fn arrancar(config: Option<config::Config>) -> Result<axum::Router, Error>
             abrir_pool(config).await;
 
             if config.migrar {
-                aplicar_migraciones().await;
+                aplicar_migraciones().await?;
             }
         }
-        None => warn!("sin DATABASE_URL: se arranca en modo degradado"),
+        None => warn!("no DATABASE_URL: starting in degraded mode"),
     }
 
     Ok(axum::Router::new()
@@ -86,7 +97,7 @@ async fn registrar_peticion(
     let ruta = peticion.uri().path().to_string();
     let respuesta = siguiente.run(peticion).await;
 
-    tracing::debug!(%metodo, %ruta, estado = respuesta.status().as_u16(), "petición");
+    tracing::debug!(%metodo, %ruta, estado = respuesta.status().as_u16(), "request");
 
     respuesta
 }
@@ -94,42 +105,53 @@ async fn registrar_peticion(
 /// Abre el pool y lo publica para las server functions; si no conecta, deja uno perezoso
 /// que reintenta en cada consulta.
 async fn abrir_pool(config: &config::Config) {
+    // Supabase Auth no depende de la base: se configura aunque no haya pool
+    match (&config.supabase_url, &config.supabase_anon) {
+        (Some(url), Some(anon)) => api::auth::configurar(url.clone(), anon.clone()),
+        _ => warn!("no SUPABASE_URL or SUPABASE_ANON_KEY: sign-in cannot validate credentials"),
+    }
+
     let pool = match db::conectar(&config.database_url).await {
         Ok(pool) => {
-            info!(base = %config.destino(), "conectado a la base de datos");
+            info!(base = %config.destino(), "connected to database");
             pool
         }
         Err(causa) => {
             warn!(
                 base = %config.destino(),
                 error = %causa,
-                "sin conexión a la base de datos; se arranca en modo degradado"
+                "database unreachable: starting in degraded mode"
             );
-            db::perezoso(&config.database_url)
+            match db::perezoso(&config.database_url) {
+                Ok(pool) => pool,
+                Err(_) => {
+                    // Cadena ilegible: sin pool, /salud responde 503 con el motivo
+                    error!("DATABASE_URL could not be parsed: starting without database");
+                    return;
+                }
+            }
         }
     };
 
     api::db::instalar(pool);
-
-    match (&config.supabase_url, &config.supabase_anon) {
-        (Some(url), Some(anon)) => api::auth::configurar(url.clone(), anon.clone()),
-        _ => warn!("sin SUPABASE_URL o SUPABASE_ANON_KEY: el acceso no podrá validar credenciales"),
-    }
 }
 
 /// Aplica `migrations/` con el pool ya instalado.
-async fn aplicar_migraciones() {
+///
+/// Si una migración falla devuelve el error y el servidor no arranca: es preferible a servir
+/// con un esquema a medias. Las que la base registra y el repositorio no tiene se ignoran,
+/// porque Supabase ya guarda una aplicada a mano (20261021000000).
+async fn aplicar_migraciones() -> Result<(), Error> {
     let Some(pool) = api::db::pool() else {
-        return;
+        return Ok(());
     };
 
     let mut migrador = sqlx::migrate!("../../migrations");
     migrador.set_ignore_missing(true);
+    migrador.run(pool).await?;
+    info!("migrations applied");
 
-    match migrador.run(pool).await {
-        Ok(()) => info!("migraciones aplicadas"),
-        Err(causa) => error!(error = %causa, "las migraciones fallaron; se arranca sin aplicarlas"),
-    }
+    Ok(())
 }
 
 /// Lo que consulta Render y lo que enseña el cliente. `200` si la base contesta;

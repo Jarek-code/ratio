@@ -23,11 +23,11 @@ impl Config {
     /// Supabase rechaza las conexiones sin cifrar.
     pub fn desde_entorno() -> Result<Self, String> {
         let database_url = std::env::var("DATABASE_URL").map_err(|_| {
-            "falta DATABASE_URL; copia .env.example a .env en local, o configúrala en Render".to_string()
+            "missing DATABASE_URL: copy .env.example to .env locally, or set it in Render".to_string()
         })?;
 
         if !database_url.starts_with("postgres://") && !database_url.starts_with("postgresql://") {
-            return Err("DATABASE_URL debe empezar por postgres:// o postgresql://".to_string());
+            return Err("DATABASE_URL must start with postgres:// or postgresql://".to_string());
         }
 
         let es_local = database_url.contains("localhost") || database_url.contains("127.0.0.1");

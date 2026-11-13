@@ -1,10 +1,10 @@
 //! Ficha de receta (B3): el vaso con sus capas, las proporciones, los datos y los pasos.
 
 use api::guardados::alternar_guardado;
-use api::receta::{PasoFicha, RecetaCompleta, completa};
+use api::receta::{PasoFicha, RecetaCompleta};
 use dioxus::prelude::*;
 
-use crate::proximamente::Proximamente;
+use crate::reportar::ModalReportar;
 use crate::rutas::Rutas;
 
 /// Hoja de estilos propia de la ficha.
@@ -22,7 +22,8 @@ pub fn PantallaFicha(id: String) -> Element {
     let mut receta_res = use_resource(move || {
         let id = id.clone();
         let token = crate::sesion::token(&sesion);
-        async move { completa(id, token).await }
+        let cuenta = crate::sesion::cuenta(&sesion);
+        crate::local::receta(id, token, cuenta)
     });
 
     rsx! {
@@ -72,12 +73,16 @@ fn BarraSuperior() -> Element {
 #[component]
 fn Contenido(receta: RecetaCompleta) -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>();
+    let mut pendientes = use_context::<crate::local::SenalPendientes>();
     let mut guardando = use_signal(|| false);
     let mut guardada = use_signal(|| false);
     let mut aviso_guardado = use_signal(|| None::<String>);
+    let mut reportando = use_signal(|| false);
     let id_guardar = receta.id.clone();
     let capas = proporciones::capas(&receta.receta);
     let graduacion = proporciones::graduacion(&receta.receta);
+    let equivalencias = proporciones::equivalencias(&receta.receta);
+    let unidad_preferida = use_context::<crate::ajustes::SenalAjustes>()().unidad;
     let svg = proporciones::svg(
         &receta.receta,
         &proporciones::Opciones {
@@ -90,7 +95,18 @@ fn Contenido(receta: RecetaCompleta) -> Element {
         section { class: "ficha-cabeza",
             p { class: "eyebrow", "{receta.familia}" }
             h1 { "{receta.receta.nombre}" }
-            p { class: "ficha-autor", "por {receta.autor}" }
+            p { class: "ficha-autor",
+                "por "
+                Link { to: Rutas::PerfilPublico { alias: receta.autor.clone() }, "{receta.autor}" }
+            }
+            // Versión derivada: crédito al original (D5)
+            if let Some(origen) = receta.origen.clone() {
+                p { class: "ficha-autor",
+                    "Versión de "
+                    Link { to: Rutas::Ficha { id: origen.id }, "{origen.nombre}" }
+                    " · original de {origen.autor}"
+                }
+            }
         }
 
         article { class: "tarjeta ficha-vaso",
@@ -141,6 +157,8 @@ fn Contenido(receta: RecetaCompleta) -> Element {
             }
         }
 
+        crate::fotos::FotosReceta { receta: receta.clone() }
+
         section { class: "seccion", "aria-labelledby": "titulo-proporciones",
             div { class: "seccion-cabeza",
                 p { id: "titulo-proporciones", class: "eyebrow", "Proporciones en el vaso" }
@@ -173,7 +191,16 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                                     "aria-hidden": "true",
                                 }
                                 span { class: "leyenda-nombre", "{capa.nombre}" }
-                                span { class: "leyenda-ml", "{cantidad:.0} {unidad}" }
+                                span { class: "leyenda-ml",
+                                    // Los líquidos usan la unidad elegida en Ajustes; los sólidos siguen en mg
+                                    if unidad == "mg" {
+                                        "{cantidad:.0} mg"
+                                    } else if let Some(equivalencia) = equivalencias.get(indice) {
+                                        "{unidad_preferida.cantidad(equivalencia)}"
+                                    } else {
+                                        "{cantidad:.0} ml"
+                                    }
+                                }
                                 span { class: "leyenda-pct", "{capa.porcentaje:.0} %" }
                             }
                         }
@@ -186,8 +213,10 @@ fn Contenido(receta: RecetaCompleta) -> Element {
             p { id: "titulo-acciones", class: "eyebrow", "Acciones" }
 
             div { class: "acciones",
-                Proximamente {
-                    button { class: "primario", r#type: "button", "aria-disabled": "true", "Preparar" }
+                Link {
+                    to: Rutas::Preparar { id: receta.id.clone() },
+                    class: "primario",
+                    "Preparar"
                 }
                 div { class: "acciones-fila",
                     Link {
@@ -198,13 +227,24 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                     Link {
                         to: Rutas::Ajustar { id: receta.id.clone() },
                         class: "chip chip--enlace",
-                        "Ajustar"
+                        aria_label: "Ajustar las proporciones o derivar una versión propia",
+                        "Ajustar o derivar"
                     }
-                    Proximamente {
-                        button { class: "chip", r#type: "button", "aria-disabled": "true", "Comparar" }
+                    Link {
+                        to: Rutas::Comparar { id: receta.id.clone(), con: String::new() },
+                        class: "chip chip--enlace",
+                        "Comparar"
                     }
-                    Proximamente {
-                        button { class: "chip", r#type: "button", "aria-disabled": "true", "Derivar" }
+                    Link {
+                        to: Rutas::Equivalencias { id: receta.id.clone() },
+                        class: "chip chip--enlace",
+                        "Ingredientes y equivalencias"
+                    }
+                    button {
+                        class: "chip",
+                        r#type: "button",
+                        onclick: move |_| reportando.set(true),
+                        "Reportar"
                     }
                     button {
                         class: "chip",
@@ -226,10 +266,29 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                             guardando.set(true);
                             aviso_guardado.set(None);
                             spawn(async move {
-                                match alternar_guardado(token, id, true).await {
+                                match alternar_guardado(token, id.clone(), true).await {
                                     Ok(_) => {
                                         guardada.set(true);
                                         guardando.set(false);
+                                    }
+                                    // Sin red: el guardado queda en la cola
+                                    Err(causa)
+                                        if crate::local::es_sin_conexion(&causa)
+                                            && crate::local::encolar(
+                                                &sesion,
+                                                &mut pendientes,
+                                                crate::local::Cambio::Guardado {
+                                                    receta_id: id,
+                                                    guardar: true,
+                                                },
+                                            ) =>
+                                    {
+                                        guardada.set(true);
+                                        guardando.set(false);
+                                        aviso_guardado.set(Some(
+                                            "Sin conexión: se guardará cuando vuelva la red."
+                                                .to_string(),
+                                        ));
                                     }
                                     Err(causa) => {
                                         aviso_guardado.set(Some(format!(
@@ -280,14 +339,23 @@ fn Contenido(receta: RecetaCompleta) -> Element {
             }
         }
 
-        section { class: "seccion", "aria-labelledby": "titulo-barra",
-            p { id: "titulo-barra", class: "eyebrow", "La Barra · comentarios anclados" }
-            p { class: "estado", "El hilo de esta receta llegará con el foro." }
-        }
+        crate::foro::LaBarra { receta: receta.clone() }
 
         section { class: "seccion", "aria-labelledby": "titulo-versiones",
             p { id: "titulo-versiones", class: "eyebrow", "Versiones" }
-            p { class: "estado", "Las versiones derivadas llegarán con el versionado." }
+            p { class: "nota", "Cada versión deriva de otra y conserva el crédito a su original." }
+            Link {
+                to: Rutas::Historial { id: receta.id.clone() },
+                class: "chip chip--enlace",
+                "Ver el historial de versiones"
+            }
+        }
+
+        if reportando() {
+            ModalReportar {
+                receta_id: receta.id.clone(),
+                on_cerrar: move |_| reportando.set(false),
+            }
         }
     }
 }
