@@ -105,6 +105,12 @@ async fn registrar_peticion(
 /// Abre el pool y lo publica para las server functions; si no conecta, deja uno perezoso
 /// que reintenta en cada consulta.
 async fn abrir_pool(config: &config::Config) {
+    // Supabase Auth no depende de la base: se configura aunque no haya pool
+    match (&config.supabase_url, &config.supabase_anon) {
+        (Some(url), Some(anon)) => api::auth::configurar(url.clone(), anon.clone()),
+        _ => warn!("no SUPABASE_URL or SUPABASE_ANON_KEY: sign-in cannot validate credentials"),
+    }
+
     let pool = match db::conectar(&config.database_url).await {
         Ok(pool) => {
             info!(base = %config.destino(), "connected to database");
@@ -116,16 +122,18 @@ async fn abrir_pool(config: &config::Config) {
                 error = %causa,
                 "database unreachable: starting in degraded mode"
             );
-            db::perezoso(&config.database_url)
+            match db::perezoso(&config.database_url) {
+                Ok(pool) => pool,
+                Err(_) => {
+                    // Cadena ilegible: sin pool, /salud responde 503 con el motivo
+                    error!("DATABASE_URL could not be parsed: starting without database");
+                    return;
+                }
+            }
         }
     };
 
     api::db::instalar(pool);
-
-    match (&config.supabase_url, &config.supabase_anon) {
-        (Some(url), Some(anon)) => api::auth::configurar(url.clone(), anon.clone()),
-        _ => warn!("no SUPABASE_URL or SUPABASE_ANON_KEY: sign-in cannot validate credentials"),
-    }
 }
 
 /// Aplica `migrations/` con el pool ya instalado.

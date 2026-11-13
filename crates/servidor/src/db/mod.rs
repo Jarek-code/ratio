@@ -30,8 +30,10 @@ pub async fn conectar(url: &str) -> Result<PgPool, sqlx::Error> {
 
 /// Pool que no conecta todavía: el servicio arranca y `/salud` informa del problema,
 /// en lugar de entrar en un bucle de reinicios.
-pub fn perezoso(url: &str) -> PgPool {
-    opciones()
-        .connect_lazy(url)
-        .expect("la cadena de conexión ya se validó al leer el entorno")
+///
+/// # Errores
+///
+/// Devuelve el error de SQLx si la cadena de conexión no se puede interpretar.
+pub fn perezoso(url: &str) -> Result<PgPool, sqlx::Error> {
+    opciones().connect_lazy(url)
 }
