@@ -102,10 +102,7 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
 
             match resultado {
                 Ok(iniciada) => {
-                    sesion.set(Some(crate::sesion::SesionApp {
-                        token: iniciada.token,
-                        perfil: iniciada.perfil,
-                    }));
+                    crate::sesion::iniciar(&mut sesion, iniciada);
                     on_entrar.call(());
                 }
                 Err(causa) => error.set(Some(mensaje_de_error(causa))),

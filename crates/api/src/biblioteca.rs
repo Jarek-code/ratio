@@ -69,24 +69,9 @@ pub(crate) struct FilaReceta {
     autor: String,
     /// Volumen servido (ml, el del vaso si la receta no fija uno).
     capacidad_ml: f64,
-    /// Volumen útil del vaso (ml).
-    vaso_capacidad_ml: f64,
-    /// Media anchura de la boca.
-    radio_boca: f64,
-    /// Media anchura del fondo.
-    radio_fondo: f64,
-    /// Altura interior del vaso.
-    altura: f64,
-    /// Grosor de la pared.
-    pared: f64,
-    /// Labio sobre el nivel máximo del líquido.
-    borde: f64,
-    /// Altura del tallo.
-    tallo: f64,
-    /// Tamaño del asa, si tiene.
-    asa: Option<String>,
-    /// Si el vaso lleva plato.
-    plato: bool,
+    /// Medidas del vaso, leídas de las columnas del vaso.
+    #[sqlx(flatten)]
+    vaso: crate::filas::MedidasVaso,
     /// Tiempo de preparación (min).
     minutos: Option<i16>,
     /// Dificultad (1-5).
@@ -95,84 +80,21 @@ pub(crate) struct FilaReceta {
     intensidad: Option<i16>,
 }
 
-/// Fila de una capa, con la receta a la que pertenece (solo servidor).
+/// Capa compartida con las demás consultas (solo servidor).
 #[cfg(feature = "server")]
-#[derive(sqlx::FromRow)]
-pub(crate) struct FilaCapa {
-    /// Receta a la que pertenece la capa (UUID en texto).
-    receta_id: String,
-    /// Ingrediente del catalogo al que apunta la capa.
-    ingrediente_id: String,
-    /// Orden de la capa dentro de la receta.
-    posicion: i16,
-    /// Nombre del ingrediente en esta receta.
-    nombre: String,
-    /// Unidad de la cantidad: "ml" o "mg".
-    unidad: String,
-    /// Cantidad en la unidad indicada.
-    cantidad: f64,
-    /// Alcohol por volumen (0-100).
-    graduacion_pct: f64,
-    /// Color de la capa en hex, si lo tiene.
-    color: Option<String>,
-    /// Si la capa es agua o hielo derretido.
-    dilucion: bool,
-}
+pub(crate) use crate::filas::FilaCapa;
 
 #[cfg(feature = "server")]
 impl FilaReceta {
     /// Convierte la fila y sus capas en el resumen que consume la lista.
     pub(crate) fn a_resumen(self, capas: &[FilaCapa]) -> RecetaResumen {
-        let asa = match self.asa.as_deref() {
-            Some("chica") => Some(proporciones::Asa::Chica),
-            Some("grande") => Some(proporciones::Asa::Grande),
-            _ => None,
-        };
-
-        let vaso = proporciones::Vaso {
-            capacidad_ml: self.vaso_capacidad_ml,
-            radio_boca: self.radio_boca,
-            radio_fondo: self.radio_fondo,
-            altura: self.altura,
-            pared: self.pared,
-            borde: self.borde,
-            tallo: self.tallo,
-            asa,
-            plato: self.plato,
-        };
-
         let capas: Vec<&FilaCapa> = capas
             .iter()
             .filter(|capa| capa.receta_id == self.id)
             .collect();
 
-        // De momento 1 g = 1 ml para que la miniatura use el mismo volumen que la
-        // ficha. El detalle con unidad sigue en `componentes` para C7 y C2.
-        let ingredientes = capas
-            .iter()
-            .map(|capa| proporciones::Componente {
-                nombre: capa.nombre.clone(),
-                ml: crate::ml_equivalentes(capa.cantidad, &capa.unidad),
-                graduacion: capa.graduacion_pct,
-                dilucion: capa.dilucion,
-                color: capa.color.clone(),
-                superficie: None,
-            })
-            .collect();
-
-        let componentes = capas
-            .iter()
-            .map(|capa| ComponenteFicha {
-                ingrediente_id: capa.ingrediente_id.clone(),
-                posicion: capa.posicion,
-                nombre: capa.nombre.clone(),
-                unidad: capa.unidad.clone(),
-                cantidad: capa.cantidad,
-                graduacion_pct: capa.graduacion_pct,
-                color: capa.color.clone(),
-                dilucion: capa.dilucion,
-            })
-            .collect();
+        let ingredientes = capas.iter().map(|capa| capa.a_componente()).collect();
+        let componentes = capas.iter().map(|capa| capa.a_ficha()).collect();
 
         RecetaResumen {
             id: self.id,
@@ -181,7 +103,7 @@ impl FilaReceta {
             autor: self.autor,
             receta: proporciones::Receta {
                 nombre: self.nombre,
-                vaso,
+                vaso: self.vaso.a_vaso(),
                 capacidad_ml: self.capacidad_ml,
                 ingredientes,
             },
@@ -195,6 +117,8 @@ impl FilaReceta {
 
 /// Trae todas las recetas publicadas, de la A a la Z, con su vaso y sus capas.
 ///
+/// Sin una sesión que haya declarado mayoría de edad se omiten las recetas con alcohol.
+///
 /// La búsqueda y los filtros se resuelven en el cliente: el catálogo del piloto son unas
 /// pocas decenas de recetas y así el buscador responde sin una petición por tecla.
 ///
@@ -202,10 +126,12 @@ impl FilaReceta {
 ///
 /// Devuelve `ServerFnError` si el servidor no tiene pool o si alguna consulta falla.
 #[server(endpoint = "catalogo")]
-pub async fn catalogo() -> Result<Vec<RecetaResumen>, ServerFnError> {
+pub async fn catalogo(token: Option<String>) -> Result<Vec<RecetaResumen>, ServerFnError> {
     let Some(pool) = db::pool() else {
         return Err(ServerFnError::new("Database unavailable"));
     };
+
+    let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
     let recetas = sqlx::query_as::<_, FilaReceta>(
         r#"
@@ -232,9 +158,14 @@ pub async fn catalogo() -> Result<Vec<RecetaResumen>, ServerFnError> {
         JOIN usuario u ON u.id = r.autor_id
         WHERE r.publicada_en IS NOT NULL
           AND NOT r.oculta
+          AND ($1 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol
+                WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+              ))
         ORDER BY r.nombre
         "#,
     )
+    .bind(adulto)
     .fetch_all(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;
@@ -254,9 +185,14 @@ pub async fn catalogo() -> Result<Vec<RecetaResumen>, ServerFnError> {
         JOIN receta r ON r.id = c.receta_id
         WHERE r.publicada_en IS NOT NULL
           AND NOT r.oculta
+          AND ($1 OR NOT EXISTS (
+                SELECT 1 FROM componente_receta alcohol
+                WHERE alcohol.receta_id = r.id AND alcohol.graduacion_pct > 0
+              ))
         ORDER BY c.receta_id, c.posicion
         "#,
     )
+    .bind(adulto)
     .fetch_all(pool)
     .await
     .map_err(|_| ServerFnError::new("Query error"))?;

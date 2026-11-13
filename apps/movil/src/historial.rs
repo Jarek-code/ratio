@@ -82,7 +82,7 @@ fn es_baja(cambio: &CambioHistorial) -> bool {
 
 /// Nombre de la versión original del árbol, si está en la lista.
 fn original(versiones: &[VersionHistorial]) -> Option<&VersionHistorial> {
-    versiones.iter().find(|version| version.origen.is_none())
+    versiones.iter().find(|version| !version.derivada)
 }
 
 /// Pantalla B6: historial de versiones de una bebida.
@@ -220,17 +220,17 @@ fn VersionCard(indice: usize, version: VersionHistorial) -> Element {
 
     rsx! {
         article {
-            class: if version.origen.is_none() { "version-card version-card--origin" } else { "version-card" },
+            class: if version.derivada { "version-card" } else { "version-card version-card--origin" },
             div { class: "version-head",
                 span { class: "version-index", "{numero}" }
                 h2 { class: "version-title", "{version.nombre}" }
                 span {
-                    class: if version.origen.is_none() {
-                        "version-badge version-badge--original"
-                    } else {
+                    class: if version.derivada {
                         "version-badge version-badge--derivada"
+                    } else {
+                        "version-badge version-badge--original"
                     },
-                    if version.origen.is_none() { "Original" } else { "Derivada" }
+                    if version.derivada { "Derivada" } else { "Original" }
                 }
             }
 
@@ -242,8 +242,13 @@ fn VersionCard(indice: usize, version: VersionHistorial) -> Element {
                 }
             }
 
-            if version.cambios.is_empty() {
-                p { class: "version-note", "Receta original · sin cambios" }
+            if version.derivada && version.origen.is_none() {
+                // Origen oculto: no se muestran sus cantidades
+                p { class: "version-note", "Deriva de una versión que no está disponible" }
+            } else if version.cambios.is_empty() {
+                p { class: "version-note",
+                    if version.derivada { "Sin cambios frente a su origen" } else { "Receta original · sin cambios" }
+                }
             } else {
                 div { class: "diff-list",
                     for cambio in version.cambios.iter() {

@@ -29,3 +29,5 @@ dotenvy = "0.15"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde_json = "1"
 anyhow = "1"
+# Verificación local de la firma del JWT de Supabase (ES256), sin dependencias en C
+jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }

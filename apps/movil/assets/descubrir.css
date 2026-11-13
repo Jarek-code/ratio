@@ -125,7 +125,7 @@ button {
     font-size: 24px;
 }
 
-.marca {
+.encabezado-marca .brand-mark {
     width: 34px;
     height: 34px;
     color: var(--tinta);
@@ -634,4 +634,250 @@ button {
     .chips {
         grid-column: 1 / -1;
     }
+}
+
+/* Cambios guardados sin conexión que esperan a enviarse (A2 y cola) */
+.aviso-pendientes {
+    margin: 0;
+    border: 1px solid var(--cobre);
+    border-radius: 14px;
+    padding: 12px 16px;
+    color: var(--tinta);
+    background: var(--papel);
+    font-size: 14px;
+}
+
+/* La Barra (D1-D4): valoración, hilo y formulario de comentario */
+.barra-valoracion,
+.barra-formulario,
+.propia-acciones {
+    display: grid;
+    gap: 10px;
+}
+
+.barra-recuento,
+.barra-aviso,
+.barra-respondiendo {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 14px;
+}
+
+.chip--activo {
+    border-color: var(--cobre);
+    color: var(--cobre);
+    font-weight: 600;
+}
+
+.barra-hilo {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0;
+    padding: 0;
+    list-style: none;
+}
+
+.barra-comentario {
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: var(--papel);
+    color: var(--tinta);
+}
+
+.barra-comentario p {
+    margin: 0 0 6px;
+}
+
+.barra-comentario--respuesta {
+    margin-left: 18px;
+    border-left: 3px solid var(--cobre);
+}
+
+.barra-meta,
+.barra-ancla-texto,
+.barra-propuesta-texto {
+    color: var(--tinta-suave);
+    font-size: 13px;
+}
+
+.barra-texto,
+.barra-select,
+.barra-propuesta {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: var(--papel);
+    color: var(--tinta);
+    font: inherit;
+}
+
+.barra-texto:focus-visible,
+.barra-select:focus-visible,
+.barra-propuesta:focus-visible {
+    outline: 2px solid var(--cobre);
+    outline-offset: 2px;
+}
+
+.barra-ancla {
+    display: grid;
+    gap: 6px;
+    font-size: 14px;
+}
+
+.barra-evento {
+    display: block;
+    text-decoration: none;
+}
+
+/* Fotos de la receta (D1) */
+.fotos-galeria {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.foto-receta {
+    flex: 0 0 auto;
+    width: 220px;
+    height: 160px;
+    object-fit: cover;
+    border-radius: 14px;
+    border: 1px solid var(--borde);
+}
+
+.foto-subir {
+    justify-self: start;
+    cursor: pointer;
+}
+
+.foto-subir:focus-within {
+    outline: 2px solid var(--cobre);
+    outline-offset: 2px;
+}
+
+/* Enlaces con aspecto de chip, botón o destino: sin subrayado y alineados como los botones */
+a.chip,
+a.primario,
+a.destino {
+    text-decoration: none;
+}
+
+a.chip,
+a.primario {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+a.primario {
+    display: flex;
+}
+
+a.destino {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+/* Fase 8: bienvenida, preparación guiada, comparar, equivalencias y perfil */
+.bienvenida {
+    display: grid;
+    align-content: center;
+    gap: 16px;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+.bienvenida-texto {
+    margin: 0;
+    color: var(--tinta);
+    font-size: 17px;
+    line-height: 1.5;
+}
+
+.preparar-reloj {
+    display: grid;
+    justify-items: start;
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.preparar-tiempo {
+    margin: 0;
+    color: var(--tinta);
+    font-size: 48px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.comparar-par {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.comparar-columna h2 {
+    margin: 4px 0;
+    font-size: 18px;
+}
+
+.comparar-columna p {
+    margin: 0;
+}
+
+.comparar-tabla {
+    width: 100%;
+    margin: 16px 0;
+    border-collapse: collapse;
+    color: var(--tinta);
+    font-size: 14px;
+}
+
+.comparar-tabla th,
+.comparar-tabla td {
+    border-bottom: 1px solid var(--borde);
+    padding: 8px 6px;
+    text-align: left;
+}
+
+.comparar-tabla thead th {
+    color: var(--tinta-suave);
+    font-size: 12px;
+}
+
+.perfil-receta {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    align-items: center;
+    gap: 12px;
+}
+
+.perfil-mini svg {
+    width: 56px;
+    height: auto;
+}
+
+.perfil-accesos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.ficha-autor a {
+    color: var(--cobre);
+}
+
+/* Nota breve: texto secundario alineado con el contenido */
+.nota {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 13px;
+    text-align: left;
 }

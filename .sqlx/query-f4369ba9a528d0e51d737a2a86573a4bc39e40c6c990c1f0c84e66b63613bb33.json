@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT receta_id::text AS \"receta_id!\", nombre, cantidad, graduacion_pct, color, dilucion\n        FROM componente_receta\n        WHERE receta_id::text = ANY($1)\n        AND unidad = 'ml'\n        ORDER BY receta_id, posicion\n        ",
+  "query": "\n        SELECT receta_id::text AS \"receta_id!\", nombre, cantidad, graduacion_pct, color, dilucion\n        FROM componente_receta\n        WHERE receta_id = ANY($1::text[]::uuid[])\n        AND unidad = 'ml'\n        ORDER BY receta_id, posicion\n        ",
   "describe": {
     "columns": [
       {
@@ -48,5 +48,5 @@
       false
     ]
   },
-  "hash": "63f9b1df89c9c7200e280f6c48c054fc17f2492e31712f88a3b6f8126066e46f"
+  "hash": "f4369ba9a528d0e51d737a2a86573a4bc39e40c6c990c1f0c84e66b63613bb33"
 }

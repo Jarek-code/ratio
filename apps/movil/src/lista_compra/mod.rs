@@ -6,8 +6,6 @@
 //! almacenamiento local del dispositivo porque la lista es una ayuda de
 //! preparacion, no un pedido.
 
-use std::collections::HashMap;
-
 use api::biblioteca::{RecetaResumen, catalogo};
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,6 +13,10 @@ use serde::{Deserialize, Serialize};
 use crate::barra::{BarraInferior, Destino};
 use crate::biblioteca::familia_legible;
 use crate::rutas::Rutas;
+
+mod calculo;
+
+use calculo::{agregar, agrupar, clave_compra, filtrar_recetas};
 
 /// Hoja de estilos propia de la lista de compra.
 const CSS_LISTA_COMPRA: Asset = asset!("/assets/lista_compra.css");
@@ -24,8 +26,8 @@ const CSS_BASE: Asset = asset!("/assets/descubrir.css");
 /// Maximo de comensales que permite el ajuste rapido.
 const COMENSALES_MAXIMOS: u32 = 12;
 
-/// Clave de `localStorage` donde se conserva la lista entre visitas.
-const CLAVE_ALMACENAMIENTO: &str = "ratio.lista_compra.v1";
+/// Archivo de la carpeta privada de la app donde se conserva la lista entre visitas.
+const ARCHIVO_LISTA: &str = "lista_compra.json";
 
 /// Estado minimo que se guarda; la lista se reconstruye desde el catalogo.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,49 +118,12 @@ impl Unidad {
     }
 }
 
-/// Grupo de compra al que pertenece un ingrediente.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Categoria {
-    /// Leche, crema y derivados.
-    Lacteos,
-    /// Cafe, te y especias.
-    Cafe,
-    /// Licores y vinos.
-    Alcohol,
-    /// Azucar, jarabes y miel.
-    Endulzantes,
-    /// Hielo, agua y el resto.
-    Otros,
-}
-
-impl Categoria {
-    /// Titulo visible del grupo.
-    fn etiqueta(self) -> &'static str {
-        match self {
-            Categoria::Cafe => "Café y especias",
-            Categoria::Lacteos => "Lácteos",
-            Categoria::Alcohol => "Alcohol",
-            Categoria::Endulzantes => "Endulzantes",
-            Categoria::Otros => "Otros",
-        }
-    }
-}
-
-/// Una linea agregada de la lista de compra.
-#[derive(Debug, Clone, PartialEq)]
-struct Compra {
-    /// Nombre visible que se conserva del primer ingrediente encontrado.
-    nombre: String,
-    /// Grupo en el que se pinta.
-    categoria: Categoria,
-    /// Cantidad total en mililitros despues de multiplicar por comensales.
-    ml: f64,
-}
 
 /// Pantalla C7: carga el catalogo, deja elegir recetas y arma la lista.
 #[component]
 pub fn PantallaListaCompra() -> Element {
-    let mut recurso = use_resource(catalogo);
+    let sesion = use_context::<crate::sesion::SenalSesion>();
+    let mut recurso = use_resource(move || catalogo(crate::sesion::token(&sesion)));
 
     rsx! {
         document::Stylesheet { href: CSS_BASE }
@@ -204,7 +169,7 @@ fn BarraSuperior() -> Element {
     rsx! {
         header { class: "lista-compra-barra",
             Link {
-                to: Rutas::Biblioteca,
+                to: Rutas::biblioteca(),
                 class: "lista-compra-volver",
                 aria_label: "Volver a la biblioteca",
                 "‹ Biblioteca"
@@ -217,47 +182,24 @@ fn BarraSuperior() -> Element {
 /// Cuerpo de C7: resumen, seleccion de recetas y lista agrupada.
 #[component]
 fn Contenido(lista: Vec<RecetaResumen>) -> Element {
-    let mut seleccion = use_signal(Vec::<String>::new);
-    let mut marcados = use_signal(Vec::<String>::new);
-    let mut busqueda = use_signal(String::new);
-    let mut comensales = use_signal(|| 1_u32);
-    let mut unidad = use_signal(|| Unidad::Mililitros);
-    let mut cargado = use_signal(|| false);
-
-    // La lectura es asincrona porque el almacenamiento vive en el navegador.
-    // El catalogo ya esta disponible cuando se monta Contenido, asi que se
-    // descartan IDs de recetas que hayan dejado de existir.
-    let lista_inicial = lista.clone();
-    use_hook(move || {
-        spawn(async move {
-            let eval = document::eval(&format!("localStorage.getItem('{CLAVE_ALMACENAMIENTO}')"));
-
-            if let Ok(Some(texto)) = eval.join::<Option<String>>().await {
-                if let Ok(estado) = serde_json::from_str::<EstadoLista>(&texto) {
-                    let ids_validos = estado
-                        .seleccion
-                        .into_iter()
-                        .filter(|id| lista_inicial.iter().any(|receta| &receta.id == id))
-                        .collect();
-
-                    seleccion.set(ids_validos);
-                    marcados.set(estado.marcados);
-                    comensales.set(estado.comensales.clamp(1, COMENSALES_MAXIMOS));
-                    unidad.set(estado.unidad);
-                }
-            }
-
-            cargado.set(true);
-        });
+    // El estado se lee del archivo local al montar; el catalogo ya esta disponible,
+    // asi que se descartan IDs de recetas que hayan dejado de existir.
+    let estado_inicial = use_hook(|| {
+        let mut estado = crate::local::leer_valor::<EstadoLista>(ARCHIVO_LISTA).unwrap_or_default();
+        estado
+            .seleccion
+            .retain(|id| lista.iter().any(|receta| &receta.id == id));
+        estado.comensales = estado.comensales.clamp(1, COMENSALES_MAXIMOS);
+        estado
     });
+    let mut seleccion = use_signal(|| estado_inicial.seleccion.clone());
+    let mut marcados = use_signal(|| estado_inicial.marcados.clone());
+    let mut busqueda = use_signal(String::new);
+    let mut comensales = use_signal(|| estado_inicial.comensales);
+    let mut unidad = use_signal(|| estado_inicial.unidad);
 
-    // Solo se guarda despues de recuperar el estado, para no borrar la lista
-    // anterior con los valores iniciales durante el primer render.
+    // Cada cambio se guarda en el archivo local, sin JavaScript
     use_effect(move || {
-        if !*cargado.read() {
-            return;
-        }
-
         let estado = EstadoLista {
             seleccion: seleccion.read().clone(),
             marcados: marcados.read().clone(),
@@ -265,13 +207,7 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
             unidad: *unidad.read(),
         };
 
-        if let Ok(texto) = serde_json::to_string(&estado) {
-            if let Ok(literal) = serde_json::to_string(&texto) {
-                let _ = document::eval(&format!(
-                    "localStorage.setItem('{CLAVE_ALMACENAMIENTO}', {literal})"
-                ));
-            }
-        }
+        crate::local::escribir(ARCHIVO_LISTA, &estado);
     });
 
     let ids = seleccion.read().clone();
@@ -509,195 +445,3 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
     }
 }
 
-/// Suma los ingredientes de las recetas elegidas y los agrupa por tipo.
-fn agregar(lista: &[RecetaResumen], ids: &[String], comensales: u32) -> Vec<Compra> {
-    let mut acumulado: HashMap<String, Compra> = HashMap::new();
-
-    for receta in lista.iter().filter(|receta| ids.contains(&receta.id)) {
-        // C7 solo maneja ml: los componentes mg siguen fuera de la lista hasta que
-        // la pantalla soporte cantidades con unidad propia.
-        for componente in receta
-            .componentes
-            .iter()
-            .filter(|componente| componente.unidad == "ml")
-        {
-            let clave = clave_compra(&componente.nombre);
-            let entrada = acumulado.entry(clave).or_insert_with(|| Compra {
-                nombre: componente.nombre.clone(),
-                categoria: categoria(&componente.nombre),
-                ml: 0.0,
-            });
-            entrada.ml += componente.cantidad * f64::from(comensales);
-        }
-    }
-
-    let mut compras: Vec<Compra> = acumulado.into_values().collect();
-    compras.sort_by(|a, b| {
-        a.categoria
-            .cmp(&b.categoria)
-            .then_with(|| a.nombre.to_lowercase().cmp(&b.nombre.to_lowercase()))
-    });
-    compras
-}
-
-/// Agrupa las lineas por categoria conservando el orden de la lista.
-fn agrupar(compras: &[Compra]) -> Vec<(Categoria, Vec<Compra>)> {
-    let mut grupos: Vec<(Categoria, Vec<Compra>)> = Vec::new();
-
-    for compra in compras {
-        match grupos.last_mut() {
-            Some((categoria, items)) if *categoria == compra.categoria => {
-                items.push(compra.clone())
-            }
-            _ => grupos.push((compra.categoria, vec![compra.clone()])),
-        }
-    }
-
-    grupos
-}
-
-/// Clave estable para sumar y marcar el mismo ingrediente entre recetas.
-fn clave_compra(nombre: &str) -> String {
-    nombre.trim().to_lowercase()
-}
-
-/// Clasifica un ingrediente en el grupo de compra que le corresponde.
-fn categoria(nombre: &str) -> Categoria {
-    let nombre = nombre.to_lowercase();
-
-    if [
-        "café",
-        "cafe",
-        "espresso",
-        "expreso",
-        "cold brew",
-        "té",
-        "te ",
-        "matcha",
-        "canela",
-        "nuez moscada",
-        "vainilla",
-    ]
-    .iter()
-    .any(|clave| nombre.contains(clave))
-    {
-        Categoria::Cafe
-    } else if ["leche", "crema", "nata", "yogur", "mantequilla"]
-        .iter()
-        .any(|clave| nombre.contains(clave))
-    {
-        Categoria::Lacteos
-    } else if [
-        "ron", "gin", "ginebra", "vodka", "whisky", "tequila", "mezcal", "vermut", "campari",
-        "aperol", "licor", "brandy", "coñac", "vino", "cerveza",
-    ]
-    .iter()
-    .any(|clave| nombre.contains(clave))
-    {
-        Categoria::Alcohol
-    } else if [
-        "azúcar",
-        "azucar",
-        "jarabe",
-        "miel",
-        "sirope",
-        "edulcorante",
-    ]
-    .iter()
-    .any(|clave| nombre.contains(clave))
-    {
-        Categoria::Endulzantes
-    } else {
-        Categoria::Otros
-    }
-}
-
-/// Filtra el catalogo del selector por nombre y conserva las recetas ya elegidas.
-fn filtrar_recetas(lista: &[RecetaResumen], busqueda: &str, ids: &[String]) -> Vec<RecetaResumen> {
-    let texto = busqueda.trim().to_lowercase();
-
-    lista
-        .iter()
-        .filter(|receta| {
-            ids.contains(&receta.id)
-                || texto.is_empty()
-                || receta.receta.nombre.to_lowercase().contains(&texto)
-        })
-        .cloned()
-        .collect()
-}
-
-#[cfg(test)]
-mod pruebas {
-    use super::*;
-
-    fn receta(id: &str, nombre: &str, ingredientes: &[(&str, f64)]) -> RecetaResumen {
-        RecetaResumen {
-            id: id.to_string(),
-            tipo: "cafe".to_string(),
-            familia: "con_leche".to_string(),
-            autor: "prueba".to_string(),
-            receta: proporciones::Receta {
-                nombre: nombre.to_string(),
-                vaso: proporciones::Vaso::nuevo(300.0, 40.0, 30.0, 100.0, 2.0),
-                capacidad_ml: 300.0,
-                ingredientes: ingredientes
-                    .iter()
-                    .map(|(nombre, ml)| proporciones::Componente::nuevo(*nombre, *ml, 0.0))
-                    .collect(),
-            },
-            componentes: ingredientes
-                .iter()
-                .enumerate()
-                .map(
-                    |(posicion, (nombre, cantidad))| api::biblioteca::ComponenteFicha {
-                        ingrediente_id: format!("{id}-{posicion}"),
-                        posicion: posicion as i16,
-                        nombre: nombre.to_string(),
-                        unidad: "ml".to_string(),
-                        cantidad: *cantidad,
-                        graduacion_pct: 0.0,
-                        color: None,
-                        dilucion: false,
-                    },
-                )
-                .collect(),
-            minutos: None,
-            dificultad: None,
-            intensidad: None,
-        }
-    }
-
-    #[test]
-    fn suma_el_mismo_ingrediente_entre_recetas() {
-        let lista = vec![
-            receta("a", "Uno", &[("Espresso", 30.0), ("Leche", 100.0)]),
-            receta("b", "Dos", &[("  leche ", 50.0)]),
-        ];
-        let compras = agregar(&lista, &["a".to_string(), "b".to_string()], 2);
-        let leche = compras
-            .iter()
-            .find(|compra| compra.nombre == "Leche")
-            .unwrap();
-
-        assert_eq!(leche.ml, 300.0);
-        assert_eq!(compras.len(), 2);
-    }
-
-    #[test]
-    fn clasifica_los_ingredientes_por_grupo() {
-        assert_eq!(categoria("Espresso"), Categoria::Cafe);
-        assert_eq!(categoria("Leche entera"), Categoria::Lacteos);
-        assert_eq!(categoria("Ron blanco"), Categoria::Alcohol);
-        assert_eq!(categoria("Jarabe de azúcar"), Categoria::Endulzantes);
-        assert_eq!(categoria("Hielo"), Categoria::Otros);
-    }
-
-    #[test]
-    fn convierte_las_cantidades_a_la_unidad_elegida() {
-        assert_eq!(Unidad::Mililitros.cantidad(1500.0), "1.5 L");
-        assert_eq!(Unidad::Onzas.cantidad(proporciones::OZ_ML), "1.0 oz");
-        assert_eq!(Unidad::Cucharadas.cantidad(30.0), "2 cdas");
-        assert_eq!(clave_compra("  Leche "), "leche");
-    }
-}

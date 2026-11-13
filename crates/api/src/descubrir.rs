@@ -199,7 +199,7 @@ pub async fn sugerencias_dia(token: Option<String>) -> Result<Vec<RecetaSugerida
         r#"
         SELECT receta_id::text AS "receta_id!", nombre, cantidad, graduacion_pct, color, dilucion
         FROM componente_receta
-        WHERE receta_id::text = ANY($1)
+        WHERE receta_id = ANY($1::text[]::uuid[])
         AND unidad = 'ml'
         ORDER BY receta_id, posicion
         "#,

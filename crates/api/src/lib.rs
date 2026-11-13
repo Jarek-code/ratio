@@ -8,11 +8,15 @@ pub mod auth; // Acceso, alta y verificación de la sesión
 pub mod biblioteca; // Catálogo completo de la pantalla Biblioteca (B2)
 #[cfg(feature = "server")]
 pub mod db;
+#[cfg(feature = "server")]
+mod filas; // Filas de vaso y capa compartidas por las consultas
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
+pub mod foro; // La Barra: publicar, hilo, comentar, valorar, actividad y reportes (D1-D7)
 pub mod guardados; // Recetas guardadas por la cuenta (C5)
 pub mod guardar; // C2: guardar una version privada ajustada
 pub mod historial; // Árbol de versiones de una bebida (B6)
 pub mod ingredientes; // Catálogo de ingredientes para añadir capas desde C1
+pub mod perfil; // Perfil público y seguimiento (E2, E3)
 pub mod receta; // Ficha completa de una receta (B3)
 pub mod recetario; // Recetario propio de la cuenta (C4)
 pub mod vasos; // Catálogo de vasos para el editor de proporciones (C1)

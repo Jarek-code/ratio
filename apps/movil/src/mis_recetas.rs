@@ -120,6 +120,8 @@ pub fn PantallaMisRecetas() -> Element {
                 p { class: "mi-recetario-sub", "Tus versiones, tus publicaciones y lo que aún no sale de casa." }
             }
 
+            crate::local::AvisoPendientes {}
+
             match &*recurso.read() {
                 None => rsx! {
                     p { class: "estado", role: "status", "Cargando tu recetario…" }
@@ -139,7 +141,7 @@ pub fn PantallaMisRecetas() -> Element {
                     SinSesion {}
                 },
                 Some(Ok(Some(lista))) => rsx! {
-                    ListaPropia { lista: lista.clone(), filtro }
+                    ListaPropia { lista: lista.clone(), filtro, al_cambiar: move |_| recurso.restart() }
                 },
             }
         }
@@ -177,7 +179,11 @@ fn SinSesion() -> Element {
 
 /// Lista filtrada por las pestanas del recetario.
 #[component]
-fn ListaPropia(lista: Vec<RecetaPropia>, filtro: Signal<Filtro>) -> Element {
+fn ListaPropia(
+    lista: Vec<RecetaPropia>,
+    filtro: Signal<Filtro>,
+    al_cambiar: EventHandler<()>,
+) -> Element {
     let mut filtro = filtro;
     let activo = filtro();
     let visibles: Vec<RecetaPropia> = lista
@@ -209,21 +215,23 @@ fn ListaPropia(lista: Vec<RecetaPropia>, filtro: Signal<Filtro>) -> Element {
         if visibles.is_empty() {
             div { class: "estado",
                 p { "{activo.vacio()}" }
-                Link { to: Rutas::Biblioteca, class: "mi-recetario-accion", "Ir a la biblioteca" }
+                Link { to: Rutas::biblioteca(), class: "mi-recetario-accion", "Ir a la biblioteca" }
             }
         } else {
             ul { class: "mi-recetario-lista",
                 for receta in visibles {
-                    TarjetaPropia { key: "{receta.receta.id}", receta }
+                    TarjetaPropia { key: "{receta.receta.id}", receta, al_cambiar }
                 }
             }
         }
     }
 }
 
-/// Tarjeta de una receta propia con su estado y su origen.
+/// Tarjeta de una receta propia con su estado, su origen y el botón de publicar (D1).
+///
+/// `al_cambiar` recarga la lista cuando la receta se publica o se retira.
 #[component]
-fn TarjetaPropia(receta: RecetaPropia) -> Element {
+fn TarjetaPropia(receta: RecetaPropia, al_cambiar: EventHandler<()>) -> Element {
     let resumen = &receta.receta;
     let capas = proporciones::capas(&resumen.receta);
     let graduacion = proporciones::graduacion(&resumen.receta);
@@ -275,6 +283,15 @@ fn TarjetaPropia(receta: RecetaPropia) -> Element {
                             span { "Actualizada {actualizada}" }
                         }
                     }
+                }
+            }
+
+            // Una receta retirada por moderación no se puede volver a publicar desde aquí
+            if receta.estado != EstadoReceta::Oculta {
+                crate::foro::BotonPublicar {
+                    receta_id: resumen.id.clone(),
+                    publicada: receta.estado == EstadoReceta::Publicada,
+                    al_cambiar,
                 }
             }
         }
