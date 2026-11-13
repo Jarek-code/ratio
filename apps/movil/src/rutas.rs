@@ -4,6 +4,8 @@ use dioxus::prelude::*;
 
 use crate::actividad;
 use crate::ajustar;
+use crate::ajustes;
+use crate::comparar;
 use crate::biblioteca;
 use crate::descubrir;
 use crate::ficha;
@@ -12,6 +14,8 @@ use crate::historial;
 use crate::lista_compra;
 use crate::login;
 use crate::mis_recetas;
+use crate::perfil;
+use crate::preparar;
 use crate::salud::PruebaSalud;
 
 /// Pantallas que ya existen.
@@ -54,6 +58,24 @@ pub enum Rutas {
     /// Novedades de La Barra sobre las recetas propias (D6).
     #[route("/actividad")]
     Actividad,
+    /// Comparación de dos recetas (B4); sin `con`, se elige la segunda.
+    #[route("/receta/:id/comparar?:con")]
+    Comparar { id: String, con: String },
+    /// Ingredientes de una receta en varias unidades (B5).
+    #[route("/receta/:id/ingredientes")]
+    Equivalencias { id: String },
+    /// Preparación guiada con temporizador (C3).
+    #[route("/receta/:id/preparar")]
+    Preparar { id: String },
+    /// Perfil propio (E2).
+    #[route("/perfil")]
+    Perfil,
+    /// Perfil público de otra cuenta (E3).
+    #[route("/perfil/:alias")]
+    PerfilPublico { alias: String },
+    /// Ajustes de unidades e idioma (E4).
+    #[route("/ajustes")]
+    Ajustes,
 }
 
 impl Rutas {
@@ -79,6 +101,19 @@ fn Entrar() -> Element {
             navegador.replace(Rutas::Descubrir);
         }
     });
+
+    // Con sesión no se pinta nada: el efecto ya lleva a Descubrir
+    if sesion.read().is_some() {
+        return rsx! {};
+    }
+
+    // La primera vez se muestra la bienvenida con el aviso de edad (E5)
+    let ajustes = use_context::<ajustes::SenalAjustes>();
+    if !ajustes().bienvenida_vista {
+        return rsx! {
+            ajustes::Bienvenida {}
+        };
+    }
 
     rsx! {
         login::Login {
@@ -159,5 +194,53 @@ fn ListaCompra() -> Element {
 fn Actividad() -> Element {
     rsx! {
         actividad::PantallaActividad {}
+    }
+}
+
+/// Comparar dos recetas (B4).
+#[component]
+fn Comparar(id: String, con: String) -> Element {
+    rsx! {
+        comparar::PantallaComparar { id, con }
+    }
+}
+
+/// Ingredientes y equivalencias (B5).
+#[component]
+fn Equivalencias(id: String) -> Element {
+    rsx! {
+        comparar::PantallaEquivalencias { id }
+    }
+}
+
+/// Preparación guiada (C3).
+#[component]
+fn Preparar(id: String) -> Element {
+    rsx! {
+        preparar::PantallaPreparar { id }
+    }
+}
+
+/// Perfil propio (E2).
+#[component]
+fn Perfil() -> Element {
+    rsx! {
+        perfil::PantallaPerfil { alias: String::new() }
+    }
+}
+
+/// Perfil público (E3).
+#[component]
+fn PerfilPublico(alias: String) -> Element {
+    rsx! {
+        perfil::PantallaPerfil { alias }
+    }
+}
+
+/// Ajustes (E4).
+#[component]
+fn Ajustes() -> Element {
+    rsx! {
+        ajustes::PantallaAjustes {}
     }
 }

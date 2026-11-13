@@ -78,6 +78,14 @@ pub enum Cambio
     },
     /// Reportar una receta o un comentario (D7).
     Reporte(ReporteNuevo),
+    /// Seguir o dejar de seguir un perfil (E3).
+    Seguimiento
+    {
+        /// Alias del perfil.
+        alias: String,
+        /// `true` para seguir, `false` para dejar de seguir.
+        sigue: bool,
+    },
     /// Publicar o retirar una receta propia de La Barra (D1).
     Publicacion
     {
@@ -334,6 +342,7 @@ async fn enviar(token: String, cambio: Cambio) -> Result<(), ServerFnError>
             api::foro::valorar(token, receta_id, me_salio).await.map(|_| ())
         }
         Cambio::Reporte(reporte) => api::foro::reportar(token, reporte).await,
+        Cambio::Seguimiento { alias, sigue } => api::perfil::seguir(token, alias, sigue).await.map(|_| ()),
         Cambio::Publicacion { receta_id, publica } =>
         {
             api::foro::publicar(token, receta_id, publica).await.map(|_| ())

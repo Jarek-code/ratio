@@ -2,8 +2,10 @@
 
 mod actividad;
 mod ajustar;
+mod ajustes;
 mod barra;
 mod biblioteca;
+mod comparar;
 mod descubrir;
 mod ficha;
 mod foro;
@@ -15,7 +17,8 @@ mod local;
 mod login;
 mod marca;
 mod mis_recetas;
-mod proximamente;
+mod perfil;
+mod preparar;
 mod rutas;
 mod salud;
 #[cfg(target_os = "ios")]
@@ -44,6 +47,8 @@ fn App() -> Element {
     // Los cambios hechos sin conexión se envían cuando vuelve la red
     let pendientes = use_context_provider(|| Signal::new(0_usize));
     use_future(move || local::vaciar(sesion, pendientes));
+    // Unidad preferida y bienvenida, leídas del archivo de ajustes
+    use_context_provider(|| Signal::new(ajustes::cargar()));
 
     rsx! {
         // Fuentes usadas por el diseño de Penpot.

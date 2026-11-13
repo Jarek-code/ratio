@@ -766,10 +766,16 @@ a.destino {
     text-decoration: none;
 }
 
-a.chip {
+a.chip,
+a.primario {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     box-sizing: border-box;
+}
+
+a.primario {
+    display: flex;
 }
 
 a.destino {
@@ -777,4 +783,101 @@ a.destino {
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
+}
+
+/* Fase 8: bienvenida, preparación guiada, comparar, equivalencias y perfil */
+.bienvenida {
+    display: grid;
+    align-content: center;
+    gap: 16px;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+.bienvenida-texto {
+    margin: 0;
+    color: var(--tinta);
+    font-size: 17px;
+    line-height: 1.5;
+}
+
+.preparar-reloj {
+    display: grid;
+    justify-items: start;
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.preparar-tiempo {
+    margin: 0;
+    color: var(--tinta);
+    font-size: 48px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.comparar-par {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.comparar-columna h2 {
+    margin: 4px 0;
+    font-size: 18px;
+}
+
+.comparar-columna p {
+    margin: 0;
+}
+
+.comparar-tabla {
+    width: 100%;
+    margin: 16px 0;
+    border-collapse: collapse;
+    color: var(--tinta);
+    font-size: 14px;
+}
+
+.comparar-tabla th,
+.comparar-tabla td {
+    border-bottom: 1px solid var(--borde);
+    padding: 8px 6px;
+    text-align: left;
+}
+
+.comparar-tabla thead th {
+    color: var(--tinta-suave);
+    font-size: 12px;
+}
+
+.perfil-receta {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    align-items: center;
+    gap: 12px;
+}
+
+.perfil-mini svg {
+    width: 56px;
+    height: auto;
+}
+
+.perfil-accesos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.ficha-autor a {
+    color: var(--cobre);
+}
+
+/* Nota breve: texto secundario alineado con el contenido */
+.nota {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 13px;
+    text-align: left;
 }

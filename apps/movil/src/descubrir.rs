@@ -7,7 +7,6 @@ use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (úni
 use api::descubrir; // Tipo RecetaSugerida y server function sugerencias_dia
 use crate::barra::{BarraInferior, Destino}; // Barra inferior compartida
 use crate::marca::Marca; // Logo compartido, dibujado inline
-use crate::proximamente::Proximamente; // Aviso de las funciones que aún no tienen pantalla
 use crate::rutas::Rutas; // Rutas de la app, para abrir la ficha de una receta
 
 // CONSTANTES Y VARIABLES GLOBALES
@@ -120,6 +119,13 @@ fn Encabezado() -> Element
 
                             Link
                             {
+                                to: crate::rutas::Rutas::Perfil,
+                                class: "perfil-enlace",
+                                "Mi perfil"
+                            }
+
+                            Link
+                            {
                                 to: crate::rutas::Rutas::MisRecetas,
                                 class: "perfil-enlace",
                                 "Mi recetario"
@@ -139,6 +145,13 @@ fn Encabezado() -> Element
                                 "Actividad"
                             }
 
+                            Link
+                            {
+                                to: crate::rutas::Rutas::Ajustes,
+                                class: "perfil-enlace",
+                                "Ajustes"
+                            }
+
                             button
                             {
                                 class: "perfil-salir",
@@ -156,24 +169,20 @@ fn Encabezado() -> Element
                 }
                 else
                 {
-                    // Sin sesión, el perfil sigue pendiente
-                    Proximamente
+                    // Sin sesión: el avatar lleva al acceso
+                    Link
                     {
-                        button
+                        to: crate::rutas::Rutas::Entrar,
+                        class: "avatar",
+                        "aria-label": "Entrar a tu cuenta",
+
+                        svg
                         {
-                            class: "avatar",
-                            r#type: "button",
-                            "aria-label": "Perfil",
-                            "aria-disabled": "true",
+                            view_box: "0 0 24 24",
+                            "aria-hidden": "true",
 
-                            svg
-                            {
-                                view_box: "0 0 24 24",
-                                "aria-hidden": "true",
-
-                                circle { cx: "12", cy: "9", r: "4", fill: "none", stroke: "currentColor", stroke_width: "1.8" }
-                                path { d: "M4.5 20 Q12 13.5 19.5 20", fill: "none", stroke: "currentColor", stroke_width: "1.8", stroke_linecap: "round" }
-                            }
+                            circle { cx: "12", cy: "9", r: "4", fill: "none", stroke: "currentColor", stroke_width: "1.8" }
+                            path { d: "M4.5 20 Q12 13.5 19.5 20", fill: "none", stroke: "currentColor", stroke_width: "1.8", stroke_linecap: "round" }
                         }
                     }
                 }

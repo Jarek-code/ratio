@@ -2,7 +2,6 @@
 
 use dioxus::prelude::*;
 
-use crate::proximamente::Proximamente;
 use crate::rutas::Rutas;
 
 /// Destino de la barra inferior.
@@ -56,13 +55,11 @@ pub fn BarraInferior(activo: Destino) -> Element {
                     Link { to: Rutas::biblioteca(), class: "destino", "{destino.nombre()}" }
                 } else if destino == Destino::LaBarra {
                     Link { to: Rutas::Actividad, class: "destino", "{destino.nombre()}" }
-                } else if destino == Destino::Crear {
-                    // Se crea derivando una receta y se publica desde Mi recetario
-                    Link { to: Rutas::MisRecetas, class: "destino", "{destino.nombre()}" }
+                } else if destino == Destino::Perfil {
+                    Link { to: Rutas::Perfil, class: "destino", "{destino.nombre()}" }
                 } else {
-                    Proximamente {
-                        button { class: "destino", r#type: "button", "aria-disabled": "true", "{destino.nombre()}" }
-                    }
+                    // Crear: se crea derivando una receta y se publica desde Mi recetario
+                    Link { to: Rutas::MisRecetas, class: "destino", "{destino.nombre()}" }
                 }
             }
         }

@@ -4,7 +4,6 @@ use api::guardados::alternar_guardado;
 use api::receta::{PasoFicha, RecetaCompleta};
 use dioxus::prelude::*;
 
-use crate::proximamente::Proximamente;
 use crate::rutas::Rutas;
 
 /// Hoja de estilos propia de la ficha.
@@ -80,6 +79,8 @@ fn Contenido(receta: RecetaCompleta) -> Element {
     let id_guardar = receta.id.clone();
     let capas = proporciones::capas(&receta.receta);
     let graduacion = proporciones::graduacion(&receta.receta);
+    let equivalencias = proporciones::equivalencias(&receta.receta);
+    let unidad_preferida = use_context::<crate::ajustes::SenalAjustes>()().unidad;
     let svg = proporciones::svg(
         &receta.receta,
         &proporciones::Opciones {
@@ -92,7 +93,10 @@ fn Contenido(receta: RecetaCompleta) -> Element {
         section { class: "ficha-cabeza",
             p { class: "eyebrow", "{receta.familia}" }
             h1 { "{receta.receta.nombre}" }
-            p { class: "ficha-autor", "por {receta.autor}" }
+            p { class: "ficha-autor",
+                "por "
+                Link { to: Rutas::PerfilPublico { alias: receta.autor.clone() }, "{receta.autor}" }
+            }
             // Versión derivada: crédito al original (D5)
             if let Some(origen) = receta.origen.clone() {
                 p { class: "ficha-autor",
@@ -185,7 +189,16 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                                     "aria-hidden": "true",
                                 }
                                 span { class: "leyenda-nombre", "{capa.nombre}" }
-                                span { class: "leyenda-ml", "{cantidad:.0} {unidad}" }
+                                span { class: "leyenda-ml",
+                                    // Los líquidos usan la unidad elegida en Ajustes; los sólidos siguen en mg
+                                    if unidad == "mg" {
+                                        "{cantidad:.0} mg"
+                                    } else if let Some(equivalencia) = equivalencias.get(indice) {
+                                        "{unidad_preferida.cantidad(equivalencia)}"
+                                    } else {
+                                        "{cantidad:.0} ml"
+                                    }
+                                }
                                 span { class: "leyenda-pct", "{capa.porcentaje:.0} %" }
                             }
                         }
@@ -198,8 +211,10 @@ fn Contenido(receta: RecetaCompleta) -> Element {
             p { id: "titulo-acciones", class: "eyebrow", "Acciones" }
 
             div { class: "acciones",
-                Proximamente {
-                    button { class: "primario", r#type: "button", "aria-disabled": "true", "Preparar" }
+                Link {
+                    to: Rutas::Preparar { id: receta.id.clone() },
+                    class: "primario",
+                    "Preparar"
                 }
                 div { class: "acciones-fila",
                     Link {
@@ -213,8 +228,15 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                         aria_label: "Ajustar las proporciones o derivar una versión propia",
                         "Ajustar o derivar"
                     }
-                    Proximamente {
-                        button { class: "chip", r#type: "button", "aria-disabled": "true", "Comparar" }
+                    Link {
+                        to: Rutas::Comparar { id: receta.id.clone(), con: String::new() },
+                        class: "chip chip--enlace",
+                        "Comparar"
+                    }
+                    Link {
+                        to: Rutas::Equivalencias { id: receta.id.clone() },
+                        class: "chip chip--enlace",
+                        "Ingredientes y equivalencias"
                     }
                     button {
                         class: "chip",
@@ -313,7 +335,7 @@ fn Contenido(receta: RecetaCompleta) -> Element {
 
         section { class: "seccion", "aria-labelledby": "titulo-versiones",
             p { id: "titulo-versiones", class: "eyebrow", "Versiones" }
-            p { class: "mini", "Cada versión deriva de otra y conserva el crédito a su original." }
+            p { class: "nota", "Cada versión deriva de otra y conserva el crédito a su original." }
             Link {
                 to: Rutas::Historial { id: receta.id.clone() },
                 class: "chip chip--enlace",

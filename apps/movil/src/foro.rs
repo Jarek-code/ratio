@@ -142,7 +142,7 @@ pub fn BotonPublicar(receta_id: String, publicada: bool, al_cambiar: EventHandle
 ///
 /// `propia` oculta los botones: quien publicó la receta no la valora.
 #[component]
-fn PanelValoracion(receta_id: String, propia: bool) -> Element
+pub fn PanelValoracion(receta_id: String, propia: bool) -> Element
 {
     let sesion = use_context::<SenalSesion>(); // Token para leer y valorar
     let mut pendientes = use_context::<SenalPendientes>(); // Cola sin conexión
@@ -229,7 +229,7 @@ fn PanelValoracion(receta_id: String, propia: bool) -> Element
 
             if propia
             {
-                p { class: "mini", "Es tu receta: quienes la preparen dirán si les salió." }
+                p { class: "nota", "Es tu receta: quienes la preparen dirán si les salió." }
             }
 
             if let Some(texto) = aviso()
@@ -655,7 +655,7 @@ pub fn LaBarra(receta: RecetaCompleta) -> Element
             }
             else
             {
-                p { class: "mini", "Entra para comentar y valorar." }
+                p { class: "nota", "Entra para comentar y valorar." }
             }
 
             // Con sesión y receta ajena: permitir reportarla

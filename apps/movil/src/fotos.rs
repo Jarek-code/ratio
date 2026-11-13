@@ -250,7 +250,7 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element
                         },
                     }
                 }
-                p { class: "mini", "Hasta {api::foro::FOTOS_MAXIMAS} fotos JPG, PNG o WebP de 5 MB como máximo." }
+                p { class: "nota", "Hasta {api::foro::FOTOS_MAXIMAS} fotos JPG, PNG o WebP de 5 MB como máximo." }
             }
 
             if let Some(texto) = aviso()
