@@ -66,6 +66,9 @@ pub struct RecetaCompleta {
     /// Receta de la que deriva, si es una versión y el original es visible para la cuenta.
     #[serde(default)]
     pub origen: Option<OrigenReceta>,
+    /// Rutas de las fotos dentro del bucket `fotos-recetas` de Supabase Storage.
+    #[serde(default)]
+    pub fotos: Vec<String>,
 }
 
 /// Fila de la consulta de cabecera, con las medidas del vaso (solo servidor).
@@ -105,6 +108,8 @@ struct FilaReceta {
     origen_nombre: Option<String>,
     /// Alias de quien creó el original.
     origen_autor: Option<String>,
+    /// Rutas de las fotos en Storage.
+    fotos_rutas: Vec<String>,
 }
 
 /// Capa compartida con las demás consultas (solo servidor).
@@ -159,6 +164,7 @@ impl FilaReceta {
                 }),
                 _ => None,
             },
+            fotos: self.fotos_rutas,
         }
     }
 }
@@ -210,7 +216,8 @@ pub async fn completa(
                r.notas,
                o.id::text AS origen_id,
                o.nombre AS origen_nombre,
-               ou.alias AS origen_autor
+               ou.alias AS origen_autor,
+               r.fotos_rutas
         FROM receta r
         JOIN vaso v ON v.id = r.vaso_id
         JOIN usuario u ON u.id = r.autor_id

@@ -7,6 +7,7 @@ mod biblioteca;
 mod descubrir;
 mod ficha;
 mod foro;
+mod fotos;
 mod guardados;
 mod historial;
 mod lista_compra;
@@ -17,6 +18,8 @@ mod mis_recetas;
 mod proximamente;
 mod rutas;
 mod salud;
+#[cfg(target_os = "ios")]
+mod selector_ios;
 mod sesion;
 
 use dioxus::prelude::*;

@@ -16,7 +16,26 @@ dioxus = { workspace = true, features = ["router"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 # Temporizador de la renovación del token y, más adelante, de la cola sin conexión
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+# Subida directa de fotos a Supabase Storage; ya venía dentro de la app por dioxus-fullstack
+reqwest = { workspace = true }
+
+# Selector de fotos nativo de iOS (galería); estas versiones ya venían en Cargo.lock por Dioxus
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSDictionary", "NSData", "NSString"] }
+objc2-ui-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "objc2-core-foundation",
+    "UIApplication",
+    "UIResponder",
+    "UIWindow",
+    "UIView",
+    "UIViewController",
+    "UINavigationController",
+    "UIImagePickerController",
+    "UIImage",
+] }
 
 [features]
 mobile = ["dioxus/mobile"]

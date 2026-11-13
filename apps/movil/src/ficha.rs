@@ -151,6 +151,8 @@ fn Contenido(receta: RecetaCompleta) -> Element {
             }
         }
 
+        crate::fotos::FotosReceta { receta: receta.clone() }
+
         section { class: "seccion", "aria-labelledby": "titulo-proporciones",
             div { class: "seccion-cabeza",
                 p { id: "titulo-proporciones", class: "eyebrow", "Proporciones en el vaso" }

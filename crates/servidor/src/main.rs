@@ -47,6 +47,7 @@ fn enlazar_contratos() {
         api::biblioteca::catalogo,
         api::descubrir::sugerencias_dia,
         api::foro::actividad,
+        api::foro::agregar_foto,
         api::foro::comentar,
         api::foro::hilo,
         api::foro::publicar,

@@ -731,3 +731,50 @@ button {
     display: block;
     text-decoration: none;
 }
+
+/* Fotos de la receta (D1) */
+.fotos-galeria {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.foto-receta {
+    flex: 0 0 auto;
+    width: 220px;
+    height: 160px;
+    object-fit: cover;
+    border-radius: 14px;
+    border: 1px solid var(--borde);
+}
+
+.foto-subir {
+    justify-self: start;
+    cursor: pointer;
+}
+
+.foto-subir:focus-within {
+    outline: 2px solid var(--cobre);
+    outline-offset: 2px;
+}
+
+/* Enlaces con aspecto de chip, botón o destino: sin subrayado y alineados como los botones */
+a.chip,
+a.primario,
+a.destino {
+    text-decoration: none;
+}
+
+a.chip {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+a.destino {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}

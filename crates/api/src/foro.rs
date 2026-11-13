@@ -817,3 +817,64 @@ pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<(), Server
 
     Ok(())
 }
+
+// FOTOS (D1)
+
+/// Fotos que admite una receta, igual que el CHECK de la tabla.
+pub const FOTOS_MAXIMAS: usize = 5;
+
+/// Registra en la receta la ruta de una foto que la app ya subió a Storage (D1).
+///
+/// La foto debe estar en la carpeta `{cuenta}/{receta}/` del bucket, que es la única donde la
+/// política de Storage deja subir a la cuenta. Devuelve las rutas de la receta; registrar dos
+/// veces la misma ruta no la duplica.
+///
+/// # Errores
+///
+/// Devuelve `ServerFnError` si no hay sesión, si la ruta no es de la cuenta y la receta, si la
+/// receta no es suya, si ya tiene cinco fotos o si la consulta falla.
+#[server(endpoint = "agregar_foto")]
+pub async fn agregar_foto(token: String, receta_id: String, ruta: String) -> Result<Vec<String>, ServerFnError>
+{
+    let Some(pool) = db::pool() else
+    {
+        return Err(ServerFnError::new("Database unavailable"));
+    };
+    let cuenta = cuenta_obligatoria(&token).await?;
+
+    // Aceptar solo una ruta dentro de la carpeta de la cuenta y la receta
+    let prefijo = format!("{cuenta}/{receta_id}/");
+    let nombre = ruta.strip_prefix(&prefijo).unwrap_or_default();
+    let nombre_valido = !nombre.is_empty()
+        && nombre.len() <= 80
+        && nombre.chars().all(|letra| letra.is_ascii_alphanumeric() || letra == '-' || letra == '.')
+        && !nombre.contains("..");
+    if !nombre_valido
+    {
+        return Err(ServerFnError::new("Invalid photo path"));
+    }
+
+    // Agregar la ruta si la receta es de la cuenta, no la tiene ya y no llegó al máximo
+    let rutas = sqlx::query_scalar::<_, Vec<String>>(
+        r#"
+        UPDATE receta
+        SET fotos_rutas = CASE
+                WHEN $3 = ANY(fotos_rutas) THEN fotos_rutas
+                ELSE array_append(fotos_rutas, $3)
+            END
+        WHERE id = $1::uuid
+          AND autor_id = $2::uuid
+          AND ($3 = ANY(fotos_rutas) OR cardinality(fotos_rutas) < $4)
+        RETURNING fotos_rutas
+        "#,
+    )
+    .bind(&receta_id)
+    .bind(&cuenta)
+    .bind(&ruta)
+    .bind(FOTOS_MAXIMAS as i32)
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| ServerFnError::new("Could not save photo"))?;
+
+    rutas.ok_or_else(|| ServerFnError::new("Recipe not found or photo limit reached")) // No es suya o ya tiene cinco
+}
