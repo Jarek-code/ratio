@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "server")]
-use crate::db;
+use crate::base::ConPlazo; // Plazo de cada consulta
 
 /// Capa tal como vive en la base, con su ingrediente y su unidad.
 ///
@@ -127,9 +127,7 @@ impl FilaReceta {
 /// Devuelve `ServerFnError` si el servidor no tiene pool o si alguna consulta falla.
 #[server(endpoint = "catalogo")]
 pub async fn catalogo(token: Option<String>) -> Result<Vec<RecetaResumen>, ServerFnError> {
-    let Some(pool) = db::pool() else {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
 
     let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
@@ -167,8 +165,8 @@ pub async fn catalogo(token: Option<String>) -> Result<Vec<RecetaResumen>, Serve
     )
     .bind(adulto)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("el catálogo")
+    .await?;
 
     let capas = sqlx::query_as::<_, FilaCapa>(
         r#"
@@ -194,8 +192,8 @@ pub async fn catalogo(token: Option<String>) -> Result<Vec<RecetaResumen>, Serve
     )
     .bind(adulto)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("las capas del catálogo")
+    .await?;
 
     Ok(recetas
         .into_iter()

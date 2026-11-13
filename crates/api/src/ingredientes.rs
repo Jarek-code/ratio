@@ -8,6 +8,9 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "server")]
+use crate::base::ConPlazo; // Plazo de cada consulta
+
 /// Una opción del catálogo cerrado de ingredientes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IngredienteOpcion {
@@ -47,9 +50,7 @@ struct FilaIngrediente {
 /// Devuelve `ServerFnError` si el servidor no tiene pool o si la consulta falla.
 #[server(endpoint = "ingredientes")]
 pub async fn catalogo() -> Result<Vec<IngredienteOpcion>, ServerFnError> {
-    let Some(pool) = crate::db::pool() else {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
 
     let filas = sqlx::query_as::<_, FilaIngrediente>(
         r#"
@@ -64,8 +65,8 @@ pub async fn catalogo() -> Result<Vec<IngredienteOpcion>, ServerFnError> {
         "#,
     )
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("el catálogo de ingredientes")
+    .await?;
 
     Ok(filas
         .into_iter()

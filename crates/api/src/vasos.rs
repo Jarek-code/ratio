@@ -6,6 +6,9 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "server")]
+use crate::base::ConPlazo; // Plazo de cada consulta
+
 /// Un vaso del catálogo, con lo necesario para dibujarlo y medir su contenido.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VasoOpcion {
@@ -82,9 +85,7 @@ impl FilaVaso {
 /// Devuelve `ServerFnError` si el servidor no tiene pool o si la consulta falla.
 #[server(endpoint = "vasos")]
 pub async fn vasos() -> Result<Vec<VasoOpcion>, ServerFnError> {
-    let Some(pool) = crate::db::pool() else {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
 
     let filas = sqlx::query_as::<_, FilaVaso>(
         r#"
@@ -104,8 +105,8 @@ pub async fn vasos() -> Result<Vec<VasoOpcion>, ServerFnError> {
         "#,
     )
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("el catálogo de vasos")
+    .await?;
 
     Ok(filas
         .into_iter()

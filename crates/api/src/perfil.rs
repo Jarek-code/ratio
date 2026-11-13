@@ -12,7 +12,7 @@ use serde::Serialize; // Escritura de los tipos que viajan entre app y servidor
 use crate::biblioteca::RecetaResumen; // Receta publicada tal como la lista Biblioteca
 
 #[cfg(feature = "server")]
-use crate::db; // Pool compartido de la base
+use crate::base::ConPlazo; // Plazo de cada consulta
 
 // ESTRUCTURAS
 
@@ -63,10 +63,12 @@ struct FilaPerfil
 #[server(endpoint = "perfil")]
 pub async fn perfil(alias: String, token: Option<String>) -> Result<Option<PerfilPublico>, ServerFnError>
 {
-    let Some(pool) = db::pool() else
+    if alias.trim().is_empty()
     {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+        return Ok(None); // Sin alias no hay nada que buscar
+    }
+
+    let pool = crate::base::pool()?;
     let cuenta = crate::auth::cuenta(token.as_deref()).await;
 
     // Consultar la cuenta del alias con sus contadores de seguimiento
@@ -87,8 +89,8 @@ pub async fn perfil(alias: String, token: Option<String>) -> Result<Option<Perfi
     .bind(alias.trim())
     .bind(&cuenta)
     .fetch_optional(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("el perfil")
+    .await?;
 
     let Some(fila) = fila else
     {
@@ -125,13 +127,15 @@ pub async fn perfil(alias: String, token: Option<String>) -> Result<Option<Perfi
 #[server(endpoint = "seguir")]
 pub async fn seguir(token: String, alias: String, sigue: bool) -> Result<bool, ServerFnError>
 {
-    let Some(pool) = db::pool() else
+    if alias.trim().is_empty()
     {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+        return Err(crate::fallos::datos("Elige un perfil para seguir."));
+    }
+
+    let pool = crate::base::pool()?;
     let cuenta = crate::auth::cuenta(Some(&token))
         .await
-        .ok_or_else(|| ServerFnError::new("Sign-in required"))?;
+        .ok_or_else(|| crate::fallos::sesion("Entra con tu cuenta para seguir a alguien."))?;
 
     // Buscar la cuenta del alias, que no puede ser la propia
     let seguido = sqlx::query_scalar::<_, String>(
@@ -140,9 +144,9 @@ pub async fn seguir(token: String, alias: String, sigue: bool) -> Result<bool, S
     .bind(alias.trim())
     .bind(&cuenta)
     .fetch_optional(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?
-    .ok_or_else(|| ServerFnError::new("Profile not found"))?;
+    .con_plazo("el perfil")
+    .await?
+    .ok_or_else(|| crate::fallos::no_encontrado("Ese perfil no existe."))?;
 
     // Seguir: insertar si no existe; dejar de seguir: borrar si existe
     let consulta = if sigue
@@ -158,7 +162,11 @@ pub async fn seguir(token: String, alias: String, sigue: bool) -> Result<bool, S
         .bind(&seguido)
         .execute(pool)
         .await
-        .map_err(|_| ServerFnError::new("Could not update follow"))?;
+        .map_err(|causa| {
+            dioxus::logger::tracing::error!("no se pudo actualizar el seguimiento: {causa}");
+
+            crate::fallos::reintento("No se pudo actualizar el seguimiento. Vuelve a intentarlo.")
+        })?;
 
     Ok(sigue) // Estado final del seguimiento
 }

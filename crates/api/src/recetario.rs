@@ -9,7 +9,7 @@ use crate::biblioteca::RecetaResumen;
 use crate::biblioteca::{FilaCapa, FilaReceta};
 
 #[cfg(feature = "server")]
-use crate::db;
+use crate::base::ConPlazo; // Plazo de cada consulta
 
 /// Estado visible de una receta dentro del recetario propio.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,13 +99,11 @@ impl FilaPropia {
 /// o si alguna consulta falla.
 #[server(endpoint = "mis_recetas")]
 pub async fn mis_recetas(token: String) -> Result<Vec<RecetaPropia>, ServerFnError> {
-    let Some(pool) = db::pool() else {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
 
     let cuenta = crate::auth::cuenta(Some(&token))
         .await
-        .ok_or_else(|| ServerFnError::new("La sesion caduco; vuelve a entrar"))?;
+        .ok_or_else(|| crate::fallos::sesion("La sesión caducó: vuelve a entrar."))?;
 
     let filas = sqlx::query_as::<_, FilaPropia>(
         r#"
@@ -143,8 +141,8 @@ pub async fn mis_recetas(token: String) -> Result<Vec<RecetaPropia>, ServerFnErr
     )
     .bind(&cuenta)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("el recetario")
+    .await?;
 
     let capas = sqlx::query_as::<_, FilaCapa>(
         r#"
@@ -165,8 +163,8 @@ pub async fn mis_recetas(token: String) -> Result<Vec<RecetaPropia>, ServerFnErr
     )
     .bind(&cuenta)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("las capas del recetario")
+    .await?;
 
     Ok(filas
         .into_iter()

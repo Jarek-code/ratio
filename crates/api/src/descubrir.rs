@@ -7,7 +7,7 @@ use dioxus::prelude::*; // Macro server y tipo ServerFnError (única importació
 use serde::Deserialize; // Derive para recibir la sugerencia en la app
 use serde::Serialize; // Derive para enviar la sugerencia desde el servidor
 #[cfg(feature = "server")]
-use crate::db; // Pool de conexiones a PostgreSQL en Supabase (solo servidor)
+use crate::base::ConPlazo; // Plazo de cada consulta
 
 // ESTRUCTURAS
 /// Receta sugerida para la tarjeta del día, lista para dibujarse con el motor de proporciones
@@ -144,16 +144,8 @@ impl FilaReceta
 #[server(endpoint = "sugerencias_dia")]
 pub async fn sugerencias_dia(token: Option<String>) -> Result<Vec<RecetaSugerida>, ServerFnError>
 {
-    // Obtener el pool que instaló el binario del servidor
-    let pool_val = match db::pool()
-    {
-        Some(pool_val) => pool_val,
-        None =>
-        {
-            // Sin pool: avisar que la base no está disponible
-            return Err(ServerFnError::new("Database unavailable")); // Terminar sin consultar
-        }
-    };
+    // Pool que instaló el binario; si no lo hay, el fallo ya dice qué pasó
+    let pool_val = crate::base::pool()?;
 
     // La mayoría de edad sale del perfil que corresponde al token: sin sesión, se trata como menor
     // Consultar una receta visible por tipo con orden determinista por día, sin alcohol para menores
@@ -185,8 +177,8 @@ pub async fn sugerencias_dia(token: Option<String>) -> Result<Vec<RecetaSugerida
         adulto // Mayoría de edad verificada contra Supabase Auth y el perfil
     )
         .fetch_all(pool_val) // Ejecutar consulta con el pool compartido
-        .await
-        .map_err(|_| ServerFnError::new("Query error"))?; // Propagar error de consulta
+        .con_plazo("la sugerencia del día")
+        .await?; // Plazo y error traducido a un aviso legible
 
     // Reunir los identificadores de las recetas elegidas para pedir sus capas
     let ids_vec: Vec<String> = recetas_vec
@@ -206,8 +198,8 @@ pub async fn sugerencias_dia(token: Option<String>) -> Result<Vec<RecetaSugerida
         &ids_vec[..] // Recetas elegidas (UUID en texto)
     )
         .fetch_all(pool_val) // Ejecutar consulta con el pool compartido
-        .await
-        .map_err(|_| ServerFnError::new("Query error"))?; // Propagar error de consulta
+        .con_plazo("las capas de la sugerencia")
+        .await?;
 
     // Convertir cada fila en una sugerencia con sus capas
     let sugerencias_vec = recetas_vec

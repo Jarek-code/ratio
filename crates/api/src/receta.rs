@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::biblioteca::ComponenteFicha;
 
 #[cfg(feature = "server")]
-use crate::db;
+use crate::base::ConPlazo; // Plazo de cada consulta
 
 /// Paso de preparación con su temporizador opcional.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -184,9 +184,14 @@ pub async fn completa(
     id: String,
     token: Option<String>,
 ) -> Result<Option<RecetaCompleta>, ServerFnError> {
-    let Some(pool) = db::pool() else {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    // Un id vacío o inventado no puede llegar a `$1::uuid`: es un enlace roto, no un fallo
+    if !crate::fallos::es_uuid(&id) {
+        return Err(crate::fallos::datos(
+            "El enlace de la receta no es válido: vuelve a abrirla desde el recetario.",
+        ));
+    }
+
+    let pool = crate::base::pool()?;
 
     let cuenta = crate::auth::cuenta(token.as_deref()).await;
     let adulto = crate::auth::es_adulto(token.as_deref()).await;
@@ -242,8 +247,8 @@ pub async fn completa(
     .bind(&cuenta)
     .bind(adulto)
     .fetch_optional(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("la receta")
+    .await?;
 
     let Some(cabecera) = cabecera else {
         return Ok(None);
@@ -267,8 +272,8 @@ pub async fn completa(
     )
     .bind(&id)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("las capas de la receta")
+    .await?;
 
     let pasos = sqlx::query_as::<_, FilaPaso>(
         r#"
@@ -280,8 +285,8 @@ pub async fn completa(
     )
     .bind(&id)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("los pasos de la receta")
+    .await?;
 
     let pasos = pasos
         .into_iter()

@@ -10,7 +10,7 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "server")]
-use crate::db;
+use crate::base::ConPlazo; // Plazo de cada consulta
 
 /// Capa que C1 ajusto y quiere conservar en la version.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -160,13 +160,30 @@ pub async fn guardar_receta(
     token: String,
     datos: RecetaNueva,
 ) -> Result<VersionGuardada, ServerFnError> {
-    let Some(pool) = db::pool() else {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
 
     let cuenta = crate::auth::cuenta(Some(&token))
         .await
-        .ok_or_else(|| ServerFnError::new("Inicia sesion para guardar una version"))?;
+        .ok_or_else(|| crate::fallos::sesion("Inicia sesión para guardar una versión."))?;
+
+    // Un identificador inventado no puede llegar a `$1::uuid`: es un dato del formulario
+    if let Some(id) = &datos.id
+        && !crate::fallos::es_uuid(id)
+    {
+        return Err(crate::fallos::datos(
+            "El identificador de la versión no es válido: vuelve a intentarlo.",
+        ));
+    }
+    if !crate::fallos::es_uuid(&datos.origen_id)
+    {
+        return Err(crate::fallos::datos(
+            "La receta original no es válida: vuelve a abrir la ficha.",
+        ));
+    }
+    if !crate::fallos::es_uuid(&datos.vaso_id)
+    {
+        return Err(crate::fallos::datos("El vaso elegido no es válido."));
+    }
 
     // Un reenvio de la cola: la version ya existe y no se crea otra
     if let Some(id) = &datos.id {
@@ -176,8 +193,8 @@ pub async fn guardar_receta(
         .bind(id)
         .bind(&cuenta)
         .fetch_optional(pool)
-        .await
-        .map_err(|_| ServerFnError::new("No se pudo leer la version"))?;
+        .con_plazo("la versión guardada")
+        .await?;
 
         if let Some(receta_id) = existente {
             return Ok(VersionGuardada {
@@ -189,19 +206,18 @@ pub async fn guardar_receta(
 
     let nombre = datos.nombre.trim();
     if nombre.is_empty() || nombre.chars().count() > 120 {
-        return Err(ServerFnError::new(
-            "El nombre debe tener entre 1 y 120 caracteres",
+        return Err(crate::fallos::datos(
+            "El nombre de la versión necesita entre 1 y 120 caracteres.",
         ));
     }
 
     if !datos.capacidad_ml.is_finite() || datos.capacidad_ml <= 0.0 {
-        return Err(ServerFnError::new("La capacidad del vaso no es valida"));
+        return Err(crate::fallos::datos(
+            "La capacidad del vaso tiene que ser un número mayor que cero.",
+        ));
     }
 
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|_| ServerFnError::new("No se pudo iniciar la transaccion"))?;
+    let mut tx = pool.begin().con_plazo("la transacción de la versión").await?;
 
     let origen = sqlx::query_as::<_, FilaOrigen>(
         r#"
@@ -226,21 +242,21 @@ pub async fn guardar_receta(
     .bind(&datos.origen_id)
     .bind(&cuenta)
     .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| ServerFnError::new("No se pudo leer la receta original"))?
-    .ok_or_else(|| ServerFnError::new("No puedes versionar esa receta"))?;
+    .con_plazo("la receta original")
+    .await?
+    .ok_or_else(|| crate::fallos::no_encontrado("Esa receta no existe o no puedes versionarla."))?;
 
     let vaso_capacidad =
         sqlx::query_scalar::<_, f64>("SELECT capacidad_ml FROM vaso WHERE id = $1::uuid")
             .bind(&datos.vaso_id)
             .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| ServerFnError::new("No se pudo leer el vaso"))?
-            .ok_or_else(|| ServerFnError::new("El vaso elegido no existe"))?;
+            .con_plazo("el vaso")
+            .await?
+            .ok_or_else(|| crate::fallos::no_encontrado("El vaso elegido no existe."))?;
 
     if datos.capacidad_ml > vaso_capacidad + 0.01 {
-        return Err(ServerFnError::new(
-            "La capacidad no puede superar la del vaso",
+        return Err(crate::fallos::datos(
+            "La capacidad no puede superar la del vaso elegido.",
         ));
     }
 
@@ -260,8 +276,8 @@ pub async fn guardar_receta(
     )
     .bind(&datos.origen_id)
     .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| ServerFnError::new("No se pudieron leer los ingredientes"))?;
+    .con_plazo("los ingredientes de la receta")
+    .await?;
 
     // Las capas nuevas se apilan despues de las del origen para no reordenar la bebida.
     let posicion_siguiente = capas.iter().map(|capa| capa.posicion).max().unwrap_or(-1) + 1;
@@ -284,16 +300,16 @@ pub async fn guardar_receta(
         };
 
         if usados[indice] {
-            return Err(ServerFnError::new(
-                "Hay un ingrediente repetido en la version",
+            return Err(crate::fallos::datos(
+                "Hay un ingrediente repetido en la versión.",
             ));
         }
 
         usados[indice] = true;
         let cantidad = datos.componentes[indice].cantidad;
         if !cantidad.is_finite() || cantidad <= 0.0 {
-            return Err(ServerFnError::new(
-                "Las cantidades deben ser mayores que cero",
+            return Err(crate::fallos::datos(
+                "Las cantidades tienen que ser mayores que cero.",
             ));
         }
         total_ml += crate::ml_equivalentes(cantidad, &capa.unidad);
@@ -303,7 +319,9 @@ pub async fn guardar_receta(
     }
 
     if usados.iter().any(|usado| !usado) {
-        return Err(ServerFnError::new("Hay un ingrediente ajeno a la receta"));
+        return Err(crate::fallos::datos(
+            "La versión lleva un ingrediente que no es de la receta original.",
+        ));
     }
 
     // Los ingredientes que C1 añadio no vienen del origen: se validan contra el catalogo
@@ -311,8 +329,8 @@ pub async fn guardar_receta(
     let mut ids_agregados: Vec<String> = Vec::with_capacity(datos.agregados.len());
     for (indice, agregado) in datos.agregados.iter().enumerate() {
         if !agregado.cantidad.is_finite() || agregado.cantidad <= 0.0 {
-            return Err(ServerFnError::new(
-                "Las cantidades deben ser mayores que cero",
+            return Err(crate::fallos::datos(
+                "Las cantidades tienen que ser mayores que cero.",
             ));
         }
 
@@ -321,8 +339,8 @@ pub async fn guardar_receta(
                 .iter()
                 .any(|id| id == &agregado.ingrediente_id)
         {
-            return Err(ServerFnError::new(
-                "El ingrediente agregado ya esta en la receta",
+            return Err(crate::fallos::datos(
+                "Ese ingrediente ya está en la receta: cámbialo en vez de agregarlo.",
             ));
         }
 
@@ -339,9 +357,9 @@ pub async fn guardar_receta(
         )
         .bind(&agregado.ingrediente_id)
         .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| ServerFnError::new("No se pudo leer el ingrediente agregado"))?
-        .ok_or_else(|| ServerFnError::new("El ingrediente agregado no existe"))?;
+        .con_plazo("el ingrediente agregado")
+        .await?
+        .ok_or_else(|| crate::fallos::no_encontrado("El ingrediente agregado no existe."))?;
 
         // De momento 1 g = 1 ml, igual que en C1, para que los agregados sólidos
         // también cuenten en la capacidad del vaso.
@@ -364,12 +382,14 @@ pub async fn guardar_receta(
     }
 
     if total_ml > datos.capacidad_ml {
-        return Err(ServerFnError::new("La bebida no cabe en el vaso"));
+        return Err(crate::fallos::datos(
+            "La bebida no cabe en el vaso: quita cantidad o elige uno más grande.",
+        ));
     }
 
     if tiene_alcohol && !crate::auth::es_adulto(Some(&token)).await {
-        return Err(ServerFnError::new(
-            "Solo una cuenta de mayor de edad puede guardar bebidas con alcohol",
+        return Err(crate::fallos::datos(
+            "Solo una cuenta de mayor de edad puede guardar bebidas con alcohol.",
         ));
     }
 
@@ -408,7 +428,11 @@ pub async fn guardar_receta(
     .bind(&datos.id)
     .fetch_one(&mut *tx)
     .await
-    .map_err(|_| ServerFnError::new("No se pudo crear la version"))?;
+    .map_err(|causa| {
+        dioxus::logger::tracing::error!("no se pudo crear la versión: {causa}");
+
+        crate::fallos::reintento("No se pudo crear la versión. Vuelve a intentarlo.")
+    })?;
 
     for (capa, cantidad) in capas_nuevas {
         sqlx::query(
@@ -431,7 +455,11 @@ pub async fn guardar_receta(
         .bind(capa.dilucion)
         .execute(&mut *tx)
         .await
-        .map_err(|_| ServerFnError::new("No se pudieron copiar los ingredientes"))?;
+        .map_err(|causa| {
+            dioxus::logger::tracing::error!("no se pudieron copiar los ingredientes: {causa}");
+
+            crate::fallos::reintento("No se pudieron copiar los ingredientes. Vuelve a intentarlo.")
+        })?;
     }
 
     let pasos = sqlx::query_as::<_, FilaPasoOrigen>(
@@ -444,8 +472,8 @@ pub async fn guardar_receta(
     )
     .bind(&datos.origen_id)
     .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| ServerFnError::new("No se pudieron leer los pasos"))?;
+    .con_plazo("los pasos de la receta")
+    .await?;
 
     for paso in pasos {
         sqlx::query(

@@ -12,7 +12,7 @@ use crate::biblioteca::RecetaResumen;
 #[cfg(feature = "server")]
 use crate::biblioteca::{FilaCapa, FilaReceta};
 #[cfg(feature = "server")]
-use crate::db;
+use crate::base::ConPlazo; // Plazo de cada consulta
 
 /// Receta guardada con la fecha en que se añadió a la lista.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -61,13 +61,11 @@ impl FilaGuardada {
 /// o si alguna consulta falla.
 #[server(endpoint = "guardados")]
 pub async fn guardados(token: String) -> Result<Vec<RecetaGuardada>, ServerFnError> {
-    let Some(pool) = db::pool() else {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
 
     let cuenta = crate::auth::cuenta(Some(&token))
         .await
-        .ok_or_else(|| ServerFnError::new("La sesión caducó; vuelve a entrar"))?;
+        .ok_or_else(|| crate::fallos::sesion("La sesión caducó: vuelve a entrar."))?;
     let adulto = crate::auth::es_adulto(Some(&token)).await;
 
     let filas = sqlx::query_as::<_, FilaGuardada>(
@@ -115,8 +113,8 @@ pub async fn guardados(token: String) -> Result<Vec<RecetaGuardada>, ServerFnErr
     .bind(&cuenta)
     .bind(adulto)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("los guardados")
+    .await?;
 
     let capas = sqlx::query_as::<_, FilaCapa>(
         r#"
@@ -147,8 +145,8 @@ pub async fn guardados(token: String) -> Result<Vec<RecetaGuardada>, ServerFnErr
     .bind(&cuenta)
     .bind(adulto)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("las recetas guardadas")
+    .await?;
 
     Ok(filas
         .into_iter()
@@ -171,13 +169,17 @@ pub async fn alternar_guardado(
     receta_id: String,
     guardar: bool,
 ) -> Result<bool, ServerFnError> {
-    let Some(pool) = db::pool() else {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    if !crate::fallos::es_uuid(&receta_id) {
+        return Err(crate::fallos::datos(
+            "No se pudo identificar la receta: vuelve a abrirla desde el recetario.",
+        ));
+    }
+
+    let pool = crate::base::pool()?;
 
     let cuenta = crate::auth::cuenta(Some(&token))
         .await
-        .ok_or_else(|| ServerFnError::new("La sesión caducó; vuelve a entrar"))?;
+        .ok_or_else(|| crate::fallos::sesion("La sesión caducó: vuelve a entrar."))?;
     let adulto = crate::auth::es_adulto(Some(&token)).await;
 
     let visible = sqlx::query_scalar::<_, bool>(
@@ -201,8 +203,8 @@ pub async fn alternar_guardado(
     .bind(&cuenta)
     .bind(adulto)
     .fetch_one(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("el recuento de guardados")
+    .await?;
 
     if !visible {
         return Err(ServerFnError::new(
@@ -222,7 +224,11 @@ pub async fn alternar_guardado(
         .bind(&receta_id)
         .execute(pool)
         .await
-        .map_err(|_| ServerFnError::new("No se pudo guardar la receta"))?;
+        .map_err(|causa| {
+            dioxus::logger::tracing::error!("no se pudo guardar la receta: {causa}");
+
+            crate::fallos::reintento("No se pudo guardar la receta. Vuelve a intentarlo.")
+        })?;
 
         Ok(true)
     } else {
@@ -237,7 +243,11 @@ pub async fn alternar_guardado(
         .bind(&receta_id)
         .execute(pool)
         .await
-        .map_err(|_| ServerFnError::new("No se pudo quitar la receta"))?;
+        .map_err(|causa| {
+            dioxus::logger::tracing::error!("no se pudo quitar la receta: {causa}");
+
+            crate::fallos::reintento("No se pudo quitar la receta. Vuelve a intentarlo.")
+        })?;
 
         Ok(false)
     }

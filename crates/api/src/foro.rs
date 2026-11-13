@@ -11,7 +11,7 @@ use serde::Deserialize; // Lectura de los tipos que viajan entre app y servidor
 use serde::Serialize; // Escritura de los tipos que viajan entre app y servidor
 
 #[cfg(feature = "server")]
-use crate::db; // Pool compartido de la base
+use crate::base::ConPlazo; // Plazo de cada consulta
 
 // CONSTANTES Y VARIABLES GLOBALES
 
@@ -140,6 +140,14 @@ async fn visible(
     adulto: bool,
 ) -> Result<bool, ServerFnError>
 {
+    // Un id roto no puede llegar a `$1::uuid`: la app avisa de que el enlace no sirve
+    if !crate::fallos::es_uuid(receta_id)
+    {
+        return Err(crate::fallos::datos(
+            "La receta pedida no es válida: vuelve a abrirla desde el recetario.",
+        ));
+    }
+
     // Consultar si la receta existe, no está oculta, es pública o propia y respeta la edad
     sqlx::query_scalar::<_, bool>(
         r#"
@@ -160,8 +168,8 @@ async fn visible(
     .bind(cuenta)
     .bind(adulto)
     .fetch_one(pool)
+    .con_plazo("la visibilidad de la receta")
     .await
-    .map_err(|_| ServerFnError::new("Query error")) // Fallo de la consulta
 }
 
 /// Cuenta del token o el error que pide iniciar sesión.
@@ -170,7 +178,7 @@ async fn cuenta_obligatoria(token: &str) -> Result<String, ServerFnError>
 {
     crate::auth::cuenta(Some(token))
         .await
-        .ok_or_else(|| ServerFnError::new("Sign-in required")) // Token ausente o caducado
+        .ok_or_else(|| crate::fallos::sesion("Entra con tu cuenta para hacer esto.")) // Token ausente o caducado
 }
 
 /// Recuento de valoraciones de una receta, contando la última valoración de cada persona.
@@ -198,8 +206,8 @@ async fn recuento(
     .bind(receta_id)
     .bind(cuenta)
     .fetch_one(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("el recuento de valoraciones")
+    .await?;
 
     Ok(Valoraciones
     {
@@ -220,10 +228,14 @@ async fn recuento(
 #[server(endpoint = "publicar")]
 pub async fn publicar(token: String, receta_id: String, publica: bool) -> Result<bool, ServerFnError>
 {
-    let Some(pool) = db::pool() else
+    if !crate::fallos::es_uuid(&receta_id)
     {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+        return Err(crate::fallos::datos(
+            "La receta pedida no es válida: vuelve a abrirla desde Mi recetario.",
+        ));
+    }
+
+    let pool = crate::base::pool()?;
     let cuenta = cuenta_obligatoria(&token).await?;
 
     // Cambiar la fecha de publicación solo si la receta es de la cuenta y no está oculta
@@ -241,10 +253,10 @@ pub async fn publicar(token: String, receta_id: String, publica: bool) -> Result
     .bind(&cuenta)
     .bind(publica)
     .fetch_optional(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("la publicación")
+    .await?;
 
-    publicada.ok_or_else(|| ServerFnError::new("Recipe not found")) // No es suya o está oculta
+    publicada.ok_or_else(|| crate::fallos::no_encontrado("Esa receta no existe o no es tuya.")) // No es suya o está oculta
 }
 
 /// Trae el hilo de comentarios de una receta, del más antiguo al más reciente (D2).
@@ -258,10 +270,7 @@ pub async fn publicar(token: String, receta_id: String, publica: bool) -> Result
 #[server(endpoint = "hilo")]
 pub async fn hilo(receta_id: String, token: Option<String>) -> Result<Vec<Comentario>, ServerFnError>
 {
-    let Some(pool) = db::pool() else
-    {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
     let cuenta = crate::auth::cuenta(token.as_deref()).await;
     let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
@@ -299,8 +308,8 @@ pub async fn hilo(receta_id: String, token: Option<String>) -> Result<Vec<Coment
     .bind(&receta_id)
     .bind(&cuenta)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("el hilo")
+    .await?;
 
     // Convertir cada fila en el comentario que pinta la app
     let comentarios_vec = filas_vec
@@ -353,10 +362,7 @@ pub async fn hilo(receta_id: String, token: Option<String>) -> Result<Vec<Coment
 #[server(endpoint = "comentar")]
 pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, ServerFnError>
 {
-    let Some(pool) = db::pool() else
-    {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
     let cuenta = cuenta_obligatoria(&token).await?;
     let adulto = crate::auth::es_adulto(Some(&token)).await;
 
@@ -364,19 +370,23 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
     let texto = nuevo.texto.trim();
     if texto.is_empty() || texto.chars().count() > LARGO_MAXIMO
     {
-        return Err(ServerFnError::new("Comment must be 1-2000 characters"));
+        return Err(crate::fallos::datos(
+            "El comentario necesita entre 1 y 2000 caracteres.",
+        ));
     }
 
     // Validar la propuesta: positiva y solo con ancla
     if let Some(cantidad) = nuevo.propuesta
         && (!cantidad.is_finite() || cantidad <= 0.0 || nuevo.ancla.is_none())
     {
-        return Err(ServerFnError::new("Invalid proposal"));
+        return Err(crate::fallos::datos(
+            "La cantidad propuesta tiene que ser un número mayor que cero.",
+        ));
     }
 
     if !visible(pool, &nuevo.receta_id, &Some(cuenta.clone()), adulto).await?
     {
-        return Err(ServerFnError::new("Recipe not found"));
+        return Err(crate::fallos::no_encontrado("Esa receta no existe o ya no está disponible."));
     }
 
     // Resolver el ancla por su posición dentro de la receta
@@ -390,9 +400,9 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
             .bind(&nuevo.receta_id)
             .bind(posicion)
             .fetch_optional(pool)
-            .await
-            .map_err(|_| ServerFnError::new("Query error"))?
-            .ok_or_else(|| ServerFnError::new("Layer not found"))?;
+            .con_plazo("la capa del comentario")
+            .await?
+            .ok_or_else(|| crate::fallos::datos("Esa capa ya no está en la receta: elige otra."))?;
             (Some(id), None) // Anclado a una capa
         }
         Some(Ancla::Paso(posicion)) =>
@@ -403,9 +413,9 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
             .bind(&nuevo.receta_id)
             .bind(posicion)
             .fetch_optional(pool)
-            .await
-            .map_err(|_| ServerFnError::new("Query error"))?
-            .ok_or_else(|| ServerFnError::new("Step not found"))?;
+            .con_plazo("el paso del comentario")
+            .await?
+            .ok_or_else(|| crate::fallos::datos("Ese paso ya no está en la receta: elige otro."))?;
             (None, Some(id)) // Anclado a un paso
         }
         None => (None, None), // Comentario general
@@ -430,11 +440,15 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
     .bind(nuevo.propuesta)
     .fetch_optional(pool)
     .await
-    .map_err(|_| ServerFnError::new("Could not save comment"))?;
+    .map_err(|causa| {
+        dioxus::logger::tracing::error!("no se pudo guardar el comentario: {causa}");
+
+        crate::fallos::reintento("No se pudo guardar el comentario. Vuelve a intentarlo.")
+    })?;
 
     creado
         .or(nuevo.id)
-        .ok_or_else(|| ServerFnError::new("Could not save comment")) // Id nuevo o el del reenvío
+        .ok_or_else(|| crate::fallos::reintento("No se pudo guardar el comentario. Vuelve a intentarlo.")) // Id nuevo o el del reenvío
 }
 
 /// Trae el recuento de «me salió / no me salió» de una receta (D4).
@@ -445,10 +459,7 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
 #[server(endpoint = "valoraciones")]
 pub async fn valoraciones(receta_id: String, token: Option<String>) -> Result<Valoraciones, ServerFnError>
 {
-    let Some(pool) = db::pool() else
-    {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
     let cuenta = crate::auth::cuenta(token.as_deref()).await;
     let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
@@ -472,16 +483,13 @@ pub async fn valoraciones(receta_id: String, token: Option<String>) -> Result<Va
 #[server(endpoint = "valorar")]
 pub async fn valorar(token: String, receta_id: String, me_salio: bool) -> Result<Valoraciones, ServerFnError>
 {
-    let Some(pool) = db::pool() else
-    {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
     let cuenta = cuenta_obligatoria(&token).await?;
     let adulto = crate::auth::es_adulto(Some(&token)).await;
 
     if !visible(pool, &receta_id, &Some(cuenta.clone()), adulto).await?
     {
-        return Err(ServerFnError::new("Recipe not found"));
+        return Err(crate::fallos::no_encontrado("Esa receta no existe o ya no está disponible."));
     }
 
     // Rechazar la valoración de la propia receta
@@ -491,11 +499,11 @@ pub async fn valorar(token: String, receta_id: String, me_salio: bool) -> Result
     .bind(&receta_id)
     .bind(&cuenta)
     .fetch_one(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("la receta del comentario")
+    .await?;
     if propia
     {
-        return Err(ServerFnError::new("Cannot rate your own recipe"));
+        return Err(crate::fallos::datos("No puedes valorar tu propia receta."));
     }
 
     // Actualizar la última valoración de la cuenta o crear la primera
@@ -522,7 +530,11 @@ pub async fn valorar(token: String, receta_id: String, me_salio: bool) -> Result
     .bind(me_salio)
     .execute(pool)
     .await
-    .map_err(|_| ServerFnError::new("Could not save rating"))?;
+    .map_err(|causa| {
+        dioxus::logger::tracing::error!("no se pudo guardar la valoración: {causa}");
+
+        crate::fallos::reintento("No se pudo guardar tu valoración. Vuelve a intentarlo.")
+    })?;
 
     recuento(pool, &receta_id, &Some(cuenta)).await
 }
@@ -658,10 +670,7 @@ struct FilaEvento
 #[server(endpoint = "actividad")]
 pub async fn actividad(token: String) -> Result<Vec<Evento>, ServerFnError>
 {
-    let Some(pool) = db::pool() else
-    {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
     let cuenta = cuenta_obligatoria(&token).await?;
     let adulto = crate::auth::es_adulto(Some(&token)).await;
 
@@ -714,8 +723,8 @@ pub async fn actividad(token: String) -> Result<Vec<Evento>, ServerFnError>
     .bind(&cuenta)
     .bind(adulto)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("la respuesta del comentario")
+    .await?;
 
     // Convertir cada fila en la novedad que pinta la app
     let eventos_vec = filas_vec
@@ -756,10 +765,7 @@ pub async fn actividad(token: String) -> Result<Vec<Evento>, ServerFnError>
 #[server(endpoint = "reportar")]
 pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<(), ServerFnError>
 {
-    let Some(pool) = db::pool() else
-    {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    let pool = crate::base::pool()?;
     let cuenta = cuenta_obligatoria(&token).await?;
     let adulto = crate::auth::es_adulto(Some(&token)).await;
 
@@ -767,6 +773,12 @@ pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<(), Server
     let receta_id = match (&reporte.receta_id, &reporte.comentario_id)
     {
         (Some(receta_id), None) => receta_id.clone(), // Se reporta una receta
+        (None, Some(comentario_id)) if !crate::fallos::es_uuid(comentario_id) =>
+        {
+            return Err(crate::fallos::datos(
+                "Ese comentario no es válido: vuelve a abrir la receta.",
+            ));
+        }
         (None, Some(comentario_id)) =>
         {
             sqlx::query_scalar::<_, String>(
@@ -774,16 +786,20 @@ pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<(), Server
             )
             .bind(comentario_id)
             .fetch_optional(pool)
-            .await
-            .map_err(|_| ServerFnError::new("Query error"))?
-            .ok_or_else(|| ServerFnError::new("Comment not found"))?
+            .con_plazo("el comentario reportado")
+            .await?
+            .ok_or_else(|| crate::fallos::no_encontrado("Ese comentario ya no está disponible."))?
         }
-        _ => return Err(ServerFnError::new("Report exactly one item")),
+        _ => {
+            return Err(crate::fallos::datos(
+                "Reporta una sola cosa: la receta o un comentario.",
+            ));
+        }
     };
 
     if !visible(pool, &receta_id, &Some(cuenta.clone()), adulto).await?
     {
-        return Err(ServerFnError::new("Recipe not found"));
+        return Err(crate::fallos::no_encontrado("Esa receta no existe o ya no está disponible."));
     }
 
     let detalle = reporte
@@ -813,7 +829,11 @@ pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<(), Server
     .bind(&detalle)
     .execute(pool)
     .await
-    .map_err(|_| ServerFnError::new("Could not save report"))?;
+    .map_err(|causa| {
+        dioxus::logger::tracing::error!("no se pudo guardar el reporte: {causa}");
+
+        crate::fallos::reintento("No se pudo guardar el reporte. Vuelve a intentarlo.")
+    })?;
 
     Ok(())
 }
@@ -836,10 +856,14 @@ pub const FOTOS_MAXIMAS: usize = 5;
 #[server(endpoint = "agregar_foto")]
 pub async fn agregar_foto(token: String, receta_id: String, ruta: String) -> Result<Vec<String>, ServerFnError>
 {
-    let Some(pool) = db::pool() else
+    if !crate::fallos::es_uuid(&receta_id)
     {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+        return Err(crate::fallos::datos(
+            "La receta pedida no es válida: vuelve a abrirla desde Mi recetario.",
+        ));
+    }
+
+    let pool = crate::base::pool()?;
     let cuenta = cuenta_obligatoria(&token).await?;
 
     // Aceptar solo una ruta dentro de la carpeta de la cuenta y la receta
@@ -851,7 +875,9 @@ pub async fn agregar_foto(token: String, receta_id: String, ruta: String) -> Res
         && !nombre.contains("..");
     if !nombre_valido
     {
-        return Err(ServerFnError::new("Invalid photo path"));
+        return Err(crate::fallos::datos(
+            "La ruta de la foto no es válida: tiene que estar dentro de tu carpeta.",
+        ));
     }
 
     // Agregar la ruta si la receta es de la cuenta, no la tiene ya y no llegó al máximo
@@ -874,7 +900,11 @@ pub async fn agregar_foto(token: String, receta_id: String, ruta: String) -> Res
     .bind(FOTOS_MAXIMAS as i32)
     .fetch_optional(pool)
     .await
-    .map_err(|_| ServerFnError::new("Could not save photo"))?;
+    .map_err(|causa| {
+        dioxus::logger::tracing::error!("no se pudo registrar la foto: {causa}");
 
-    rutas.ok_or_else(|| ServerFnError::new("Recipe not found or photo limit reached")) // No es suya o ya tiene cinco
+        crate::fallos::reintento("No se pudo registrar la foto en la receta. Vuelve a intentarlo.")
+    })?;
+
+    rutas.ok_or_else(|| crate::fallos::datos("La receta no es tuya o ya tiene cinco fotos.")) // No es suya o ya tiene cinco
 }

@@ -5,12 +5,15 @@ use proporciones::{Detalle, Receta};
 use serde::{Deserialize, Serialize};
 
 pub mod auth; // Acceso, alta y verificación de la sesión
+#[cfg(feature = "server")]
+pub mod base; // Pool y plazo de las consultas (solo servidor)
 pub mod biblioteca; // Catálogo completo de la pantalla Biblioteca (B2)
 #[cfg(feature = "server")]
 pub mod db;
 #[cfg(feature = "server")]
 mod filas; // Filas de vaso y capa compartidas por las consultas
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
+pub mod fallos; // Fallos con código: dato inválido, reintento, sesión o no encontrado
 pub mod foro; // La Barra: publicar, hilo, comentar, valorar, actividad y reportes (D1-D7)
 pub mod guardados; // Recetas guardadas por la cuenta (C5)
 pub mod guardar; // C2: guardar una version privada ajustada
@@ -59,12 +62,27 @@ pub struct EstadoSalud {
 /// Recalcula una receta en el servidor con el mismo motor que usa el cliente.
 /// El endpoint va fijo: sin él Dioxus añade un sufijo que depende de la ruta del crate al
 /// compilar, y el cliente y el servidor desplegado no coincidirían.
+///
+/// # Errores
+///
+/// Devuelve [`fallos::CODIGO_DATOS`] si la receta llega vacía o sin capacidad: son datos del
+/// formulario, no un fallo del servidor.
 #[server(endpoint = "analizar")]
 pub async fn analizar(receta: Receta) -> Result<Detalle, ServerFnError> {
+    if receta.ingredientes.is_empty() {
+        return Err(fallos::datos("La receta no tiene ingredientes que analizar."));
+    }
+    if !(receta.capacidad_ml > 0.0) {
+        return Err(fallos::datos("El vaso necesita una capacidad mayor que cero."));
+    }
+
     Ok(proporciones::detalle(&receta))
 }
 
 /// Estado del backend, para la pantalla de arranque del cliente.
+///
+/// Siempre contesta `Ok`: que la base esté caída se cuenta en `base_de_datos` y `detalle`, no
+/// como fallo de la petición.
 #[server(endpoint = "salud")]
 pub async fn salud() -> Result<EstadoSalud, ServerFnError> {
     use std::time::Duration;

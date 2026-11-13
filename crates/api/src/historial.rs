@@ -8,7 +8,7 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "server")]
-use crate::db;
+use crate::base::ConPlazo; // Plazo de cada consulta
 
 /// Cambio de cantidad de un ingrediente respecto de la versión de la que deriva.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -217,9 +217,13 @@ pub async fn versiones(
     id: String,
     token: Option<String>,
 ) -> Result<Vec<VersionHistorial>, ServerFnError> {
-    let Some(pool) = db::pool() else {
-        return Err(ServerFnError::new("Database unavailable"));
-    };
+    if !crate::fallos::es_uuid(&id) {
+        return Err(crate::fallos::datos(
+            "El enlace del historial no es válido: vuelve a abrirlo desde la ficha.",
+        ));
+    }
+
+    let pool = crate::base::pool()?;
 
     let cuenta = crate::auth::cuenta(token.as_deref()).await;
     let adulto = crate::auth::es_adulto(token.as_deref()).await;
@@ -249,8 +253,8 @@ pub async fn versiones(
     .bind(&cuenta)
     .bind(adulto)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("el historial")
+    .await?;
 
     if filas.is_empty() {
         return Ok(Vec::new());
@@ -266,8 +270,8 @@ pub async fn versiones(
     ))
     .bind(&id)
     .fetch_all(pool)
-    .await
-    .map_err(|_| ServerFnError::new("Query error"))?;
+    .con_plazo("las capas del historial")
+    .await?;
 
     let de_receta = |receta: &str| -> Vec<FilaComponente> {
         componentes
