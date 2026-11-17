@@ -45,6 +45,9 @@ pub struct RecetaCompleta {
     pub familia: String,
     /// Alias de quien la publicó.
     pub autor: String,
+    /// Cuenta de quien la publicó; vacío en una copia guardada por una versión anterior.
+    #[serde(default)]
+    pub autor_id: String,
     /// Identificador del vaso en el catálogo.
     pub vaso_id: String,
     /// Nombre del vaso en el catálogo.
@@ -85,6 +88,8 @@ struct FilaReceta {
     familia: String,
     /// Alias del autor.
     autor: String,
+    /// Cuenta del autor.
+    autor_id: String,
     /// Identificador del vaso.
     vaso_id: String,
     /// Nombre del vaso.
@@ -142,6 +147,7 @@ impl FilaReceta {
             tipo: self.tipo,
             familia: self.familia,
             autor: self.autor,
+            autor_id: self.autor_id,
             vaso_id: self.vaso_id,
             vaso_nombre: self.vaso_nombre,
             receta: proporciones::Receta {
@@ -203,6 +209,7 @@ pub async fn completa(
                r.tipo,
                r.familia,
                u.alias AS autor,
+               r.autor_id::text AS autor_id,
                v.id::text AS vaso_id,
                v.nombre AS vaso_nombre,
                COALESCE(r.capacidad_ml, v.capacidad_ml) AS capacidad_ml,

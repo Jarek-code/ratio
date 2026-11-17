@@ -12,11 +12,13 @@ mod foro;
 mod fotos;
 mod guardados;
 mod historial;
+mod la_barra;
 mod lista_compra;
 mod local;
 mod login;
 mod marca;
 mod mis_recetas;
+mod moderacion;
 mod perfil;
 mod preparar;
 mod red;
@@ -49,6 +51,9 @@ fn App() -> Element {
     // Los cambios hechos sin conexión se envían cuando vuelve la red
     let pendientes = use_context_provider(|| Signal::new(0_usize));
     use_future(move || local::vaciar(sesion, pendientes));
+    // Las novedades sin leer de La Barra se consultan cada minuto
+    let no_leidas = use_context_provider(|| actividad::NoLeidas(Signal::new(0_u32)));
+    use_future(move || actividad::vigilar(sesion, no_leidas));
     // Unidad preferida y bienvenida, leídas del archivo de ajustes
     use_context_provider(|| Signal::new(ajustes::cargar()));
 

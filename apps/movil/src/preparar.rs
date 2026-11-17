@@ -1,11 +1,13 @@
 //! Preparación guiada (C3) con temporizador por paso, parte de la app.
 //!
 //! Muestra un paso a la vez con su temporizador, si lo tiene, y al terminar pregunta si la
-//! receta salió (D4). Lee la receta con A2, así que se puede preparar sin conexión.
+//! receta salió (D4) y guarda cuánto tomó la preparación. Lee la receta con A2, así que se
+//! puede preparar sin conexión.
 
 // LIBRERÍAS
 
 use std::time::Duration; // Tic del temporizador
+use std::time::Instant; // Momento en que empezó la preparación
 
 use dioxus::prelude::*; // Componentes, señales y recursos
 
@@ -41,6 +43,8 @@ pub fn PantallaPreparar(id: String) -> Element
     let mut paso_sel = use_signal(|| 0_usize); // Paso visible (el último + 1 es «terminado»)
     let mut restante_sel = use_signal(|| None::<u32>); // Segundos que faltan del temporizador
     let mut corriendo = use_signal(|| false); // Si el temporizador avanza
+    let mut inicio = use_signal(Instant::now); // Cuándo empezó esta preparación
+    let mut duracion_sel = use_signal(|| None::<i32>); // Lo que tomó, al terminar
 
     // Al cargar la receta, dejar listo el temporizador del primer paso
     use_effect(move ||
@@ -113,13 +117,23 @@ pub fn PantallaPreparar(id: String) -> Element
                 {
                     let total = receta.pasos.len();
                     let paso = paso_sel().min(total);
-                    let alias = sesion.read().as_ref().map(|guardada| guardada.perfil.alias.to_lowercase());
-                    let propia = alias.as_deref() == Some(receta.autor.to_lowercase().as_str()); // Los alias no distinguen mayúsculas
+                    let propia = crate::foro::es_propia(&sesion, receta);
 
                     // Ir a otro paso y dejar listo su temporizador, sin arrancarlo
                     let pasos_vec = receta.pasos.clone();
                     let mut ir_a = move |destino: usize|
                     {
+                        // Al terminar se fija la duración; al volver a empezar se mide de nuevo
+                        if destino >= total
+                        {
+                            let segundos = inicio.peek().elapsed().as_secs().min(api::diario::DURACION_MAXIMA_S as u64);
+                            duracion_sel.set(Some(segundos as i32));
+                        }
+                        else if destino == 0
+                        {
+                            inicio.set(Instant::now());
+                            duracion_sel.set(None);
+                        }
                         paso_sel.set(destino);
                         corriendo.set(false);
                         restante_sel.set(pasos_vec.get(destino).and_then(|paso| paso.temporizador_s).map(|s| s.max(0) as u32));
@@ -187,7 +201,11 @@ pub fn PantallaPreparar(id: String) -> Element
                             // Terminado: preguntar si salió (D4)
                             h1 { "¡Listo!" }
                             p { class: "bienvenida-texto", "¿Te salió igual que en la ficha?" }
-                            crate::foro::PanelValoracion { receta_id: receta.id.clone(), propia }
+                            if let Some(segundos) = duracion_sel()
+                            {
+                                p { class: "barra-meta", "Tiempo de preparación: {api::diario::duracion_legible(segundos)}" }
+                            }
+                            crate::foro::PanelValoracion { receta_id: receta.id.clone(), propia, duracion_s: duracion_sel() }
                             div
                             {
                                 class: "acciones-fila",

@@ -1,8 +1,9 @@
-//! La Barra (D1-D7): publicar, hilo, comentar, valorar, actividad y reportes, parte compartida.
+//! La Barra (D1-D7): publicar, hilo, comentar, valorar, reportar y fotos, parte compartida.
 //!
 //! Todas las server functions respetan la misma regla de visibilidad que la ficha: una
 //! receta oculta, privada ajena o con alcohol para una cuenta sin mayoría de edad declarada
-//! no tiene hilo ni valoraciones, y tampoco se puede comentar ni valorar.
+//! no tiene hilo ni valoraciones, y tampoco se puede comentar ni valorar. Las escrituras que
+//! le importan a otra cuenta dejan su aviso en la misma transacción (`notificaciones`).
 
 // LIBRERÍAS
 
@@ -12,6 +13,12 @@ use serde::Serialize; // Escritura de los tipos que viajan entre app y servidor
 
 #[cfg(feature = "server")]
 use crate::base::ConPlazo; // Plazo de cada consulta
+#[cfg(feature = "server")]
+use crate::notificaciones::destinatario; // Cuenta que recibe el aviso, si no es uno mismo
+#[cfg(feature = "server")]
+use crate::notificaciones::notificar; // Aviso dentro de la transacción
+#[cfg(feature = "server")]
+use crate::notificaciones::Aviso; // Datos del aviso
 
 // CONSTANTES Y VARIABLES GLOBALES
 
@@ -51,6 +58,9 @@ pub struct Comentario
     pub propuesta: Option<String>,
     /// Si lo escribió la cuenta que pregunta.
     pub propio: bool,
+    /// Ruta de la foto adjunta en Storage, si tiene.
+    #[serde(default)]
+    pub foto: Option<String>,
 }
 
 /// Comentario nuevo que manda la app.
@@ -69,6 +79,9 @@ pub struct ComentarioNuevo
     pub ancla: Option<Ancla>,
     /// Cantidad propuesta para el ancla: en la unidad de la capa, o segundos para un paso.
     pub propuesta: Option<f64>,
+    /// Ruta de la foto que la app ya subió a Storage, dentro de la carpeta del comentario.
+    #[serde(default)]
+    pub foto: Option<String>,
 }
 
 /// Recuento de «me salió / no me salió» de una receta.
@@ -108,6 +121,8 @@ struct FilaComentario
     propuesta: Option<f64>,
     /// Si lo escribió la cuenta que pregunta.
     propio: bool,
+    /// Ruta de la foto adjunta.
+    foto_ruta: Option<String>,
     /// Día de publicación.
     dia: i32,
     /// Mes de publicación (1-12).
@@ -130,6 +145,43 @@ struct FilaValoraciones
 }
 
 // FUNCIONES
+
+/// Condición SQL que se cumple cuando la receta del alias `tabla` no lleva alcohol.
+#[cfg(feature = "server")]
+pub(crate) fn sin_alcohol(tabla: &str) -> String
+{
+    format!(
+        "NOT EXISTS (SELECT 1 FROM componente_receta alcohol WHERE alcohol.receta_id = {tabla}.id AND alcohol.graduacion_pct > 0)"
+    )
+}
+
+/// Fecha legible a partir de sus partes, por ejemplo «12 nov 2026».
+#[cfg(feature = "server")]
+pub(crate) fn fecha_legible(dia: i32, mes: i32, anio: i32) -> String
+{
+    format!("{dia} {} {anio}", crate::historial::MESES[(mes.clamp(1, 12) - 1) as usize])
+}
+
+/// Texto del ancla de un comentario: «Capa · Leche», «Paso 2 · Espumar» o nada.
+#[cfg(feature = "server")]
+pub(crate) fn texto_ancla(capa: &Option<String>, paso_posicion: Option<i16>, paso_titulo: &Option<String>) -> Option<String>
+{
+    match (capa, paso_posicion)
+    {
+        (Some(capa), _) => Some(format!("Capa · {capa}")), // Anclado a una capa
+        (None, Some(posicion)) => Some(format!("Paso {} · {}", posicion + 1, paso_titulo.clone().unwrap_or_default())), // Anclado a un paso
+        (None, None) => None, // Comentario general
+    }
+}
+
+/// Indica si el nombre de archivo de una foto es seguro: letras, números, guion y punto.
+pub fn nombre_foto_valido(nombre: &str) -> bool
+{
+    !nombre.is_empty()
+        && nombre.len() <= 80
+        && nombre.chars().all(|letra| letra.is_ascii_alphanumeric() || letra == '-' || letra == '.')
+        && !nombre.contains("..")
+}
 
 /// Indica si la receta es visible para la cuenta, con la misma regla que la ficha.
 #[cfg(feature = "server")]
@@ -174,7 +226,7 @@ async fn visible(
 
 /// Cuenta del token o el error que pide iniciar sesión.
 #[cfg(feature = "server")]
-async fn cuenta_obligatoria(token: &str) -> Result<String, ServerFnError>
+pub(crate) async fn cuenta_obligatoria(token: &str) -> Result<String, ServerFnError>
 {
     crate::auth::cuenta(Some(token))
         .await
@@ -237,26 +289,59 @@ pub async fn publicar(token: String, receta_id: String, publica: bool) -> Result
 
     let pool = crate::base::pool()?;
     let cuenta = cuenta_obligatoria(&token).await?;
+    let mut tx = pool.begin().con_plazo("la publicación").await?;
 
-    // Cambiar la fecha de publicación solo si la receta es de la cuenta y no está oculta
-    let publicada = sqlx::query_scalar::<_, bool>(
+    // Leer el estado actual y a quién pertenece la receta original, si es una versión
+    let previa = sqlx::query_as::<_, (bool, Option<String>)>(
         r#"
-        UPDATE receta
-        SET publicada_en = CASE WHEN $3 THEN COALESCE(publicada_en, now()) ELSE NULL END
-        WHERE id = $1::uuid
-          AND autor_id = $2::uuid
-          AND NOT oculta
-        RETURNING publicada_en IS NOT NULL
+        SELECT r.publicada_en IS NOT NULL,
+               (SELECT o.autor_id::text FROM receta o WHERE o.id = r.receta_origen_id)
+        FROM receta r
+        WHERE r.id = $1::uuid
+          AND r.autor_id = $2::uuid
+          AND NOT r.oculta
+        FOR UPDATE OF r
         "#,
     )
     .bind(&receta_id)
     .bind(&cuenta)
+    .fetch_optional(&mut *tx)
+    .con_plazo("la publicación")
+    .await?;
+    let Some((estaba_publicada, autor_origen)) = previa else
+    {
+        return Err(crate::fallos::no_encontrado("Esa receta no existe o no es tuya.")); // No es suya o está oculta
+    };
+
+    // Cambiar la fecha de publicación
+    sqlx::query(
+        r#"
+        UPDATE receta
+        SET publicada_en = CASE WHEN $2 THEN COALESCE(publicada_en, now()) ELSE NULL END
+        WHERE id = $1::uuid
+        "#,
+    )
+    .bind(&receta_id)
     .bind(publica)
-    .fetch_optional(pool)
+    .execute(&mut *tx)
     .con_plazo("la publicación")
     .await?;
 
-    publicada.ok_or_else(|| crate::fallos::no_encontrado("Esa receta no existe o no es tuya.")) // No es suya o está oculta
+    // Una versión recién publicada avisa a quien creó la receta original
+    if publica
+        && !estaba_publicada
+        && let Some(dueno) = autor_origen.as_deref().and_then(|dueno| destinatario(dueno, &cuenta))
+    {
+        notificar(
+            &mut tx,
+            Aviso { para: dueno, actor: &cuenta, tipo: "version_derivada", receta_id: &receta_id, comentario_id: None },
+        )
+        .await?;
+    }
+
+    tx.commit().con_plazo("la publicación").await?;
+
+    Ok(publica) // Estado final de la receta
 }
 
 /// Trae el hilo de comentarios de una receta, del más antiguo al más reciente (D2).
@@ -293,6 +378,7 @@ pub async fn hilo(receta_id: String, token: Option<String>) -> Result<Vec<Coment
                p.titulo AS paso_titulo,
                c.propuesta,
                COALESCE(c.autor_id = $2::uuid, false) AS propio,
+               c.foto_ruta,
                EXTRACT(DAY FROM c.creado_en)::int AS dia,
                EXTRACT(MONTH FROM c.creado_en)::int AS mes,
                EXTRACT(YEAR FROM c.creado_en)::int AS anio
@@ -316,16 +402,7 @@ pub async fn hilo(receta_id: String, token: Option<String>) -> Result<Vec<Coment
         .into_iter()
         .map(|fila|
         {
-            let ancla = match (&fila.capa, fila.paso_posicion)
-            {
-                (Some(capa), _) => Some(format!("Capa · {capa}")), // Anclado a una capa
-                (None, Some(posicion)) => Some(format!(
-                    "Paso {} · {}",
-                    posicion + 1,
-                    fila.paso_titulo.clone().unwrap_or_default()
-                )), // Anclado a un paso
-                (None, None) => None, // Comentario general
-            };
+            let ancla = texto_ancla(&fila.capa, fila.paso_posicion, &fila.paso_titulo);
             let unidad = if fila.capa.is_some() { fila.unidad.clone().unwrap_or_default() } else { "s".to_string() };
 
             Comentario
@@ -333,16 +410,12 @@ pub async fn hilo(receta_id: String, token: Option<String>) -> Result<Vec<Coment
                 id: fila.id,
                 autor: fila.autor,
                 texto: fila.texto,
-                fecha: format!(
-                    "{} {} {}",
-                    fila.dia,
-                    crate::historial::MESES[(fila.mes.clamp(1, 12) - 1) as usize],
-                    fila.anio
-                ),
+                fecha: fecha_legible(fila.dia, fila.mes, fila.anio),
                 respuesta_a: fila.respuesta_a,
                 propuesta: fila.propuesta.filter(|_| ancla.is_some()).map(|cantidad| format!("{cantidad:.0} {unidad}")),
                 ancla,
                 propio: fila.propio,
+                foto: fila.foto_ruta,
             }
         })
         .collect();
@@ -353,12 +426,14 @@ pub async fn hilo(receta_id: String, token: Option<String>) -> Result<Vec<Coment
 /// Publica un comentario en el hilo de una receta, anclado o no (D3).
 ///
 /// Devuelve el identificador del comentario. Si la app reenvía el mismo `id` desde la cola,
-/// no se crea otro.
+/// no se crea otro ni se avisa dos veces. Un comentario nuevo avisa a quien publicó la receta
+/// o, si es una respuesta, a quien escribió el comentario respondido.
 ///
 /// # Errores
 ///
 /// Devuelve `ServerFnError` si no hay sesión, si el texto está vacío o es demasiado largo,
-/// si la receta no es visible para la cuenta, si el ancla no existe o si la consulta falla.
+/// si la receta no es visible para la cuenta, si el ancla, el comentario respondido o la foto
+/// no son válidos, o si la escritura falla.
 #[server(endpoint = "comentar")]
 pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, ServerFnError>
 {
@@ -384,9 +459,48 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
         ));
     }
 
+    // Validar los identificadores que llegan de la app antes de mandarlos a la base
+    if nuevo.id.as_deref().is_some_and(|id| !crate::fallos::es_uuid(id))
+    {
+        return Err(crate::fallos::datos("El comentario no es válido: vuelve a escribirlo."));
+    }
+    if nuevo.respuesta_a.as_deref().is_some_and(|id| !crate::fallos::es_uuid(id))
+    {
+        return Err(crate::fallos::datos("El comentario al que respondes no es válido: vuelve a abrir la receta."));
+    }
+
+    // Validar la foto: tiene que estar en la carpeta de la cuenta y de este comentario
+    if let Some(ruta) = &nuevo.foto
+    {
+        let prefijo = format!("{cuenta}/comentarios/{}/", nuevo.id.as_deref().unwrap_or_default());
+        if nuevo.id.is_none() || !nombre_foto_valido(ruta.strip_prefix(&prefijo).unwrap_or_default())
+        {
+            return Err(crate::fallos::datos(
+                "La ruta de la foto no es válida: tiene que estar dentro de tu carpeta.",
+            ));
+        }
+    }
+
     if !visible(pool, &nuevo.receta_id, &Some(cuenta.clone()), adulto).await?
     {
         return Err(crate::fallos::no_encontrado("Esa receta no existe o ya no está disponible."));
+    }
+
+    // Comprobar que el comentario respondido sigue visible y es de esta receta
+    if let Some(respondido) = &nuevo.respuesta_a
+    {
+        let existe = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM comentario WHERE id = $1::uuid AND receta_id = $2::uuid AND NOT oculto)",
+        )
+        .bind(respondido)
+        .bind(&nuevo.receta_id)
+        .fetch_one(pool)
+        .con_plazo("el comentario respondido")
+        .await?;
+        if !existe
+        {
+            return Err(crate::fallos::datos("Ese comentario ya no está disponible: comenta la receta."));
+        }
     }
 
     // Resolver el ancla por su posición dentro de la receta
@@ -421,13 +535,19 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
         None => (None, None), // Comentario general
     };
 
-    // Insertar el comentario; un reenvío con el mismo id no hace nada
-    let creado = sqlx::query_scalar::<_, String>(
+    let mut tx = pool.begin().con_plazo("el comentario").await?;
+
+    // Insertar el comentario y leer a quién hay que avisar; un reenvío con el mismo id no hace nada
+    let creado = sqlx::query_as::<_, (String, Option<String>)>(
         r#"
-        INSERT INTO comentario (id, receta_id, autor_id, respuesta_a, texto, componente_id, paso_id, propuesta)
-        VALUES (COALESCE($1::uuid, gen_random_uuid()), $2::uuid, $3::uuid, $4::uuid, $5, $6::uuid, $7::uuid, $8)
+        INSERT INTO comentario (id, receta_id, autor_id, respuesta_a, texto, componente_id, paso_id, propuesta, foto_ruta)
+        VALUES (COALESCE($1::uuid, gen_random_uuid()), $2::uuid, $3::uuid, $4::uuid, $5, $6::uuid, $7::uuid, $8, $9)
         ON CONFLICT (id) DO NOTHING
-        RETURNING id::text
+        RETURNING id::text,
+                  COALESCE(
+                      (SELECT padre.autor_id FROM comentario padre WHERE padre.id = comentario.respuesta_a),
+                      (SELECT r.autor_id FROM receta r WHERE r.id = comentario.receta_id)
+                  )::text
         "#,
     )
     .bind(&nuevo.id)
@@ -438,15 +558,26 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
     .bind(&componente_id)
     .bind(&paso_id)
     .bind(nuevo.propuesta)
-    .fetch_optional(pool)
-    .await
-    .map_err(|causa| {
-        dioxus::logger::tracing::error!("no se pudo guardar el comentario: {causa}");
+    .bind(&nuevo.foto)
+    .fetch_optional(&mut *tx)
+    .con_plazo("el comentario")
+    .await?;
 
-        crate::fallos::reintento("No se pudo guardar el comentario. Vuelve a intentarlo.")
-    })?;
+    // Comentario nuevo de otra persona: avisar al dueño de la receta o del comentario respondido
+    if let Some((id, dueno)) = &creado
+        && let Some(para) = dueno.as_deref().and_then(|dueno| destinatario(dueno, &cuenta))
+    {
+        notificar(
+            &mut tx,
+            Aviso { para, actor: &cuenta, tipo: "respuesta", receta_id: &nuevo.receta_id, comentario_id: Some(id) },
+        )
+        .await?;
+    }
+
+    tx.commit().con_plazo("el comentario").await?;
 
     creado
+        .map(|(id, _)| id)
         .or(nuevo.id)
         .ok_or_else(|| crate::fallos::reintento("No se pudo guardar el comentario. Vuelve a intentarlo.")) // Id nuevo o el del reenvío
 }
@@ -492,19 +623,18 @@ pub async fn valorar(token: String, receta_id: String, me_salio: bool) -> Result
         return Err(crate::fallos::no_encontrado("Esa receta no existe o ya no está disponible."));
     }
 
+    let mut tx = pool.begin().con_plazo("la valoración").await?;
+
     // Rechazar la valoración de la propia receta
-    let propia = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS (SELECT 1 FROM receta WHERE id = $1::uuid AND autor_id = $2::uuid)",
-    )
-    .bind(&receta_id)
-    .bind(&cuenta)
-    .fetch_one(pool)
-    .con_plazo("la receta del comentario")
-    .await?;
-    if propia
+    let autor = sqlx::query_scalar::<_, String>("SELECT autor_id::text FROM receta WHERE id = $1::uuid")
+        .bind(&receta_id)
+        .fetch_one(&mut *tx)
+        .con_plazo("la receta valorada")
+        .await?;
+    let Some(para) = destinatario(&autor, &cuenta) else
     {
         return Err(crate::fallos::datos("No puedes valorar tu propia receta."));
-    }
+    };
 
     // Actualizar la última valoración de la cuenta o crear la primera
     sqlx::query(
@@ -528,50 +658,23 @@ pub async fn valorar(token: String, receta_id: String, me_salio: bool) -> Result
     .bind(&receta_id)
     .bind(&cuenta)
     .bind(me_salio)
-    .execute(pool)
-    .await
-    .map_err(|causa| {
-        dioxus::logger::tracing::error!("no se pudo guardar la valoración: {causa}");
+    .execute(&mut *tx)
+    .con_plazo("tu valoración")
+    .await?;
 
-        crate::fallos::reintento("No se pudo guardar tu valoración. Vuelve a intentarlo.")
-    })?;
+    // Avisar a quien publicó la receta
+    notificar(
+        &mut tx,
+        Aviso { para, actor: &cuenta, tipo: "valoracion", receta_id: &receta_id, comentario_id: None },
+    )
+    .await?;
 
-    recuento(pool, &receta_id, &Some(cuenta)).await
+    tx.commit().con_plazo("tu valoración").await?;
+
+        recuento(pool, &receta_id, &Some(cuenta)).await
 }
 
-// ACTIVIDAD Y REPORTES (D6 y D7)
-
-/// Tipo de novedad que aparece en Actividad.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum TipoEvento
-{
-    /// Alguien comentó una receta propia.
-    Comentario,
-    /// Alguien respondió a un comentario propio.
-    Respuesta,
-    /// Alguien valoró una receta propia.
-    Valoracion,
-    /// Alguien publicó una versión derivada de una receta propia.
-    Derivada,
-}
-
-/// Novedad sobre las recetas o los comentarios de la cuenta.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Evento
-{
-    /// Qué pasó.
-    pub tipo: TipoEvento,
-    /// Alias de quien lo hizo.
-    pub actor: String,
-    /// Receta a la que lleva la novedad (la derivada, en una derivación).
-    pub receta_id: String,
-    /// Nombre de esa receta.
-    pub receta_nombre: String,
-    /// Detalle: el texto del comentario o «me salió / no me salió».
-    pub detalle: String,
-    /// Fecha legible, por ejemplo «12 nov 2026».
-    pub fecha: String,
-}
+// REPORTES (D7)
 
 /// Motivo de un reporte, igual que el CHECK de la tabla.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -607,6 +710,12 @@ impl Motivo
         }
     }
 
+    /// Motivo que corresponde a una clave de la base, si existe.
+    pub fn de_clave(clave: &str) -> Option<Motivo>
+    {
+        Motivo::TODOS.into_iter().find(|motivo| motivo.clave() == clave)
+    }
+
     /// Texto visible del motivo.
     pub fn etiqueta(self) -> &'static str
     {
@@ -635,135 +744,17 @@ pub struct ReporteNuevo
     pub detalle: Option<String>,
 }
 
-/// Fila de una novedad de Actividad (solo servidor).
-#[cfg(feature = "server")]
-#[derive(sqlx::FromRow)]
-struct FilaEvento
-{
-    /// Clave del tipo de novedad.
-    tipo: String,
-    /// Alias de quien la hizo.
-    actor: String,
-    /// Receta a la que lleva.
-    receta_id: String,
-    /// Nombre de la receta.
-    receta_nombre: String,
-    /// Texto del detalle.
-    detalle: String,
-    /// Día de la novedad.
-    dia: i32,
-    /// Mes de la novedad (1-12).
-    mes: i32,
-    /// Año de la novedad.
-    anio: i32,
-}
-
-/// Trae las últimas 50 novedades sobre las recetas y los comentarios de la cuenta (D6).
-///
-/// Junta comentarios y valoraciones de otras personas en recetas propias, respuestas a
-/// comentarios propios y versiones publicadas que derivan de recetas propias. Una derivada
-/// con alcohol no aparece si la cuenta no declaró mayoría de edad.
-///
-/// # Errores
-///
-/// Devuelve `ServerFnError` si no hay sesión o si la consulta falla.
-#[server(endpoint = "actividad")]
-pub async fn actividad(token: String) -> Result<Vec<Evento>, ServerFnError>
-{
-    let pool = crate::base::pool()?;
-    let cuenta = cuenta_obligatoria(&token).await?;
-    let adulto = crate::auth::es_adulto(Some(&token)).await;
-
-    // Juntar las cuatro clases de novedad y quedarse con las más recientes
-    let filas_vec = sqlx::query_as::<_, FilaEvento>(
-        r#"
-        WITH eventos AS (
-            SELECT 'comentario' AS tipo, c.autor_id AS actor_id, r.id AS receta_id, r.nombre AS receta_nombre,
-                   c.texto AS detalle, c.creado_en AS fecha
-            FROM comentario c
-            JOIN receta r ON r.id = c.receta_id
-            WHERE r.autor_id = $1::uuid AND c.autor_id <> $1::uuid AND c.respuesta_a IS NULL AND NOT c.oculto
-            UNION ALL
-            SELECT 'respuesta', c.autor_id, r.id, r.nombre, c.texto, c.creado_en
-            FROM comentario c
-            JOIN comentario padre ON padre.id = c.respuesta_a
-            JOIN receta r ON r.id = c.receta_id
-            WHERE padre.autor_id = $1::uuid AND c.autor_id <> $1::uuid AND NOT c.oculto
-            UNION ALL
-            SELECT 'valoracion', p.usuario_id, r.id, r.nombre,
-                   CASE WHEN p.me_salio THEN 'Le salió' ELSE 'No le salió' END, p.creada_en
-            FROM preparacion p
-            JOIN receta r ON r.id = p.receta_id
-            WHERE r.autor_id = $1::uuid AND p.usuario_id <> $1::uuid
-            UNION ALL
-            SELECT 'derivada', d.autor_id, d.id, d.nombre, 'Versión de ' || o.nombre, d.creada_en
-            FROM receta d
-            JOIN receta o ON o.id = d.receta_origen_id
-            WHERE o.autor_id = $1::uuid AND d.autor_id <> $1::uuid
-              AND d.publicada_en IS NOT NULL AND NOT d.oculta
-              AND ($2 OR NOT EXISTS (
-                    SELECT 1 FROM componente_receta alcohol
-                    WHERE alcohol.receta_id = d.id AND alcohol.graduacion_pct > 0
-                  ))
-        )
-        SELECT e.tipo,
-               COALESCE(u.alias, 'Anónimo') AS actor,
-               e.receta_id::text AS receta_id,
-               e.receta_nombre,
-               e.detalle,
-               EXTRACT(DAY FROM e.fecha)::int AS dia,
-               EXTRACT(MONTH FROM e.fecha)::int AS mes,
-               EXTRACT(YEAR FROM e.fecha)::int AS anio
-        FROM eventos e
-        LEFT JOIN usuario u ON u.id = e.actor_id
-        ORDER BY e.fecha DESC
-        LIMIT 50
-        "#,
-    )
-    .bind(&cuenta)
-    .bind(adulto)
-    .fetch_all(pool)
-    .con_plazo("la respuesta del comentario")
-    .await?;
-
-    // Convertir cada fila en la novedad que pinta la app
-    let eventos_vec = filas_vec
-        .into_iter()
-        .map(|fila| Evento
-        {
-            tipo: match fila.tipo.as_str()
-            {
-                "respuesta" => TipoEvento::Respuesta,
-                "valoracion" => TipoEvento::Valoracion,
-                "derivada" => TipoEvento::Derivada,
-                _ => TipoEvento::Comentario,
-            },
-            actor: fila.actor,
-            receta_id: fila.receta_id,
-            receta_nombre: fila.receta_nombre,
-            detalle: fila.detalle,
-            fecha: format!(
-                "{} {} {}",
-                fila.dia,
-                crate::historial::MESES[(fila.mes.clamp(1, 12) - 1) as usize],
-                fila.anio
-            ),
-        })
-        .collect();
-
-    Ok(eventos_vec)
-}
-
 /// Reporta una receta o un comentario para la cola de moderación (D7).
 ///
-/// Cada cuenta reporta una sola vez cada contenido: un segundo reporte no crea otro.
+/// Cada cuenta reporta una sola vez cada contenido: devuelve `true` si el reporte es nuevo
+/// y `false` si la cuenta ya lo había reportado, sin crear otro.
 ///
 /// # Errores
 ///
 /// Devuelve `ServerFnError` si no hay sesión, si no se indica exactamente un contenido, si
 /// ese contenido no es visible para la cuenta o si la consulta falla.
 #[server(endpoint = "reportar")]
-pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<(), ServerFnError>
+pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<bool, ServerFnError>
 {
     let pool = crate::base::pool()?;
     let cuenta = cuenta_obligatoria(&token).await?;
@@ -810,7 +801,7 @@ pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<(), Server
         .map(|texto| texto.chars().take(LARGO_MAXIMO).collect::<String>()); // Detalle limpio y acotado
 
     // Insertar el reporte salvo que la cuenta ya haya reportado ese contenido
-    sqlx::query(
+    let creado = sqlx::query(
         r#"
         INSERT INTO reporte (reportante_id, receta_id, comentario_id, motivo, detalle)
         SELECT $1::uuid, $2::uuid, $3::uuid, $4, $5
@@ -835,7 +826,7 @@ pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<(), Server
         crate::fallos::reintento("No se pudo guardar el reporte. Vuelve a intentarlo.")
     })?;
 
-    Ok(())
+    Ok(creado.rows_affected() > 0) // `false`: ya lo había reportado
 }
 
 // FOTOS (D1)
@@ -868,12 +859,7 @@ pub async fn agregar_foto(token: String, receta_id: String, ruta: String) -> Res
 
     // Aceptar solo una ruta dentro de la carpeta de la cuenta y la receta
     let prefijo = format!("{cuenta}/{receta_id}/");
-    let nombre = ruta.strip_prefix(&prefijo).unwrap_or_default();
-    let nombre_valido = !nombre.is_empty()
-        && nombre.len() <= 80
-        && nombre.chars().all(|letra| letra.is_ascii_alphanumeric() || letra == '-' || letra == '.')
-        && !nombre.contains("..");
-    if !nombre_valido
+    if !nombre_foto_valido(ruta.strip_prefix(&prefijo).unwrap_or_default())
     {
         return Err(crate::fallos::datos(
             "La ruta de la foto no es válida: tiene que estar dentro de tu carpeta.",

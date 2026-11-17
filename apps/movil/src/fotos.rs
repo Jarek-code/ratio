@@ -1,8 +1,9 @@
-//! Fotos de una receta (D1): galería y subida directa a Supabase Storage, parte de la app.
+//! Fotos de una receta (D1) y de un comentario (D3): galería y subida directa a Supabase
+//! Storage, parte de la app.
 //!
 //! La foto viaja de la app al bucket `fotos-recetas` con el token de la sesión; la política
 //! del bucket solo deja subir a la carpeta `{cuenta}/…`. Después el servidor registra la ruta
-//! en la receta. Las fotos se ven por la URL pública de la CDN de Storage.
+//! en la receta o en el comentario. Las fotos se ven por la URL pública de la CDN de Storage.
 
 // LIBRERÍAS
 
@@ -45,8 +46,14 @@ fn base() -> Option<&'static str>
     SUPABASE_URL.map(|url| url.trim_end_matches('/')).filter(|url| !url.is_empty())
 }
 
+/// Si la app puede adjuntar fotos: tiene Storage configurado y cómo elegir una imagen.
+pub fn puede_adjuntar() -> bool
+{
+    HAY_SELECTOR && base().is_some()
+}
+
 /// URL pública de una foto en la CDN de Storage.
-fn url_publica(ruta: &str) -> Option<String>
+pub fn url_publica(ruta: &str) -> Option<String>
 {
     base().map(|url| format!("{url}/storage/v1/object/public/{BUCKET}/{ruta}"))
 }
@@ -63,16 +70,11 @@ fn extension(tipo: &str) -> Option<&'static str>
     }
 }
 
-/// Sube los bytes de una foto al bucket y registra su ruta en la receta; devuelve las rutas.
+/// Sube los bytes de una foto a `{carpeta}/{nombre nuevo}.{ext}` del bucket; devuelve la ruta.
 ///
-/// `tipo` es el tipo MIME de la imagen. Devuelve un mensaje en español listo para mostrar.
-async fn subir_bytes(
-    token: String,
-    cuenta: String,
-    receta_id: String,
-    bytes: Vec<u8>,
-    tipo: &str,
-) -> Result<Vec<String>, String>
+/// `carpeta` empieza por la cuenta y `tipo` es el tipo MIME de la imagen. Devuelve un mensaje
+/// en español listo para mostrar.
+async fn subir_bytes(token: &str, carpeta: &str, bytes: Vec<u8>, tipo: &str) -> Result<String, String>
 {
     let (Some(url), Some(anon)) = (base(), SUPABASE_ANON) else
     {
@@ -88,7 +90,7 @@ async fn subir_bytes(
     }
 
     let nombre = crate::local::nuevo_id().ok_or_else(|| "No se pudo nombrar la foto.".to_string())?;
-    let ruta = format!("{cuenta}/{receta_id}/{nombre}.{ext}"); // Carpeta propia de la cuenta
+    let ruta = format!("{carpeta}/{nombre}.{ext}"); // Carpeta propia de la cuenta
 
     // Subir directo a Storage con el token de la sesión
     let respuesta = reqwest::Client::builder()
@@ -97,7 +99,7 @@ async fn subir_bytes(
         .build()
         .map_err(|_| "No se pudo preparar la subida de la foto.".to_string())?
         .post(format!("{url}/storage/v1/object/{BUCKET}/{ruta}"))
-        .bearer_auth(&token)
+        .bearer_auth(token)
         .header("apikey", anon)
         .header("content-type", tipo)
         .body(bytes)
@@ -117,6 +119,40 @@ async fn subir_bytes(
     {
         return Err("Storage rechazó la foto.".to_string());
     }
+
+    Ok(ruta) // Ruta de la foto dentro del bucket
+}
+
+/// Deja elegir una foto y la sube a la carpeta de un comentario; devuelve su ruta.
+///
+/// `archivo` es el archivo del selector de escritorio; en iOS llega vacío y se abre la
+/// galería nativa. Devuelve `None` si la persona canceló.
+pub async fn subir_foto_comentario(
+    token: String,
+    cuenta: String,
+    comentario_id: String,
+    archivo: Option<dioxus::html::FileData>,
+) -> Result<Option<String>, String>
+{
+    match elegir(archivo).await?
+    {
+        Some((bytes, tipo)) => subir_bytes(&token, &format!("{cuenta}/comentarios/{comentario_id}"), bytes, &tipo)
+            .await
+            .map(Some), // Foto elegida: subirla
+        None => Ok(None), // Selección cancelada
+    }
+}
+
+/// Sube una foto a la carpeta de una receta y registra su ruta; devuelve las rutas de la receta.
+async fn subir_a_receta(
+    token: String,
+    cuenta: String,
+    receta_id: String,
+    bytes: Vec<u8>,
+    tipo: &str,
+) -> Result<Vec<String>, String>
+{
+    let ruta = subir_bytes(&token, &format!("{cuenta}/{receta_id}"), bytes, tipo).await?;
 
     // Registrar la ruta en la receta
     crate::red::con_plazo(api::foro::agregar_foto(token, receta_id, ruta))
@@ -160,6 +196,54 @@ async fn elegir(archivo: Option<dioxus::html::FileData>) -> Result<Option<(Vec<u
     Ok(Some((bytes.to_vec(), tipo))) // Bytes y tipo del archivo elegido
 }
 
+/// Control para elegir una foto: la galería nativa en iOS, el selector de archivos en escritorio.
+///
+/// `id` distingue el control dentro de la página, `ocupado` lo desactiva mientras se sube y
+/// `al_elegir` recibe el archivo elegido (`None` en iOS, donde la galería se abre después).
+#[component]
+pub fn BotonFoto(id: String, ocupado: bool, etiqueta: String, al_elegir: EventHandler<Option<dioxus::html::FileData>>) -> Element
+{
+    rsx!
+    {
+        // iOS: botón que abre la galería nativa; escritorio: selector de archivos
+        if GALERIA_NATIVA
+        {
+            button
+            {
+                class: "chip foto-subir",
+                r#type: "button",
+                disabled: ocupado,
+                onclick: move |_| al_elegir.call(None),
+                if ocupado { "Un momento…" } else { "{etiqueta}" }
+            }
+        }
+        else
+        {
+            label
+            {
+                class: "chip chip--enlace foto-subir",
+                r#for: "{id}",
+                if ocupado { "Subiendo…" } else { "{etiqueta}" }
+            }
+            input
+            {
+                id: "{id}",
+                class: "solo-lector",
+                r#type: "file",
+                accept: "image/jpeg,image/png,image/webp",
+                disabled: ocupado,
+                onchange: move |evento: FormEvent|
+                {
+                    if let Some(archivo) = evento.files().into_iter().next()
+                    {
+                        al_elegir.call(Some(archivo));
+                    }
+                },
+            }
+        }
+    }
+}
+
 /// Galería de fotos de la receta y, para quien la creó, el botón para agregar una (D1).
 #[component]
 pub fn FotosReceta(receta: RecetaCompleta) -> Element
@@ -169,9 +253,8 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element
     let mut subiendo = use_signal(|| false); // Subida en curso
     let mut aviso = use_signal(|| None::<String>); // Resultado visible
 
-    let alias = sesion.read().as_ref().map(|guardada| guardada.perfil.alias.to_lowercase());
-    let propia = alias.as_deref() == Some(receta.autor.to_lowercase().as_str()); // Los alias no distinguen mayúsculas
-    let puede_subir = HAY_SELECTOR && propia && base().is_some() && fotos_sel().len() < api::foro::FOTOS_MAXIMAS;
+    let propia = crate::foro::es_propia(&sesion, &receta);
+    let puede_subir = puede_adjuntar() && propia && fotos_sel().len() < api::foro::FOTOS_MAXIMAS;
     let receta_id = receta.id.clone();
     let nombre = receta.receta.nombre.clone();
 
@@ -191,7 +274,7 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element
         {
             let resultado = match elegir(archivo).await
             {
-                Ok(Some((bytes, tipo))) => subir_bytes(token, cuenta, id, bytes, &tipo).await.map(Some), // Foto elegida: subirla
+                Ok(Some((bytes, tipo))) => subir_a_receta(token, cuenta, id, bytes, &tipo).await.map(Some), // Foto elegida: subirla
                 Ok(None) => Ok(None), // Selección cancelada
                 Err(mensaje) => Err(mensaje), // No se pudo elegir
             };
@@ -235,41 +318,12 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element
             // Receta propia con espacio: permitir agregar una foto
             if puede_subir
             {
-                // iOS: botón que abre la galería nativa; escritorio: selector de archivos
-                if GALERIA_NATIVA
+                BotonFoto
                 {
-                    button
-                    {
-                        class: "chip foto-subir",
-                        r#type: "button",
-                        disabled: subiendo(),
-                        onclick: move |_| subir_foto.call(None),
-                        if subiendo() { "Un momento…" } else { "Elegir de la galería" }
-                    }
-                }
-                else
-                {
-                    label
-                    {
-                        class: "chip chip--enlace foto-subir",
-                        r#for: "foto-nueva",
-                        if subiendo() { "Subiendo…" } else { "Agregar foto" }
-                    }
-                    input
-                    {
-                        id: "foto-nueva",
-                        class: "solo-lector",
-                        r#type: "file",
-                        accept: "image/jpeg,image/png,image/webp",
-                        disabled: subiendo(),
-                        onchange: move |evento: FormEvent|
-                        {
-                            if let Some(archivo) = evento.files().into_iter().next()
-                            {
-                                subir_foto.call(Some(archivo));
-                            }
-                        },
-                    }
+                    id: "foto-nueva",
+                    ocupado: subiendo(),
+                    etiqueta: "Agregar foto",
+                    al_elegir: move |archivo| subir_foto.call(archivo),
                 }
                 p { class: "nota", "Hasta {api::foro::FOTOS_MAXIMAS} fotos JPG, PNG o WebP de 5 MB como máximo." }
             }

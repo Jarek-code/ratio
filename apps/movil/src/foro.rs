@@ -1,8 +1,10 @@
-//! La Barra en la app (D1-D4): publicar, valorar, hilo y comentario anclado, parte de la app.
+//! La Barra en la app (D1-D4 y D7): publicar, valorar, hilo, comentario anclado y reporte,
+//! parte de la app.
 //!
 //! La sección de la ficha muestra el recuento de «me salió / no me salió», el hilo con las
 //! respuestas bajo su comentario y el formulario para comentar, anclado o no a una capa o a
-//! un paso. Las escrituras pasan por la cola sin conexión: sin red quedan pendientes.
+//! un paso y con una foto opcional. Las escrituras pasan por la cola sin conexión: sin red
+//! quedan pendientes, y los comentarios en cola se ven en el hilo como «pendiente de enviar».
 
 // LIBRERÍAS
 
@@ -20,9 +22,32 @@ use dioxus::prelude::*; // Componentes, señales y recursos
 use crate::local::Cambio; // Cambio que se encola sin conexión
 use crate::local::SenalPendientes; // Contador de cambios pendientes
 use crate::red::AvisoRed; // Aviso de fallo con su botón de reintentar
+use crate::rutas::Rutas; // Ruta del perfil de quien comenta
 use crate::sesion::SenalSesion; // Sesión con cuenta, alias y token
 
 // FUNCIONES
+
+/// Indica si la receta es de la cuenta que tiene la sesión abierta.
+///
+/// Compara la cuenta del autor; una copia guardada por una versión anterior de la app no la
+/// trae, y entonces se compara el alias, que no distingue mayúsculas.
+pub fn es_propia(sesion: &SenalSesion, receta: &RecetaCompleta) -> bool
+{
+    let sesion_leida = sesion.read();
+    let Some(guardada) = sesion_leida.as_ref() else
+    {
+        return false; // Sin sesión nada es propio
+    };
+
+    if receta.autor_id.is_empty()
+    {
+        guardada.perfil.alias.to_lowercase() == receta.autor.to_lowercase()
+    }
+    else
+    {
+        guardada.perfil.usuario_id.eq_ignore_ascii_case(&receta.autor_id)
+    }
+}
 
 /// Convierte el valor del desplegable de ancla («c3», «p1» o vacío) en un ancla.
 fn ancla_de(valor: &str) -> Option<Ancla>
@@ -141,9 +166,11 @@ pub fn BotonPublicar(receta_id: String, publicada: bool, al_cambiar: EventHandle
 
 /// Recuento de «me salió / no me salió» con los botones para valorar (D4).
 ///
-/// `propia` oculta los botones: quien publicó la receta no la valora.
+/// `propia` oculta los botones: quien publicó la receta no la valora. `duracion_s` es lo que
+/// tomó la preparación guiada, si se midió; se guarda junto con la valoración. Después de
+/// valorar se pregunta, aparte y de forma opcional, cuánto gustó la bebida.
 #[component]
-pub fn PanelValoracion(receta_id: String, propia: bool) -> Element
+pub fn PanelValoracion(receta_id: String, propia: bool, #[props(default)] duracion_s: Option<i32>) -> Element
 {
     let sesion = use_context::<SenalSesion>(); // Token para leer y valorar
     let mut pendientes = use_context::<SenalPendientes>(); // Cola sin conexión
@@ -155,10 +182,38 @@ pub fn PanelValoracion(receta_id: String, propia: bool) -> Element
         crate::red::con_reintentos(move || api::foro::valoraciones(id.clone(), token.clone()))
     }); // Recuento del servidor
     let mut local_sel = use_signal(|| None::<Valoraciones>); // Recuento tras valorar
+    let mut valorada = use_signal(|| false); // Si se valoró en esta visita
+    let mut gusto_sel = use_signal(|| None::<i16>); // Gusto elegido en esta visita
     let mut aviso = use_signal(|| None::<String>); // Resultado visible
 
     let actual = local_sel().or_else(|| recurso.read().as_ref().and_then(|res| res.as_ref().ok().copied())); // Recuento a mostrar
     let con_sesion = sesion.read().is_some();
+
+    // Guardar el gusto y la duración de la preparación, o encolarlos sin conexión
+    let id_detalle = receta_id.clone();
+    let detallar = use_callback(move |gusto: Option<i16>|
+    {
+        let Some(token) = crate::sesion::token(&sesion) else
+        {
+            return; // Sin sesión no hay preparación que completar
+        };
+        if gusto.is_none() && duracion_s.is_none()
+        {
+            return; // Nada que guardar
+        }
+        let id = id_detalle.clone();
+
+        spawn(async move
+        {
+            match crate::red::con_plazo(api::diario::detallar_preparacion(token, id.clone(), gusto, duracion_s)).await
+            {
+                Ok(()) => {}
+                Err(causa) if crate::local::es_sin_conexion(&causa)
+                    && crate::local::encolar(&sesion, &mut pendientes, Cambio::Detalle { receta_id: id, gusto, duracion_s }) => {}
+                Err(causa) => aviso.set(Some(format!("No se pudo guardar tu gusto: {}", crate::red::mensaje(&causa)))),
+            }
+        });
+    });
 
     // Enviar una valoración, o encolarla sin conexión
     let valorar = use_callback(move |me_salio: bool|
@@ -174,10 +229,17 @@ pub fn PanelValoracion(receta_id: String, propia: bool) -> Element
         {
             match crate::red::con_plazo(api::foro::valorar(token, id.clone(), me_salio)).await
             {
-                Ok(recuento) => local_sel.set(Some(recuento)),
+                Ok(recuento) =>
+                {
+                    local_sel.set(Some(recuento));
+                    valorada.set(true);
+                    detallar.call(gusto_sel()); // La duración viaja en cuanto existe la preparación
+                }
                 Err(causa) if crate::local::es_sin_conexion(&causa)
                     && crate::local::encolar(&sesion, &mut pendientes, Cambio::Valoracion { receta_id: id, me_salio }) =>
                 {
+                    valorada.set(true);
+                    detallar.call(gusto_sel()); // Queda en la cola detrás de la valoración
                     aviso.set(Some("Sin conexión: tu valoración se enviará cuando vuelva la red.".to_string()));
                 }
                 Err(causa) => aviso.set(Some(format!("No se pudo guardar tu valoración: {}", crate::red::mensaje(&causa)))),
@@ -229,6 +291,41 @@ pub fn PanelValoracion(receta_id: String, propia: bool) -> Element
                 }
             }
 
+            // Recién valorada: preguntar aparte cuánto gustó
+            if valorada()
+            {
+                div
+                {
+                    class: "barra-gusto",
+                    role: "group",
+                    "aria-label": "Aparte, ¿cuánto te gustó? De 1, nada, a 5, mucho",
+
+                    p { class: "barra-recuento", "Aparte: ¿te gustó? (opcional)" }
+                    div
+                    {
+                        class: "acciones-fila",
+                        for valor in 1..=5_i16
+                        {
+                            button
+                            {
+                                key: "{valor}",
+                                class: if gusto_sel() == Some(valor) { "chip chip--activo" } else { "chip" },
+                                r#type: "button",
+                                "aria-pressed": if gusto_sel() == Some(valor) { "true" } else { "false" },
+                                "aria-label": "Gusto {valor} de 5",
+                                onclick: move |_|
+                                {
+                                    gusto_sel.set(Some(valor));
+                                    detallar.call(Some(valor));
+                                },
+                                "{valor}"
+                            }
+                        }
+                    }
+                    p { class: "nota", "Tu gusto se guarda en tu diario y no cambia el porcentaje de «me salió»." }
+                }
+            }
+
             if propia
             {
                 p { class: "nota", "Es tu receta: quienes la preparen dirán si les salió." }
@@ -270,9 +367,41 @@ fn FormularioComentario(
     let mut propuesta_sel = use_signal(String::new); // Cantidad propuesta escrita
     let mut enviando = use_signal(|| false); // Petición en curso
     let mut aviso = use_signal(|| None::<String>); // Resultado visible
+    let mut id_sel = use_signal(|| None::<String>); // Id del comentario, fijado al adjuntar una foto
+    let mut foto_sel = use_signal(|| None::<String>); // Ruta de la foto ya subida
+    let mut subiendo = use_signal(|| false); // Subida de la foto en curso
 
     let receta_id = receta.id.clone();
     let con_ancla = !ancla_sel().is_empty();
+
+    // Elegir una foto y subirla a la carpeta de este comentario
+    let adjuntar = use_callback(move |archivo: Option<dioxus::html::FileData>|
+    {
+        let (Some(token), Some(cuenta)) = (crate::sesion::token(&sesion), crate::sesion::cuenta(&sesion)) else
+        {
+            aviso.set(Some("Vuelve a entrar para adjuntar una foto.".to_string()));
+            return; // Sin sesión no se sube
+        };
+        let Some(id) = id_sel().or_else(crate::local::nuevo_id) else
+        {
+            aviso.set(Some("No se pudo preparar la foto en este dispositivo.".to_string()));
+            return; // Sin identificador no hay carpeta donde subirla
+        };
+        id_sel.set(Some(id.clone()));
+        subiendo.set(true);
+        aviso.set(None);
+
+        spawn(async move
+        {
+            match crate::fotos::subir_foto_comentario(token, cuenta, id, archivo).await
+            {
+                Ok(Some(ruta)) => foto_sel.set(Some(ruta)),
+                Ok(None) => {} // Selección cancelada
+                Err(mensaje) => aviso.set(Some(mensaje)),
+            }
+            subiendo.set(false);
+        });
+    });
 
     rsx!
     {
@@ -283,9 +412,9 @@ fn FormularioComentario(
             {
                 evento.prevent_default();
                 let texto = texto_sel().trim().to_string();
-                if texto.is_empty() || enviando()
+                if texto.is_empty() || enviando() || subiendo()
                 {
-                    return; // Nada que enviar
+                    return; // Nada que enviar, o la foto sigue subiendo
                 }
                 if crate::sesion::token(&sesion).is_none()
                 {
@@ -311,12 +440,13 @@ fn FormularioComentario(
 
                 let nuevo = ComentarioNuevo
                 {
-                    id: crate::local::nuevo_id(),
+                    id: id_sel().or_else(crate::local::nuevo_id),
                     receta_id: receta_id.clone(),
                     texto,
                     respuesta_a: respuesta_a().map(|comentario| comentario.id),
                     ancla,
                     propuesta,
+                    foto: foto_sel(),
                 };
                 let token = crate::sesion::token(&sesion).unwrap_or_default(); // Comprobado arriba
                 enviando.set(true);
@@ -333,13 +463,19 @@ fn FormularioComentario(
                             propuesta_sel.set(String::new());
                             ancla_sel.set(String::new());
                             respuesta_a.set(None);
+                            id_sel.set(None);
+                            foto_sel.set(None);
                             al_publicar.call(());
                         }
                         Err(causa) if crate::local::es_sin_conexion(&causa)
                             && crate::local::encolar(&sesion, &mut pendientes, Cambio::Comentario(nuevo)) =>
                         {
                             texto_sel.set(String::new());
+                            propuesta_sel.set(String::new());
+                            ancla_sel.set(String::new());
                             respuesta_a.set(None);
+                            id_sel.set(None);
+                            foto_sel.set(None);
                             aviso.set(Some("Sin conexión: tu comentario se publicará cuando vuelva la red.".to_string()));
                         }
                         Err(causa) => aviso.set(Some(format!("No se pudo publicar el comentario: {}", crate::red::mensaje(&causa)))),
@@ -410,11 +546,35 @@ fn FormularioComentario(
                 }
             }
 
+            // Foto opcional: se sube antes de publicar y queda en la carpeta del comentario
+            if crate::fotos::puede_adjuntar()
+            {
+                if let Some(url) = foto_sel().as_deref().and_then(crate::fotos::url_publica)
+                {
+                    div
+                    {
+                        class: "barra-adjunto",
+                        img { class: "foto-comentario", src: "{url}", alt: "Foto que vas a adjuntar" }
+                        button { class: "enlace", r#type: "button", onclick: move |_| foto_sel.set(None), "Quitar foto" }
+                    }
+                }
+                else
+                {
+                    crate::fotos::BotonFoto
+                    {
+                        id: "comentario-foto",
+                        ocupado: subiendo(),
+                        etiqueta: "Adjuntar foto",
+                        al_elegir: move |archivo| adjuntar.call(archivo),
+                    }
+                }
+            }
+
             button
             {
                 class: "primario",
                 r#type: "submit",
-                disabled: enviando() || texto_sel().trim().is_empty(),
+                disabled: enviando() || subiendo() || texto_sel().trim().is_empty(),
                 if enviando() { "Publicando…" } else if respuesta_a().is_some() { "Responder" } else { "Comentar" }
             }
 
@@ -486,7 +646,8 @@ fn Reportar(receta_id: Option<String>, comentario_id: Option<String>) -> Element
                     {
                         match crate::red::con_plazo(api::foro::reportar(token, reporte.clone())).await
                         {
-                            Ok(()) => aviso.set(Some("Gracias: el equipo de moderación lo revisará.".to_string())),
+                            Ok(true) => aviso.set(Some("Gracias: el equipo de moderación lo revisará.".to_string())),
+                            Ok(false) => aviso.set(Some("Ya habías reportado esto: el equipo de moderación lo está revisando.".to_string())),
                             Err(causa) if crate::local::es_sin_conexion(&causa)
                                 && crate::local::encolar(&sesion, &mut pendientes, Cambio::Reporte(reporte)) =>
                             {
@@ -539,13 +700,84 @@ fn Reportar(receta_id: Option<String>, comentario_id: Option<String>) -> Element
     }
 }
 
-/// Sección «La Barra» de la ficha: valoración, hilo, formulario y reporte de comentarios (D2, D3, D4 y D7).
+/// Un comentario del hilo con su autor, su ancla, su foto y sus acciones.
 ///
-/// La receta se reporta con el modal de la ficha (`reportar.rs`).
+/// `al_responder` recibe el comentario cuando la persona toca «Responder».
+#[component]
+fn TarjetaComentario(comentario: Comentario, es_respuesta: bool, al_responder: EventHandler<Comentario>) -> Element
+{
+    let sesion = use_context::<SenalSesion>(); // Con sesión se puede responder y reportar
+    let foto_url = comentario.foto.as_deref().and_then(crate::fotos::url_publica); // Foto adjunta, si se puede mostrar
+
+    rsx!
+    {
+        li
+        {
+            class: if es_respuesta { "barra-comentario barra-comentario--respuesta" } else { "barra-comentario" },
+
+            p
+            {
+                class: "barra-meta",
+                Link
+                {
+                    to: Rutas::PerfilPublico { alias: comentario.autor.clone() },
+                    class: "barra-autor",
+                    "aria-label": "Ver el perfil de {comentario.autor}",
+                    "{comentario.autor}"
+                }
+                " · {comentario.fecha}"
+            }
+            if let Some(ancla) = comentario.ancla.clone()
+            {
+                p { class: "barra-ancla-texto", "{ancla}" }
+            }
+            p { "{comentario.texto}" }
+            if let Some(propuesta) = comentario.propuesta.clone()
+            {
+                p { class: "barra-propuesta-texto", "Propone: {propuesta}" }
+            }
+            if let Some(url) = foto_url
+            {
+                img { class: "foto-comentario", src: "{url}", alt: "Foto adjunta por {comentario.autor}", loading: "lazy" }
+            }
+            if sesion.read().is_some()
+            {
+                div
+                {
+                    class: "acciones-fila",
+                    button
+                    {
+                        class: "enlace",
+                        r#type: "button",
+                        "aria-label": "Responder a {comentario.autor}",
+                        onclick:
+                        {
+                            let comentario = comentario.clone();
+                            move |_| al_responder.call(comentario.clone())
+                        },
+                        "Responder"
+                    }
+                    // Los comentarios propios no se reportan
+                    if !comentario.propio
+                    {
+                        Reportar { receta_id: None, comentario_id: Some(comentario.id.clone()) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Sección «La Barra» de una receta: valoración, hilo, formulario y reporte de comentarios (D2, D3, D4 y D7).
+///
+/// La usan la ficha y la pantalla del hilo. La receta se reporta con el modal de la ficha
+/// (`reportar.rs`). Los comentarios que esperan en la cola sin conexión se pintan al final,
+/// marcados como pendientes, y el hilo se recarga cuando la cola los envía.
 #[component]
 pub fn LaBarra(receta: RecetaCompleta) -> Element
 {
     let sesion = use_context::<SenalSesion>(); // Sesión para saber si es propia y si comenta
+    let pendientes = use_context::<SenalPendientes>(); // Cambios que esperan conexión
     let id_recurso = receta.id.clone();
     let mut hilo_res = use_resource(move ||
     {
@@ -554,9 +786,22 @@ pub fn LaBarra(receta: RecetaCompleta) -> Element
         crate::red::con_reintentos(move || api::foro::hilo(id.clone(), token.clone()))
     }); // Hilo del servidor
     let mut respuesta_a = use_signal(|| None::<Comentario>); // Comentario al que se responde
+    let mut cola_previa = use_signal(|| *pendientes.peek()); // Tamaño de la cola en el pintado anterior
 
-    let alias = sesion.read().as_ref().map(|guardada| guardada.perfil.alias.to_lowercase());
-    let propia = alias.as_deref() == Some(receta.autor.to_lowercase().as_str()); // Los alias no distinguen mayúsculas
+    // Cuando la cola envía algo, recargar el hilo para ver el comentario ya publicado
+    use_effect(move ||
+    {
+        let cola_actual = pendientes();
+        if cola_actual < *cola_previa.peek()
+        {
+            hilo_res.restart();
+        }
+        cola_previa.set(cola_actual);
+    });
+
+    let propia = es_propia(&sesion, &receta);
+    let alias_propio = sesion.read().as_ref().map(|guardada| guardada.perfil.alias.clone()).unwrap_or_default();
+    let en_cola_vec = if pendientes() > 0 { crate::local::comentarios_pendientes(&sesion, &receta.id) } else { Vec::new() }; // Comentarios sin enviar
 
     rsx!
     {
@@ -585,7 +830,7 @@ pub fn LaBarra(receta: RecetaCompleta) -> Element
                         reintentar: move |_| hilo_res.restart(),
                     }
                 },
-                Some(Ok(comentarios_vec)) if comentarios_vec.is_empty() => rsx!
+                Some(Ok(comentarios_vec)) if comentarios_vec.is_empty() && en_cola_vec.is_empty() => rsx!
                 {
                     p { class: "estado", "Nadie ha comentado todavía. ¿Cómo te salió?" }
                 },
@@ -597,54 +842,43 @@ pub fn LaBarra(receta: RecetaCompleta) -> Element
 
                         for (comentario, es_respuesta) in ordenar_hilo(comentarios_vec)
                         {
-                            li
+                            TarjetaComentario
                             {
                                 key: "{comentario.id}",
-                                class: if es_respuesta { "barra-comentario barra-comentario--respuesta" } else { "barra-comentario" },
-
-                                p
-                                {
-                                    class: "barra-meta",
-                                    strong { "{comentario.autor}" }
-                                    " · {comentario.fecha}"
-                                }
-                                if let Some(ancla) = comentario.ancla.clone()
-                                {
-                                    p { class: "barra-ancla-texto", "{ancla}" }
-                                }
-                                p { "{comentario.texto}" }
-                                if let Some(propuesta) = comentario.propuesta.clone()
-                                {
-                                    p { class: "barra-propuesta-texto", "Propone: {propuesta}" }
-                                }
-                                if sesion.read().is_some()
-                                {
-                                    div
-                                    {
-                                        class: "acciones-fila",
-                                        button
-                                        {
-                                            class: "enlace",
-                                            r#type: "button",
-                                            "aria-label": "Responder a {comentario.autor}",
-                                            onclick:
-                                            {
-                                                let comentario = comentario.clone();
-                                                move |_| respuesta_a.set(Some(comentario.clone()))
-                                            },
-                                            "Responder"
-                                        }
-                                        // Los comentarios propios no se reportan
-                                        if !comentario.propio
-                                        {
-                                            Reportar { receta_id: None, comentario_id: Some(comentario.id.clone()) }
-                                        }
-                                    }
-                                }
+                                comentario,
+                                es_respuesta,
+                                al_responder: move |comentario| respuesta_a.set(Some(comentario)),
                             }
                         }
                     }
                 },
+            }
+
+            // Comentarios en la cola sin conexión: visibles, pero marcados como pendientes
+            if !en_cola_vec.is_empty()
+            {
+                ul
+                {
+                    class: "barra-hilo",
+                    "aria-label": "Comentarios pendientes de enviar",
+
+                    for (indice, nuevo) in en_cola_vec.iter().enumerate()
+                    {
+                        li
+                        {
+                            key: "pendiente-{indice}",
+                            class: if nuevo.respuesta_a.is_some() { "barra-comentario barra-comentario--respuesta barra-comentario--pendiente" } else { "barra-comentario barra-comentario--pendiente" },
+
+                            p
+                            {
+                                class: "barra-meta",
+                                strong { "{alias_propio}" }
+                                " · Pendiente de enviar"
+                            }
+                            p { "{nuevo.texto}" }
+                        }
+                    }
+                }
             }
 
             // Con sesión: formulario para comentar; sin sesión, invitar a entrar
@@ -693,6 +927,7 @@ mod pruebas
             ancla: None,
             propuesta: None,
             propio: false,
+            foto: None,
         }
     }
 

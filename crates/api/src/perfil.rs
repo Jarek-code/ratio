@@ -1,7 +1,8 @@
 //! Perfiles (E2 y E3): datos públicos de una cuenta y seguimiento, parte compartida.
 //!
 //! El perfil muestra el alias, las recetas publicadas y los contadores de seguidores. Las
-//! recetas salen del mismo catálogo que Biblioteca, así que respetan la misma regla de edad.
+//! recetas salen de la misma consulta que el muro de La Barra, así que respetan la misma
+//! regla de edad y traen sus contadores.
 
 // LIBRERÍAS
 
@@ -9,7 +10,7 @@ use dioxus::prelude::*; // Macro server y ServerFnError
 use serde::Deserialize; // Lectura de los tipos que viajan entre app y servidor
 use serde::Serialize; // Escritura de los tipos que viajan entre app y servidor
 
-use crate::biblioteca::RecetaResumen; // Receta publicada tal como la lista Biblioteca
+use crate::barra::TarjetaBarra; // Receta publicada tal como la pinta el muro
 
 #[cfg(feature = "server")]
 use crate::base::ConPlazo; // Plazo de cada consulta
@@ -25,7 +26,7 @@ pub struct PerfilPublico
     /// Si el perfil es el de la cuenta que pregunta.
     pub propio: bool,
     /// Recetas publicadas que la cuenta que pregunta puede ver.
-    pub recetas: Vec<RecetaResumen>,
+    pub recetas: Vec<TarjetaBarra>,
     /// Cuentas que siguen a este perfil.
     pub seguidores: i64,
     /// Cuentas a las que sigue este perfil.
@@ -70,6 +71,7 @@ pub async fn perfil(alias: String, token: Option<String>) -> Result<Option<Perfi
 
     let pool = crate::base::pool()?;
     let cuenta = crate::auth::cuenta(token.as_deref()).await;
+    let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
     // Consultar la cuenta del alias con sus contadores de seguimiento
     let fila = sqlx::query_as::<_, FilaPerfil>(
@@ -97,13 +99,8 @@ pub async fn perfil(alias: String, token: Option<String>) -> Result<Option<Perfi
         return Ok(None); // Alias inexistente
     };
 
-    // Tomar del catálogo, con su regla de edad, las recetas publicadas por este alias
-    let alias_min = fila.alias.to_lowercase();
-    let recetas = crate::biblioteca::catalogo(token)
-        .await?
-        .into_iter()
-        .filter(|receta| receta.autor.to_lowercase() == alias_min)
-        .collect();
+    // Traer, con la regla de edad, las recetas publicadas por este alias
+    let recetas = crate::barra::tarjetas_de(pool, &cuenta, adulto, &fila.alias).await?;
 
     Ok(Some(PerfilPublico
     {

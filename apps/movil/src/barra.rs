@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::actividad::NoLeidas;
 use crate::rutas::Rutas;
 
 /// Destino de la barra inferior.
@@ -41,9 +42,11 @@ impl Destino {
     }
 }
 
-/// Barra fija con el destino activo resaltado; los que aún no tienen pantalla avisan.
+/// Barra fija con el destino activo resaltado y un punto en La Barra si hay novedades sin leer.
 #[component]
 pub fn BarraInferior(activo: Destino) -> Element {
+    let no_leidas = use_context::<NoLeidas>().0;
+
     rsx! {
         nav { class: "barra-inferior", "aria-label": "Navegación principal",
             for destino in Destino::TODOS {
@@ -54,7 +57,12 @@ pub fn BarraInferior(activo: Destino) -> Element {
                 } else if destino == Destino::Biblioteca {
                     Link { to: Rutas::biblioteca(), class: "destino", "{destino.nombre()}" }
                 } else if destino == Destino::LaBarra {
-                    Link { to: Rutas::Actividad, class: "destino", "{destino.nombre()}" }
+                    Link { to: Rutas::la_barra(), class: "destino",
+                        "{destino.nombre()}"
+                        if no_leidas() > 0 {
+                            span { class: "destino-punto", role: "img", "aria-label": "{no_leidas()} novedades sin leer" }
+                        }
+                    }
                 } else if destino == Destino::Perfil {
                     Link { to: Rutas::Perfil, class: "destino", "{destino.nombre()}" }
                 } else {

@@ -94,6 +94,16 @@ pub enum Cambio
         /// `true` para publicar, `false` para retirar.
         publica: bool,
     },
+    /// Guardar el gusto y la duración de la última preparación de una receta (D4).
+    Detalle
+    {
+        /// Receta preparada.
+        receta_id: String,
+        /// Gusto de 1 a 5, si se contestó.
+        gusto: Option<i16>,
+        /// Duración en segundos, si se midió.
+        duracion_s: Option<i32>,
+    },
 }
 
 /// Entrada de la cola: un cambio con su cuenta y un identificador propio.
@@ -308,6 +318,27 @@ fn contar(cuenta: &Option<String>) -> usize
         .count()
 }
 
+/// Comentarios de la cuenta actual que esperan en la cola para una receta, en orden.
+///
+/// El hilo los pinta como «pendiente de enviar» hasta que vuelve la conexión.
+pub fn comentarios_pendientes(sesion: &SenalSesion, receta_id: &str) -> Vec<ComentarioNuevo>
+{
+    let Some(cuenta) = cuenta_de(sesion) else
+    {
+        return Vec::new(); // Sin sesión no hay cola propia
+    };
+
+    leer::<Pendiente>(ARCHIVO_COLA)
+        .into_iter()
+        .filter(|pendiente| pendiente.cuenta == cuenta)
+        .filter_map(|pendiente| match pendiente.cambio
+        {
+            Cambio::Comentario(nuevo) if nuevo.receta_id == receta_id => Some(nuevo),
+            _ => None, // Otro tipo de cambio u otra receta
+        })
+        .collect()
+}
+
 /// Deja un cambio en la cola de la cuenta actual. Devuelve `false` si no hay sesión.
 pub fn encolar(sesion: &SenalSesion, pendientes: &mut SenalPendientes, cambio: Cambio) -> bool
 {
@@ -344,11 +375,15 @@ async fn enviar(token: String, cambio: Cambio) -> Result<(), ServerFnError>
         {
             api::foro::valorar(token, receta_id, me_salio).await.map(|_| ())
         }
-        Cambio::Reporte(reporte) => api::foro::reportar(token, reporte).await,
+        Cambio::Reporte(reporte) => api::foro::reportar(token, reporte).await.map(|_| ()),
         Cambio::Seguimiento { alias, sigue } => api::perfil::seguir(token, alias, sigue).await.map(|_| ()),
         Cambio::Publicacion { receta_id, publica } =>
         {
             api::foro::publicar(token, receta_id, publica).await.map(|_| ())
+        }
+        Cambio::Detalle { receta_id, gusto, duracion_s } =>
+        {
+            api::diario::detallar_preparacion(token, receta_id, gusto, duracion_s).await
         }
     }
 }

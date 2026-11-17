@@ -11,9 +11,11 @@ use crate::descubrir;
 use crate::ficha;
 use crate::guardados;
 use crate::historial;
+use crate::la_barra;
 use crate::lista_compra;
 use crate::login;
 use crate::mis_recetas;
+use crate::moderacion;
 use crate::perfil;
 use crate::preparar;
 use crate::salud::PruebaSalud;
@@ -55,9 +57,18 @@ pub enum Rutas {
     /// Lista de compra a partir de las recetas elegidas (C7).
     #[route("/lista-compra")]
     ListaCompra,
+    /// Muro de La Barra (D2); `pestana` elige la sección y vacía abre Recientes.
+    #[route("/barra?:pestana")]
+    LaBarra { pestana: String },
+    /// Hilo de comentarios de una receta (D2 y D3).
+    #[route("/receta/:id/hilo")]
+    Hilo { id: String },
     /// Novedades de La Barra sobre las recetas propias (D6).
     #[route("/actividad")]
     Actividad,
+    /// Cola de reportes e historial de moderación (D8).
+    #[route("/moderacion")]
+    Moderacion,
     /// Comparación de dos recetas (B4); sin `con`, se elige la segunda.
     #[route("/receta/:id/comparar?:con")]
     Comparar { id: String, con: String },
@@ -85,6 +96,13 @@ impl Rutas {
             busqueda: String::new(),
             familia: String::new(),
             tipo: String::new(),
+        }
+    }
+
+    /// La Barra en su primera sección.
+    pub fn la_barra() -> Self {
+        Rutas::LaBarra {
+            pestana: String::new(),
         }
     }
 }
@@ -186,6 +204,30 @@ fn MisRecetas() -> Element {
 fn ListaCompra() -> Element {
     rsx! {
         lista_compra::PantallaListaCompra {}
+    }
+}
+
+/// Muro de La Barra (D2).
+#[component]
+fn LaBarra(pestana: String) -> Element {
+    rsx! {
+        la_barra::PantallaLaBarra { pestana }
+    }
+}
+
+/// Hilo de una receta (D2 y D3).
+#[component]
+fn Hilo(id: String) -> Element {
+    rsx! {
+        la_barra::PantallaHilo { id }
+    }
+}
+
+/// Moderación (D8).
+#[component]
+fn Moderacion() -> Element {
+    rsx! {
+        moderacion::PantallaModeracion {}
     }
 }
 

@@ -143,7 +143,12 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                             aviso.set(None);
                             spawn(async move {
                                 match crate::red::con_plazo(reportar(token, datos.clone())).await {
-                                    Ok(_) => {
+                                    // La cuenta ya lo había reportado: no se creó otro
+                                    Ok(false) => {
+                                        aviso.set(Some("Ya habías reportado esto: el equipo de moderación lo está revisando.".to_string()));
+                                        enviando.set(false);
+                                    }
+                                    Ok(true) => {
                                         enviado.set(true);
                                         enviando.set(false);
                                     }

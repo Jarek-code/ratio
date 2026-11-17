@@ -107,7 +107,7 @@ pub fn Bienvenida() -> Element
     // Contenido de cada pantalla: título y texto
     let pantallas = [
         ("La proporción se ve en el vaso", "Cada receta se dibuja como capas dentro de su vaso real, con su porcentaje y sus mililitros."),
-        ("Ajusta y haz tu versión", "Cambia cantidades, comensales o vaso; guarda tu versión y publícala en La Barra con crédito al original."),
+        ("Ajusta y haz tu versión", "Cambia cantidades o vaso; guarda tu versión y publícala en La Barra con crédito al original."),
         ("Contenido con alcohol", "Los cócteles solo se muestran si al crear tu cuenta declaras que eres mayor de edad. Bebe con responsabilidad."),
     ];
     let paso = paso_sel().min(pantallas.len() - 1);
