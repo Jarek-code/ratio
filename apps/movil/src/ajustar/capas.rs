@@ -105,15 +105,13 @@ pub(super) fn AgregarIngrediente(
 
 /// Lista de capas con su deslizador: las de la receta y, encima, las agregadas.
 ///
-/// `capas` es el reparto ya calculado de la bebida ajustada y `comensales` el multiplicador
-/// que se muestra en las cantidades.
+/// `capas` es el reparto ya calculado de la bebida ajustada.
 #[component]
 pub(super) fn ListaCapas(
     receta: RecetaCompleta,
     capas: proporciones::Capas,
     factores: Signal<Vec<f64>>,
     agregados: Signal<Vec<CapaAgregada>>,
-    comensales: u32,
 ) -> Element {
     let mut factores = factores;
     let mut agregados = agregados;
@@ -121,7 +119,6 @@ pub(super) fn ListaCapas(
     let total_ingredientes = ingredientes.len();
     let factores_actuales = factores.read().clone();
     let agregados_actuales = agregados.read().clone();
-    let comensales_actuales = comensales;
 
     rsx! {
         section { class: "seccion", "aria-labelledby": "titulo-capas",
@@ -134,7 +131,7 @@ pub(super) fn ListaCapas(
                 for (indice, ingrediente) in ingredientes.iter().enumerate() {
                     {
                         let factor = factores_actuales.get(indice).copied().unwrap_or(1.0);
-                        let ml = ingrediente.ml * factor * f64::from(comensales_actuales);
+                        let ml = ingrediente.ml * factor;
                         let porcentaje = capas
                             .capas
                             .get(indice)
@@ -211,11 +208,8 @@ pub(super) fn ListaCapas(
                     {
                         let factor = extra.factor;
                         let es_liquido = extra.unidad == "ml";
-                        let cantidad =
-                            extra.cantidad * factor * f64::from(comensales_actuales);
-                        let volumen = api::ml_equivalentes(extra.cantidad, &extra.unidad)
-                            * factor
-                            * f64::from(comensales_actuales);
+                        let cantidad = extra.cantidad * factor;
+                        let volumen = api::ml_equivalentes(extra.cantidad, &extra.unidad) * factor;
 
                         // Todos los agregados ocupan volumen y por eso comparten el
                         // índice de `capas`; la unidad solo cambia la etiqueta visible.

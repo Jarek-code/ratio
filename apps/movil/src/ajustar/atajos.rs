@@ -1,4 +1,4 @@
-//! Atajos de C1: presets de fuerza y escala global en mililitros por comensal.
+//! Atajos de C1: presets de fuerza y escala global en mililitros.
 
 use dioxus::prelude::*;
 
@@ -31,8 +31,8 @@ impl Preset {
 
 /// Presets de fuerza y deslizador de escala, que mueven todas las capas a la vez.
 ///
-/// `total_base` es el volumen de la receta sin factores y `volumen_escala` el volumen por
-/// comensal que muestra el deslizador.
+/// `total_base` es el volumen de la receta sin factores y `volumen_escala` el volumen de la
+/// bebida que muestra el deslizador.
 #[component]
 pub(super) fn Atajos(
     ingredientes: Vec<proporciones::Componente>,
@@ -99,8 +99,8 @@ pub(super) fn Atajos(
                     step: "5",
                     value: "{volumen_escala:.0}",
                     disabled: total_base <= 0.0,
-                    aria_label: "Volumen por comensal en mililitros",
-                    "aria-valuetext": "{volumen_escala:.0} mililitros por comensal",
+                    aria_label: "Volumen de la bebida en mililitros",
+                    "aria-valuetext": "{volumen_escala:.0} mililitros",
                     oninput: move |evento| {
                         let objetivo = evento
                             .value()
@@ -109,7 +109,7 @@ pub(super) fn Atajos(
                             .clamp(0.0, VOLUMEN_MAXIMO_ML);
 
                         // Un solo factor para todas las capas conserva la proporción de
-                        // la receta mientras el volumen por comensal se mueve en mililitros.
+                        // la receta mientras el volumen de la bebida se mueve en mililitros.
                         if total_base > 0.0 {
                             let factor = (objetivo / total_base).clamp(0.0, FACTOR_MAXIMO);
                             let mut nuevos = factores.read().clone();
@@ -127,7 +127,7 @@ pub(super) fn Atajos(
                 span { class: "ajustar-escala-valor", "{volumen_escala:.0} ml" }
             }
 
-            p { class: "mini", "La escala termina en 500 ml por comensal y mueve todas las capas." }
+            p { class: "mini", "La escala termina en 500 ml y mueve todas las capas." }
         }
     }
 }

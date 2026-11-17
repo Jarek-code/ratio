@@ -214,39 +214,6 @@
     color: #FFF9F2;
 }
 
-/* Escalado por comensales. */
-.ajustar-comensales {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    border: 1px solid var(--borde);
-    border-radius: 16px;
-    background: var(--papel);
-    padding: 8px 8px 8px 16px;
-}
-
-.ajustar-comensales-texto {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-    color: var(--tinta-suave);
-    font-size: 14px;
-}
-
-.ajustar-comensales-texto strong {
-    color: var(--tinta);
-    font-size: 20px;
-    font-variant-numeric: tabular-nums;
-}
-
-.ajustar-comensales .contador strong {
-    min-width: 28px;
-    text-align: center;
-    font-size: 16px;
-    font-variant-numeric: tabular-nums;
-}
-
 /* Una tarjeta por ingrediente: color, cifra, deslizador y porcentajes. */
 .ajustar-capas {
     display: flex;

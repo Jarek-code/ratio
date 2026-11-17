@@ -19,14 +19,12 @@ pub(super) fn Acciones(
     factores: Signal<Vec<f64>>,
     agregados: Signal<Vec<CapaAgregada>>,
     seleccion_ingrediente: Signal<String>,
-    comensales: Signal<u32>,
     indice_vaso: Signal<usize>,
     indice_inicial: usize,
 ) -> Element {
     let mut factores = factores;
     let mut agregados = agregados;
     let mut seleccion_ingrediente = seleccion_ingrediente;
-    let mut comensales = comensales;
     let mut indice_vaso = indice_vaso;
     let sesion = use_context::<crate::sesion::SenalSesion>();
     let mut pendientes = use_context::<crate::local::SenalPendientes>();
@@ -46,7 +44,6 @@ pub(super) fn Acciones(
                     factores.set(vec![1.0; total_ingredientes]);
                     agregados.set(Vec::new());
                     seleccion_ingrediente.set(String::new());
-                    comensales.set(1);
                     indice_vaso.set(indice_inicial);
                 },
                 "Restablecer"
@@ -66,8 +63,6 @@ pub(super) fn Acciones(
                         return;
                     };
 
-                    // La version guarda las proporciones por comensal; los comensales
-                    // siguen siendo un ajuste de la vista y no una propiedad de la receta.
                     let factores_guardar = factores.read().clone();
                     let mut componentes = Vec::new();
 

@@ -1,11 +1,12 @@
 //! Pantalla C1: ajustar las proporciones de una receta y ver el vaso en vivo.
 //!
 //! El editor trabaja sobre factores de cada ingrediente, no sobre mililitros absolutos.
-//! Así el escalado por comensales y los presets pueden cambiar el total sin perder el
+//! Así la escala global y los presets pueden cambiar el total sin perder el
 //! ajuste individual que hizo la persona. El vaso y la graduación se recalculan con el
 //! mismo motor que usa la ficha (B3).
 //!
-//! La escala global se expresa en mililitros por comensal y tiene un tope de 500 ml.
+//! El vaso siempre muestra una sola bebida. La escala global se expresa en mililitros
+//! y tiene un tope de 500 ml.
 //! Además de las capas de la receta, C1 permite añadir ingredientes del catálogo (ml o
 //! mg). De momento los sólidos se convierten con `1 g = 1 ml` para que también sumen
 //! volumen mientras el catálogo termina de definirse.
@@ -34,16 +35,13 @@ const COLOR_RESERVA: &str = "#8A6A4A";
 /// Porcentaje máximo que permite cada control individual.
 const FACTOR_MAXIMO: f64 = 3.0;
 
-/// Comensales máximos para el escalado rápido.
-const COMENSALES_MAXIMOS: u32 = 12;
-
 /// Tope de la escala global, en mililitros.
 ///
 /// Es un límite de producto: el vaso puede ser mayor, pero C1 nunca propone más de
-/// medio litro por comensal para que el ajuste siga siendo legible.
+/// medio litro por bebida para que el ajuste siga siendo legible.
 const VOLUMEN_MAXIMO_ML: f64 = 500.0;
 
-/// Cantidad inicial de un ingrediente añadido, en mililitros por comensal.
+/// Cantidad inicial de un ingrediente añadido, en mililitros.
 ///
 /// Se elige una porción pequeña para que la capa nueva no desborde el vaso antes de que
 /// la persona la ajuste con su deslizador.
@@ -73,7 +71,7 @@ struct CapaAgregada {
     dilucion: bool,
     /// Unidad de la cantidad: "ml" o "mg".
     unidad: String,
-    /// Cantidad base por comensal, en la unidad del catálogo.
+    /// Cantidad base, en la unidad del catálogo.
     cantidad: f64,
     /// Factor del deslizador; 1.0 es la cantidad base.
     factor: f64,
@@ -147,7 +145,7 @@ fn BarraSuperior(id: String) -> Element {
     }
 }
 
-/// Editor de proporciones: vista del vaso, totales, vaso, comensales, escala y capas.
+/// Editor de proporciones: vista del vaso, totales, vaso, escala y capas.
 #[component]
 fn Editor(
     receta: RecetaCompleta,
@@ -180,7 +178,6 @@ fn Editor(
     let factores = use_signal(|| vec![1.0_f64; total_ingredientes]);
     let agregados = use_signal(Vec::<CapaAgregada>::new);
     let seleccion_ingrediente = use_signal(String::new);
-    let mut comensales = use_signal(|| 1_u32);
     let mut indice_vaso = use_signal(move || indice_inicial);
 
     let Some(vaso_actual) = opciones.get(*indice_vaso.read()).cloned() else {
@@ -191,26 +188,19 @@ fn Editor(
 
     let factores_actuales = factores.read().clone();
     let agregados_actuales = agregados.read().clone();
-    let comensales_actuales = *comensales.read();
     let indice_vaso_actual = *indice_vaso.read();
     let mut ajustada = receta.receta.clone();
     ajustada.vaso = vaso_actual.vaso.clone();
     ajustada.capacidad_ml = vaso_actual.vaso.capacidad_ml;
 
-    for (indice, componente) in ajustada.ingredientes.iter_mut().enumerate() {
-        let factor = factores_actuales.get(indice).copied().unwrap_or(1.0);
-        componente.ml =
-            receta.receta.ingredientes[indice].ml * factor * f64::from(comensales_actuales);
-    }
+    aplicar_factores(&mut ajustada, &receta.receta, &factores_actuales);
 
     // Las capas agregadas se suman al final de la pila, encima de las de la receta.
     // De momento 1 g cuenta como 1 ml para que los sólidos también suban el volumen.
     for extra in &agregados_actuales {
         ajustada.ingredientes.push(proporciones::Componente {
             nombre: extra.nombre.clone(),
-            ml: api::ml_equivalentes(extra.cantidad, &extra.unidad)
-                * extra.factor
-                * f64::from(comensales_actuales),
+            ml: api::ml_equivalentes(extra.cantidad, &extra.unidad) * extra.factor,
             graduacion: extra.graduacion,
             dilucion: extra.dilucion,
             color: extra.color.clone(),
@@ -231,16 +221,14 @@ fn Editor(
     let porcentaje_vaso = capas.total_ml / capacidad * 100.0;
     let descripcion = descripcion(&ajustada);
 
-    // La escala global se expresa en mililitros por comensal: el deslizador llega hasta
-    // 500 ml y reparte ese volumen entre todas las capas de forma proporcional. Los
-    // comensales multiplican después el total, como en el resto de la pantalla.
+    // La escala global se expresa en mililitros: el deslizador llega hasta 500 ml y
+    // reparte ese volumen entre todas las capas de forma proporcional.
     let total_base: f64 = receta.receta.ingredientes.iter().map(|c| c.ml).sum::<f64>()
         + agregados_actuales
             .iter()
             .map(|extra| api::ml_equivalentes(extra.cantidad, &extra.unidad))
             .sum::<f64>();
-    let volumen_porcion = capas.total_ml / f64::from(comensales_actuales.max(1));
-    let volumen_escala = volumen_porcion.clamp(0.0, VOLUMEN_MAXIMO_ML);
+    let volumen_escala = capas.total_ml.clamp(0.0, VOLUMEN_MAXIMO_ML);
 
     // El desplegable oculta los ingredientes que ya están en la receta o ya se agregaron.
     let mut ids_en_uso: Vec<String> = receta
@@ -329,45 +317,6 @@ fn Editor(
             volumen_escala,
         }
 
-        section { class: "seccion", "aria-labelledby": "titulo-comensales",
-            div { class: "seccion-cabeza",
-                p { id: "titulo-comensales", class: "eyebrow", "Comensales" }
-                span { class: "mini", "Multiplica todas las capas" }
-            }
-
-            div { class: "ajustar-comensales",
-                div { class: "ajustar-comensales-texto",
-                    strong { "{comensales_actuales}" }
-                    span {
-                        if comensales_actuales == 1 { " comensal" } else { " comensales" }
-                    }
-                }
-                div { class: "contador",
-                    button {
-                        r#type: "button",
-                        disabled: comensales_actuales <= 1,
-                        aria_label: "Quitar un comensal",
-                        onclick: move |_| {
-                            let siguiente = (*comensales.read()).saturating_sub(1).max(1);
-                            comensales.set(siguiente);
-                        },
-                        "−"
-                    }
-                    strong { "{comensales_actuales}" }
-                    button {
-                        r#type: "button",
-                        disabled: comensales_actuales >= COMENSALES_MAXIMOS,
-                        aria_label: "Añadir un comensal",
-                        onclick: move |_| {
-                            let siguiente = (*comensales.read() + 1).min(COMENSALES_MAXIMOS);
-                            comensales.set(siguiente);
-                        },
-                        "+"
-                    }
-                }
-            }
-        }
-
         section { class: "seccion", "aria-labelledby": "titulo-vaso",
             div { class: "seccion-cabeza",
                 p { id: "titulo-vaso", class: "eyebrow", "Vaso" }
@@ -408,7 +357,6 @@ fn Editor(
             capas: capas.clone(),
             factores,
             agregados,
-            comensales: comensales_actuales,
         }
 
         guardar::Acciones {
@@ -417,10 +365,17 @@ fn Editor(
             factores,
             agregados,
             seleccion_ingrediente,
-            comensales,
             indice_vaso,
             indice_inicial,
         }
+    }
+}
+
+/// Escala cada capa de `ajustada` por su factor sobre la cantidad de `base`: una sola bebida.
+fn aplicar_factores(ajustada: &mut proporciones::Receta, base: &proporciones::Receta, factores: &[f64]) {
+    for (indice, componente) in ajustada.ingredientes.iter_mut().enumerate() {
+        let factor = factores.get(indice).copied().unwrap_or(1.0);
+        componente.ml = base.ingredientes[indice].ml * factor;
     }
 }
 
@@ -434,4 +389,27 @@ fn descripcion(receta: &proporciones::Receta) -> String {
         .collect();
 
     format!("{}: {}", receta.nombre, partes.join(", "))
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::aplicar_factores;
+    use proporciones::{Componente, Receta, Vaso};
+
+    /// Con factores neutros el vaso lleva lo que pide la receta, sin multiplicar por comensales.
+    #[test]
+    fn el_vaso_muestra_una_sola_bebida() {
+        let base = Receta::nueva(
+            "Cortado",
+            Vaso::nuevo(135.0, 33.0, 24.0, 53.0, 4.0),
+            vec![Componente::nuevo("Espresso", 40.0, 0.0), Componente::nuevo("Leche", 40.0, 0.0)],
+        );
+        let mut ajustada = base.clone();
+
+        aplicar_factores(&mut ajustada, &base, &[1.0, 1.5]);
+
+        assert_eq!(ajustada.ingredientes[0].ml, 40.0);
+        assert_eq!(ajustada.ingredientes[1].ml, 60.0);
+        assert_eq!(proporciones::capas(&ajustada).total_ml, 100.0); // Cabe en el Gibraltar de 135 ml
+    }
 }
