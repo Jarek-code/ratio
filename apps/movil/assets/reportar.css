@@ -138,12 +138,12 @@
 .reportar-motivo--activo {
     border-color: var(--cobre);
     background: var(--cobre);
-    color: #FFF9F2;
+    color: var(--crema);
 }
 
 .reportar-motivo--activo:hover,
 .reportar-motivo--activo:focus-visible {
-    color: #FFF9F2;
+    color: var(--crema);
 }
 
 .reportar-detalle {
@@ -152,7 +152,7 @@
     resize: vertical;
     border: 1px solid var(--borde);
     border-radius: 14px;
-    background: #FAF4EA;
+    background: var(--aviso-fondo);
     padding: 12px 14px;
     color: var(--tinta);
     font-family: inherit;
@@ -182,22 +182,22 @@
 
 .reportar-aviso {
     margin: 0;
-    border: 1px solid #F3C9C1;
+    border: 1px solid var(--peligro-borde);
     border-radius: 12px;
-    background: #FCEDEA;
+    background: var(--peligro-fondo);
     padding: 10px 12px;
-    color: #8E2C22;
+    color: var(--peligro-texto);
     font-size: 13px;
     line-height: 1.4;
 }
 
 .reportar-gracias {
     margin: 0;
-    border: 1px solid #CBE3CE;
+    border: 1px solid var(--exito-texto);
     border-radius: 12px;
-    background: #EDF7EF;
+    background: var(--aviso-fondo);
     padding: 10px 12px;
-    color: #2F6B3B;
+    color: var(--exito-texto);
     font-size: 13px;
     line-height: 1.4;
 }

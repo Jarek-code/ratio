@@ -55,7 +55,7 @@
 .chip.activo {
     background: var(--tinta);
     border-color: var(--tinta);
-    color: #FFF9F2;
+    color: var(--crema);
 }
 
 /* Lista de recetas: miniatura del vaso, datos y barra de proporción. */

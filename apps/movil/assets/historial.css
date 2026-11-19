@@ -5,8 +5,8 @@
     overflow: hidden;
     padding: 22px 20px 30px;
     background:
-        radial-gradient(circle at 8% 4%, #EADFCF 0, transparent 40%),
-        radial-gradient(circle at 94% 96%, #E9D3C4 0, transparent 36%),
+        radial-gradient(circle at 8% 4%, var(--brillo-1) 0, transparent 40%),
+        radial-gradient(circle at 94% 96%, var(--brillo-2) 0, transparent 36%),
         var(--crema);
 }
 
@@ -36,20 +36,7 @@
     justify-content: space-between;
 }
 
-.back {
-    display: grid;
-    width: 38px;
-    height: 38px;
-    place-items: center;
-    border: 1px solid var(--borde);
-    border-radius: 12px;
-    background: rgba(255, 253, 249, 0.76);
-    color: var(--tinta);
-    font-size: 21px;
-    line-height: 1;
-    text-decoration: none;
-    transition: background 160ms ease, transform 160ms ease;
-}
+
 
 .back:hover {
     background: var(--papel);
@@ -110,7 +97,7 @@
     flex: none;
     place-items: center;
     border-radius: 16px;
-    background: #F3E6D8;
+    background: var(--ficha-suave);
 }
 
 .summary-mark .brand-mark {
@@ -176,34 +163,17 @@
 /* Filtros por visibilidad y contador de versiones mostradas. */
 .filters {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     margin: 15px 0 12px;
 }
 
-.chip {
-    min-height: 30px;
-    padding: 6px 11px;
-    border: 1px solid var(--borde);
-    border-radius: 999px;
-    background: rgba(255, 253, 249, 0.45);
-    color: var(--tinta-suave);
-    cursor: pointer;
-    font: inherit;
-    font-size: 10.5px;
-    font-weight: 600;
-    transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
-}
-
-.chip:hover {
-    border-color: var(--cobre);
-    color: var(--tinta);
-}
-
+/* El tamaño de las píldoras lo fija descubrir.css; aquí solo el color del filtro activo. */
 .chip--active {
-    border-color: var(--tinta);
-    background: var(--tinta);
-    color: var(--papel);
+    border-color: var(--cobre);
+    background: var(--cobre);
+    color: var(--crema);
 }
 
 .filters__count {
@@ -254,7 +224,7 @@
 }
 
 .version-card--origin {
-    background: linear-gradient(135deg, #FFFDF9, #FBF4EA);
+    background: linear-gradient(135deg, var(--papel), var(--superficie-alta));
 }
 
 .version-card--origin::before {
@@ -300,13 +270,13 @@
 }
 
 .version-badge--original {
-    background: #F3E3D7;
-    color: #9B4F2C;
+    background: var(--aviso-fondo);
+    color: var(--cobre);
 }
 
 .version-badge--derivada {
-    background: #EFE8DE;
-    color: #6E5A4C;
+    background: var(--superficie-tenue);
+    color: var(--texto-2);
 }
 
 .version-meta {
@@ -320,12 +290,12 @@
 }
 
 .visibilidad {
-    color: #6E7B62;
+    color: var(--exito-texto);
     font-weight: 600;
 }
 
 .visibilidad--privada {
-    color: #9B4F2C;
+    color: var(--cobre);
 }
 
 .version-note {
@@ -365,7 +335,7 @@
 }
 
 .diff-arrow {
-    color: #C9B8A6;
+    color: var(--tenue);
     text-align: center;
 }
 
@@ -379,16 +349,16 @@
     justify-self: end;
     padding: 1px 5px;
     border-radius: 999px;
-    background: #F7E7DA;
-    color: #9B4F2C;
+    background: var(--aviso-fondo);
+    color: var(--cobre);
     font-size: 8.5px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
 
 .diff-delta--baja {
-    background: #F1E9DF;
-    color: #6E5A4C;
+    background: var(--superficie-tenue);
+    color: var(--texto-2);
 }
 
 .version-origin {
@@ -417,14 +387,15 @@
 }
 
 .version-open {
-    padding: 0;
-    border: 0;
-    background: none;
+    padding: 8px 14px;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    background: var(--superficie);
     color: var(--cobre);
     cursor: pointer;
     font: inherit;
-    font-size: 9.5px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 650;
     text-decoration: none;
 }
 

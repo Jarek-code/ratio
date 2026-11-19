@@ -97,7 +97,7 @@
 .compra-metrica {
     min-width: 0;
     border-radius: 14px;
-    background: #F7F0E6;
+    background: var(--aviso-fondo);
     padding: 10px;
 }
 
@@ -188,7 +188,7 @@
 
 .compra-unidad.activa {
     background: var(--tinta);
-    color: #FFF9F2;
+    color: var(--crema);
 }
 
 /* Recetas elegidas y selector. */
@@ -295,7 +295,7 @@
     margin: 0 12px 10px;
     border: 1px solid var(--borde);
     border-radius: 12px;
-    background: #FBF7F0;
+    background: var(--superficie);
 }
 
 .compra-buscador input {
@@ -336,11 +336,11 @@
 
 .compra-picker-opcion:hover,
 .compra-picker-opcion:focus-visible {
-    background: #F7F0E6;
+    background: var(--aviso-fondo);
 }
 
 .compra-picker-opcion.activa {
-    background: #F1E7DA;
+    background: var(--aviso-fondo);
 }
 
 .compra-picker-nombre {
@@ -373,12 +373,12 @@
 .compra-picker-opcion.activa .compra-picker-check {
     border-color: var(--tinta);
     background: var(--tinta);
-    color: #FFF9F2;
+    color: var(--crema);
 }
 
 /* Lista agrupada con casillas. */
 .compra-vacio {
-    background: rgba(255, 253, 249, 0.7);
+    background: var(--superficie-tenue);
 }
 
 .compra-grupo {
@@ -438,14 +438,14 @@
 }
 
 .compra-item.marcado {
-    border-color: #CFE0D3;
-    background: #F3F8F3;
+    border-color: var(--exito-texto);
+    background: var(--aviso-fondo);
 }
 
 .compra-item.marcado .compra-check {
-    border-color: #2F6B4F;
-    background: #2F6B4F;
-    color: #FFF9F2;
+    border-color: var(--exito-texto);
+    background: var(--exito-texto);
+    color: var(--crema);
 }
 
 .compra-nombre {

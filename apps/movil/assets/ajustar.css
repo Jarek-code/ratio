@@ -16,19 +16,7 @@
     gap: 12px;
 }
 
-.ajustar-volver {
-    display: inline-flex;
-    min-height: 44px;
-    align-items: center;
-    border: 1px solid var(--borde);
-    border-radius: 999px;
-    padding: 0 16px;
-    background: var(--papel);
-    color: var(--tinta);
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-}
+
 
 .ajustar-volver:hover,
 .ajustar-volver:focus-visible {
@@ -108,19 +96,19 @@
 .ajustar-aviso {
     width: 100%;
     margin: 0;
-    border: 1px solid #E6D3BF;
+    border: 1px solid var(--aviso-borde);
     border-radius: 14px;
-    background: #FBF1E7;
+    background: var(--aviso-fondo);
     padding: 12px 14px;
-    color: #6D503D;
+    color: var(--aviso-texto);
     font-size: 13px;
     line-height: 1.45;
 }
 
 .ajustar-aviso--error {
-    border-color: #F3C9C1;
-    background: #FCEDEA;
-    color: #8E2C22;
+    border-color: var(--peligro-borde);
+    background: var(--peligro-fondo);
+    color: var(--peligro-texto);
 }
 
 /* Atajos: presets y escala global en mililitros. */
@@ -211,7 +199,7 @@
 .ajustar .chip.activo {
     border-color: var(--tinta);
     background: var(--tinta);
-    color: #FFF9F2;
+    color: var(--crema);
 }
 
 /* Una tarjeta por ingrediente: color, cifra, deslizador y porcentajes. */
@@ -333,4 +321,34 @@
     .ajustar-escala-valor {
         margin-left: auto;
     }
+}
+
+/* Nombre de la versión que se va a guardar: se propone y se puede cambiar. */
+.ajustar-nombre {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.ajustar-nombre > span {
+    color: var(--texto-2);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ajustar-nombre input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    background: var(--papel);
+    color: var(--tinta);
+    font: inherit;
+    font-size: 14px;
+}
+
+.ajustar-nombre input:focus {
+    outline: 2px solid var(--cobre);
+    outline-offset: 1px;
 }

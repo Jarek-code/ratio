@@ -21,19 +21,7 @@
     font-size: 18px;
 }
 
-.guardados-volver {
-    display: inline-flex;
-    min-height: 44px;
-    align-items: center;
-    border: 1px solid var(--borde);
-    border-radius: 999px;
-    padding: 0 16px;
-    background: var(--papel);
-    color: var(--tinta);
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-}
+
 
 .guardados-volver:hover,
 .guardados-volver:focus-visible {
@@ -180,7 +168,7 @@
 
 .guardado-error {
     margin: -4px 14px 10px 108px;
-    color: #8E2C22;
+    color: var(--peligro-texto);
     font-size: 12px;
     line-height: 1.35;
 }
@@ -195,7 +183,7 @@
     margin-top: 12px;
     padding: 0 16px;
     background: var(--tinta);
-    color: #FFF9F2;
+    color: var(--crema);
     font-size: 14px;
     font-weight: 600;
     text-decoration: none;

@@ -3,16 +3,7 @@
 }
 
 /* Paleta tomada del frame de Penpot. */
-:root {
-    color-scheme: light;
-    --crema: #F5EFE5;
-    --papel: #FFFDF9;
-    --tinta: #2A1B14;
-    --tinta-suave: #7A6A5F;
-    --borde: #DFD2C2;
-    --cobre: #B9633B;
-    --cobre-oscuro: #43281C;
-}
+/* La paleta y el tema oscuro vienen de descubrir.css, que esta pantalla carga. */
 
 * {
     box-sizing: border-box;
@@ -43,8 +34,8 @@ body {
     overflow: hidden;
     padding: 28px 20px;
     background:
-        radial-gradient(circle at 12% 8%, #EADFCF 0, transparent 42%),
-        radial-gradient(circle at 90% 92%, #E9D3C4 0, transparent 38%),
+        radial-gradient(circle at 12% 8%, var(--brillo-1) 0, transparent 42%),
+        radial-gradient(circle at 90% 92%, var(--brillo-2) 0, transparent 38%),
         var(--crema);
 }
 
@@ -120,7 +111,7 @@ body {
     gap: 18px;
     border: 1px solid rgba(120, 90, 70, 0.16);
     border-radius: 26px;
-    background: rgba(255, 253, 249, 0.88);
+    background: var(--superficie);
     padding: 24px;
     box-shadow: 0 28px 70px -34px rgba(58, 35, 22, 0.5);
     backdrop-filter: blur(14px);
@@ -148,7 +139,7 @@ body {
 }
 
 .field > span {
-    color: #5C4A3E;
+    color: var(--texto-2);
     font-size: 12px;
     font-weight: 650;
     letter-spacing: 0.015em;
@@ -173,7 +164,7 @@ body {
 }
 
 .field input::placeholder {
-    color: #B3A396;
+    color: var(--tenue);
 }
 
 .password {
@@ -192,7 +183,7 @@ body {
     border-radius: 10px;
     background: transparent;
     padding: 9px 10px;
-    color: #9A5A3A;
+    color: var(--cobre);
     cursor: pointer;
     font: inherit;
     font-size: 12px;
@@ -201,7 +192,7 @@ body {
 }
 
 .password__toggle:hover {
-    background: #F3E8DC;
+    background: var(--aviso-fondo);
 }
 
 .password__toggle:focus-visible,
@@ -220,7 +211,7 @@ body {
     border-radius: 14px;
     background: var(--tinta);
     padding: 15px 18px;
-    color: #FFF9F2;
+    color: var(--crema);
     cursor: pointer;
     font: inherit;
     font-size: 15px;
@@ -262,11 +253,11 @@ body {
 
 .pendiente {
     margin: 0;
-    border: 1px solid #E6D3BF;
+    border: 1px solid var(--aviso-borde);
     border-radius: 10px;
-    background: #FBF1E7;
+    background: var(--aviso-fondo);
     padding: 9px 11px;
-    color: #6D503D;
+    color: var(--aviso-texto);
     font-size: 12px;
     line-height: 1.4;
     text-align: center;
@@ -276,11 +267,11 @@ body {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    border: 1px solid #F3C9C1;
+    border: 1px solid var(--peligro-borde);
     border-radius: 14px;
-    background: #FCEDEA;
+    background: var(--peligro-fondo);
     padding: 12px 14px;
-    color: #8E2C22;
+    color: var(--peligro-texto);
     font-size: 13px;
     line-height: 1.45;
 }
@@ -293,7 +284,7 @@ body {
 
 .legal {
     margin: 0;
-    color: #8B7A6E;
+    color: var(--tinta-suave);
     font-size: 11.5px;
     line-height: 1.5;
     text-align: center;
@@ -303,7 +294,7 @@ body {
     position: relative;
     z-index: 1;
     margin: 0;
-    color: #A08D7E;
+    color: var(--tenue);
     font-size: 11px;
     letter-spacing: 0.04em;
     text-align: center;
@@ -382,4 +373,21 @@ body {
     color: var(--tinta-suave);
     font-size: 13px;
     text-align: center;
+}
+
+/* Aviso neutro: el correo de recuperación salió. */
+.aviso-login {
+    margin: 0;
+    color: var(--texto-2);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+/* Enlace de «¿Olvidaste tu contraseña?», debajo del formulario. */
+.recuperar {
+    align-self: flex-start;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
 }

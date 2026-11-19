@@ -6,41 +6,7 @@
     display: contents;
 }
 
-:root {
-    --crema: #F5EFE5;
-    --papel: #FFFDF9;
-    --tinta: #2A1B14;
-    --tinta-suave: #7A6A5F;
-    --borde: #DFD2C2;
-    --cobre: #B9633B;
-    --cobre-oscuro: #43281C;
-    --linea-2: #CBB9A6;
-    --tenue: #8B7663;
-    --texto-2: #5A483A;
-    --cup-body: #FFFFFF;
-    --cup-body-2: #F1E6D6;
-    --cup-line: #9C8468;
-    --cup-inner: #EFE4D5;
-    --superficie-3: #DCCDB8;
-    --linea: #E0D3C5;
-    --font: Inter, "Segoe UI", system-ui, sans-serif;
-    color-scheme: light;
-    color: var(--tinta);
-}
-
-/* Tazas y superficies en modo oscuro, por si la app gana ese tema. */
-[data-theme="oscuro"] {
-    --cup-body: #241C16;
-    --cup-body-2: #2F251D;
-    --cup-line: #4C3B2C;
-    --cup-inner: #100C09;
-    --superficie-3: #2F251D;
-    --linea: #3A2E24;
-    --linea-2: #3A2E24;
-    --tenue: #8E7B69;
-    --texto-2: #D2C1AF;
-}
-
+/* La paleta y el tema oscuro vienen de descubrir.css, que esta pantalla carga siempre. */
 /* ── Contenedor principal ────────────────────────────────────────────── */
 
 .cmp {
@@ -73,18 +39,13 @@
     align-items: center;
 }
 
-.cmp-volver {
-    color: var(--texto-2);
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-}
+
 
 /* Tarjeta base, igual que en Descubrir. */
 .cmp-tarjeta {
     border: 1px solid rgba(120, 90, 70, 0.16);
     border-radius: 26px;
-    background: rgba(255, 253, 249, 0.88);
+    background: var(--superficie);
     box-shadow: 0 28px 70px -34px rgba(58, 35, 22, 0.5);
 }
 
@@ -104,7 +65,7 @@
     padding: 14px 18px;
     border: 1px dashed var(--borde);
     border-radius: 18px;
-    background: rgba(255, 253, 249, 0.7);
+    background: var(--superficie-tenue);
     color: var(--tinta-suave);
     font-size: 14px;
     text-align: center;
@@ -302,7 +263,7 @@
 
 /* Diferencia a favor de A, en contra de A y sin diferencia. */
 .cmp-delta--mayor {
-    color: #1F7A4D;
+    color: var(--exito-texto);
 }
 
 .cmp-delta--menor {

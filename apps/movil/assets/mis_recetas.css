@@ -21,19 +21,7 @@
     font-size: 18px;
 }
 
-.mi-recetario-volver {
-    display: inline-flex;
-    min-height: 44px;
-    align-items: center;
-    border: 1px solid var(--borde);
-    border-radius: 999px;
-    padding: 0 16px;
-    background: var(--papel);
-    color: var(--tinta);
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-}
+
 
 .mi-recetario-volver:hover,
 .mi-recetario-volver:focus-visible {
@@ -90,7 +78,7 @@
 .mi-recetario-tab.activo {
     border-color: var(--tinta);
     background: var(--tinta);
-    color: #FFF9F2;
+    color: var(--crema);
 }
 
 .mi-recetario-cuenta {
@@ -216,23 +204,23 @@
 }
 
 .estado-chip--publicada {
-    background: #E8F1EA;
-    color: #2F6B4F;
+    background: var(--aviso-fondo);
+    color: var(--exito-texto);
 }
 
 .estado-chip--privada {
-    background: #FBF0DF;
-    color: #8A5B22;
+    background: var(--aviso-fondo);
+    color: var(--aviso-texto);
 }
 
 .estado-chip--borrador {
-    background: #F1EAE2;
-    color: #6B5B4F;
+    background: var(--superficie-tenue);
+    color: var(--texto-2);
 }
 
 .estado-chip--oculta {
-    background: #FCE9E6;
-    color: #8E2C22;
+    background: var(--peligro-fondo);
+    color: var(--peligro-texto);
 }
 
 .mi-recetario-accion {
@@ -245,7 +233,7 @@
     margin-top: 12px;
     padding: 0 16px;
     background: var(--tinta);
-    color: #FFF9F2;
+    color: var(--crema);
     font-size: 14px;
     font-weight: 600;
     text-decoration: none;
