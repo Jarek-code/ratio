@@ -6,6 +6,10 @@
 
 // LIBRERÍAS
 
+use crate::i18n::Idioma; // Idioma de la interfaz
+use crate::i18n::Texto; // Texto traducible
+use crate::i18n::con; // Texto con huecos rellenos
+use crate::i18n::t; // Texto en el idioma elegido
 use dioxus::prelude::*; // Componentes, señales y contexto
 use proporciones::Equivalencia; // Cantidad de una capa en todas las unidades
 use serde::Deserialize; // Lectura de los ajustes guardados
@@ -13,7 +17,6 @@ use serde::Serialize; // Escritura de los ajustes guardados
 
 use crate::barra::BarraInferior; // Barra inferior compartida
 use crate::barra::Destino; // Destino activo de la barra inferior
-use crate::rutas::Rutas; // Rutas para volver al perfil
 
 // CONSTANTES Y VARIABLES GLOBALES
 
@@ -27,8 +30,7 @@ const CSS_BASE: Asset = asset!("/assets/descubrir.css");
 
 /// Unidad en la que se muestran las cantidades de las recetas.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
-pub enum Unidad
-{
+pub enum Unidad {
     /// Mililitros, la unidad del motor.
     #[default]
     Mililitros,
@@ -38,13 +40,47 @@ pub enum Unidad
     Partes,
 }
 
+/// Tema de color de la app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Tema {
+    /// Fondo crema y tinta oscura, el de siempre.
+    #[default]
+    Claro,
+    /// Fondo oscuro y texto claro, para poca luz.
+    Oscuro,
+}
+
+impl Tema {
+    /// Los temas en el orden en que se ofrecen.
+    pub const TODOS: [Tema; 2] = [Tema::Claro, Tema::Oscuro];
+
+    /// Nombre visible del tema.
+    pub fn etiqueta(self) -> &'static str {
+        match self {
+            Tema::Claro => "Claro",
+            Tema::Oscuro => "Oscuro",
+        }
+    }
+
+    /// Valor del atributo `data-theme` que leen las hojas de estilo.
+    pub fn atributo(self) -> &'static str {
+        match self {
+            Tema::Claro => "claro",
+            Tema::Oscuro => "oscuro",
+        }
+    }
+}
+
 /// Ajustes de la app guardados en el dispositivo.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
-pub struct Ajustes
-{
+pub struct Ajustes {
     /// Unidad de las cantidades.
     pub unidad: Unidad,
+    /// Tema de color.
+    pub tema: Tema,
+    /// Idioma de la interfaz.
+    pub idioma: Idioma,
     /// Si ya se mostró la bienvenida con el aviso de edad.
     pub bienvenida_vista: bool,
 }
@@ -54,44 +90,53 @@ pub type SenalAjustes = Signal<Ajustes>;
 
 // FUNCIONES
 
-impl Unidad
-{
+impl Unidad {
     /// Las unidades en el orden en que se ofrecen.
     pub const TODAS: [Unidad; 3] = [Unidad::Mililitros, Unidad::Onzas, Unidad::Partes];
 
     /// Nombre visible de la unidad.
-    pub fn etiqueta(self) -> &'static str
-    {
-        match self
-        {
+    pub fn etiqueta(self) -> &'static str {
+        match self {
             Unidad::Mililitros => "Mililitros (ml)",
             Unidad::Onzas => "Onzas (oz)",
             Unidad::Partes => "Partes",
         }
     }
 
-    /// Cantidad de una capa escrita en esta unidad, por ejemplo «80 ml», «2.7 oz» o «4 partes».
-    pub fn cantidad(self, equivalencia: &Equivalencia) -> String
-    {
-        match self
-        {
-            Unidad::Mililitros => format!("{:.0} ml", equivalencia.ml),
-            Unidad::Onzas => format!("{:.1} oz", equivalencia.oz),
-            Unidad::Partes => format!("{:.1} partes", equivalencia.partes),
+    /// Cantidad de una capa escrita en esta unidad, en el idioma elegido.
+    pub fn cantidad(self, equivalencia: &Equivalencia) -> String {
+        let idioma = crate::i18n::actual();
+
+        match self {
+            Unidad::Mililitros => crate::i18n::con(
+                idioma,
+                crate::i18n::Texto::MililitrosCorto,
+                &[&format!("{:.0}", equivalencia.ml)],
+            ),
+            Unidad::Onzas => crate::i18n::con(
+                idioma,
+                crate::i18n::Texto::OnzasCorto,
+                &[&format!("{:.1}", equivalencia.oz)],
+            ),
+            Unidad::Partes => crate::i18n::con(
+                idioma,
+                crate::i18n::Texto::PartesCorto,
+                &[&format!("{:.1}", equivalencia.partes)],
+            ),
         }
     }
 }
 
 /// Lee los ajustes guardados; sin archivo se usan los de fábrica.
-pub fn cargar() -> Ajustes
-{
+pub fn cargar() -> Ajustes {
     crate::local::leer_valor(ARCHIVO_AJUSTES).unwrap_or_default()
 }
 
 /// Cambia los ajustes en memoria y en disco.
-fn cambiar(ajustes: &mut SenalAjustes, nuevos: Ajustes)
-{
+fn cambiar(ajustes: &mut SenalAjustes, nuevos: Ajustes) {
     crate::local::escribir(ARCHIVO_AJUSTES, &nuevos);
+    // El idioma se aplica en el acto: los textos que se arman fuera de un componente lo leen
+    crate::i18n::fijar_actual(nuevos.idioma);
     ajustes.set(nuevos);
 }
 
@@ -99,23 +144,22 @@ fn cambiar(ajustes: &mut SenalAjustes, nuevos: Ajustes)
 ///
 /// Se muestra antes del acceso hasta que la persona toca «Empezar».
 #[component]
-pub fn Bienvenida() -> Element
-{
+pub fn Bienvenida() -> Element {
     let mut ajustes = use_context::<SenalAjustes>(); // Para recordar que ya se vio
     let mut paso_sel = use_signal(|| 0_usize); // Pantalla de la bienvenida
+    let idioma = ajustes.read().idioma; // Idioma de los textos
 
-    // Contenido de cada pantalla: título y texto
+    // Contenido de cada pantalla: título y texto, en el idioma elegido
     let pantallas = [
-        ("La proporción se ve en el vaso", "Cada receta se dibuja como capas dentro de su vaso real, con su porcentaje y sus mililitros."),
-        ("Ajusta y haz tu versión", "Cambia cantidades o vaso; guarda tu versión y publícala en La Barra con crédito al original."),
-        ("Contenido con alcohol", "Los cócteles solo se muestran si al crear tu cuenta declaras que eres mayor de edad. Bebe con responsabilidad."),
+        (Texto::BienvenidaTitulo1, Texto::BienvenidaTexto1),
+        (Texto::BienvenidaTitulo2, Texto::BienvenidaTexto2),
+        (Texto::BienvenidaTitulo3, Texto::BienvenidaTexto3),
     ];
     let paso = paso_sel().min(pantallas.len() - 1);
     let (titulo, texto) = pantallas[paso];
     let ultimo = paso + 1 == pantallas.len();
 
-    rsx!
-    {
+    rsx! {
         document::Stylesheet { href: CSS_BASE }
 
         main
@@ -123,14 +167,14 @@ pub fn Bienvenida() -> Element
             class: "descubrir bienvenida",
             "aria-labelledby": "titulo-bienvenida",
 
-            p { class: "eyebrow", "Bienvenida · {paso + 1} de {pantallas.len()}" }
-            h1 { id: "titulo-bienvenida", "{titulo}" }
-            p { class: "bienvenida-texto", "{texto}" }
+            p { class: "eyebrow", "{con(idioma, Texto::BienvenidaPaso, &[&(paso + 1).to_string(), &pantallas.len().to_string()])}" }
+            h1 { id: "titulo-bienvenida", "{t(idioma, titulo)}" }
+            p { class: "bienvenida-texto", "{t(idioma, texto)}" }
 
             // Última pantalla: el aviso de edad se presenta como alerta
             if ultimo
             {
-                p { class: "aviso-pendientes", role: "note", "Ratio no vende alcohol ni verifica tu edad: confía en tu declaración." }
+                p { class: "aviso-pendientes", role: "note", "{t(idioma, Texto::BienvenidaAvisoEdad)}" }
             }
 
             div
@@ -139,7 +183,7 @@ pub fn Bienvenida() -> Element
 
                 if paso > 0
                 {
-                    button { class: "chip", r#type: "button", onclick: move |_| paso_sel.set(paso - 1), "Atrás" }
+                    button { class: "chip", r#type: "button", onclick: move |_| paso_sel.set(paso - 1), "{t(idioma, Texto::Atras)}" }
                 }
                 button
                 {
@@ -147,7 +191,7 @@ pub fn Bienvenida() -> Element
                     r#type: "button",
                     onclick: move |_|
                     {
-                        // Última pantalla: recordar que se vio; si no, avanzar
+                        // En la última pantalla se recuerda que ya se vio y se sigue al acceso
                         if ultimo
                         {
                             let mut nuevos = ajustes();
@@ -159,22 +203,23 @@ pub fn Bienvenida() -> Element
                             paso_sel.set(paso + 1);
                         }
                     },
-                    if ultimo { "Empezar" } else { "Siguiente" }
+                    if ultimo { "{t(idioma, Texto::Empezar)}" } else { "{t(idioma, Texto::Siguiente)}" }
                 }
             }
         }
     }
 }
 
-/// Pantalla de ajustes: unidad de las cantidades e idioma (E4).
+/// Pantalla de ajustes: unidades, tema e idioma (E4).
 #[component]
-pub fn PantallaAjustes() -> Element
-{
+pub fn PantallaAjustes() -> Element {
     let mut ajustes = use_context::<SenalAjustes>(); // Ajustes que se editan
-    let actual = ajustes().unidad;
+    let navegador = navigator(); // Para volver a la pantalla de donde se vino
+    let unidad_actual = ajustes().unidad;
+    let tema_actual = ajustes().tema;
+    let idioma = ajustes().idioma;
 
-    rsx!
-    {
+    rsx! {
         document::Stylesheet { href: CSS_BASE }
 
         main
@@ -184,19 +229,25 @@ pub fn PantallaAjustes() -> Element
             header
             {
                 class: "seccion-cabeza",
-                Link { to: Rutas::Perfil, class: "enlace", aria_label: "Volver al perfil", "‹ Perfil" }
+                button {
+                    class: "volver",
+                    r#type: "button",
+                    aria_label: "{t(idioma, Texto::VolverAtras)}",
+                    onclick: move |_| navegador.go_back(),
+                    "‹ {t(idioma, Texto::Atras)}"
+                }
             }
 
-            p { class: "eyebrow", "Perfil" }
-            h1 { "Ajustes" }
+            p { class: "eyebrow", "{t(idioma, Texto::DestinoPerfil)}" }
+            h1 { "{t(idioma, Texto::Ajustes)}" }
 
             section
             {
                 class: "seccion",
                 "aria-labelledby": "titulo-unidades",
 
-                p { id: "titulo-unidades", class: "eyebrow", "Unidades" }
-                p { class: "nota", "Cómo se muestran las cantidades en la ficha y en las equivalencias." }
+                p { id: "titulo-unidades", class: "eyebrow", "{t(idioma, Texto::Unidades)}" }
+                p { class: "nota", "{t(idioma, Texto::UnidadesNota)}" }
 
                 div
                 {
@@ -209,17 +260,52 @@ pub fn PantallaAjustes() -> Element
                         button
                         {
                             key: "{unidad.etiqueta()}",
-                            class: if unidad == actual { "chip chip--activo" } else { "chip" },
+                            class: if unidad == unidad_actual { "chip chip--activo" } else { "chip" },
                             r#type: "button",
                             role: "radio",
-                            "aria-checked": if unidad == actual { "true" } else { "false" },
+                            "aria-checked": if unidad == unidad_actual { "true" } else { "false" },
                             onclick: move |_|
                             {
                                 let mut nuevos = ajustes();
                                 nuevos.unidad = unidad;
                                 cambiar(&mut ajustes, nuevos);
                             },
-                            "{unidad.etiqueta()}"
+                            "{t(idioma, texto_unidad(unidad))}"
+                        }
+                    }
+                }
+            }
+
+            section
+            {
+                class: "seccion",
+                "aria-labelledby": "titulo-tema",
+
+                p { id: "titulo-tema", class: "eyebrow", "{t(idioma, Texto::Tema)}" }
+                p { class: "nota", "{t(idioma, Texto::TemaNota)}" }
+
+                div
+                {
+                    class: "chips",
+                    role: "radiogroup",
+                    "aria-labelledby": "titulo-tema",
+
+                    for tema in Tema::TODOS
+                    {
+                        button
+                        {
+                            key: "{tema.etiqueta()}",
+                            class: if tema == tema_actual { "chip chip--activo" } else { "chip" },
+                            r#type: "button",
+                            role: "radio",
+                            "aria-checked": if tema == tema_actual { "true" } else { "false" },
+                            onclick: move |_|
+                            {
+                                let mut nuevos = ajustes();
+                                nuevos.tema = tema;
+                                cambiar(&mut ajustes, nuevos);
+                            },
+                            "{t(idioma, texto_tema(tema))}"
                         }
                     }
                 }
@@ -230,9 +316,35 @@ pub fn PantallaAjustes() -> Element
                 class: "seccion",
                 "aria-labelledby": "titulo-idioma",
 
-                p { id: "titulo-idioma", class: "eyebrow", "Idioma" }
-                p { "Español" }
-                p { class: "nota", "Por ahora Ratio solo está en español." }
+                p { id: "titulo-idioma", class: "eyebrow", "{t(idioma, Texto::IdiomaSeccion)}" }
+                p { class: "nota", "{t(idioma, Texto::IdiomaNota)}" }
+
+                div
+                {
+                    class: "chips",
+                    role: "radiogroup",
+                    "aria-labelledby": "titulo-idioma",
+
+                    for opcion in Idioma::TODOS
+                    {
+                        button
+                        {
+                            key: "{opcion.clave()}",
+                            class: if opcion == idioma { "chip chip--activo" } else { "chip" },
+                            r#type: "button",
+                            role: "radio",
+                            "aria-checked": if opcion == idioma { "true" } else { "false" },
+                            onclick: move |_|
+                            {
+                                let mut nuevos = ajustes();
+                                nuevos.idioma = opcion;
+                                cambiar(&mut ajustes, nuevos);
+                            },
+                            // Cada idioma se escribe en el suyo, para que se reconozca
+                            "{opcion.etiqueta()}"
+                        }
+                    }
+                }
             }
 
             section
@@ -240,7 +352,7 @@ pub fn PantallaAjustes() -> Element
                 class: "seccion",
                 "aria-labelledby": "titulo-bienvenida-ajustes",
 
-                p { id: "titulo-bienvenida-ajustes", class: "eyebrow", "Bienvenida" }
+                p { id: "titulo-bienvenida-ajustes", class: "eyebrow", "{t(idioma, Texto::BienvenidaSeccion)}" }
                 button
                 {
                     class: "chip",
@@ -251,11 +363,28 @@ pub fn PantallaAjustes() -> Element
                         nuevos.bienvenida_vista = false;
                         cambiar(&mut ajustes, nuevos);
                     },
-                    "Volver a ver la bienvenida al salir"
+                    "{t(idioma, Texto::VolverBienvenida)}"
                 }
             }
         }
 
         BarraInferior { activo: Destino::Perfil }
+    }
+}
+
+/// Texto de una unidad de medida.
+fn texto_unidad(unidad: Unidad) -> Texto {
+    match unidad {
+        Unidad::Mililitros => Texto::Mililitros,
+        Unidad::Onzas => Texto::Onzas,
+        Unidad::Partes => Texto::Partes,
+    }
+}
+
+/// Texto de un tema de color.
+fn texto_tema(tema: Tema) -> Texto {
+    match tema {
+        Tema::Claro => Texto::Claro,
+        Tema::Oscuro => Texto::Oscuro,
     }
 }
