@@ -15,8 +15,7 @@ use crate::biblioteca::ComponenteFicha; // Capa con ingrediente y unidad que via
 /// Se incrusta con `#[sqlx(flatten)]` en las filas de receta, así que la consulta debe
 /// traer estas columnas con estos mismos nombres.
 #[derive(sqlx::FromRow)]
-pub(crate) struct MedidasVaso
-{
+pub(crate) struct MedidasVaso {
     /// Volumen útil del vaso (ml).
     vaso_capacidad_ml: f64,
     /// Media anchura de la boca.
@@ -39,8 +38,7 @@ pub(crate) struct MedidasVaso
 
 /// Capa de una receta tal como vive en `componente_receta`.
 #[derive(sqlx::FromRow)]
-pub(crate) struct FilaCapa
-{
+pub(crate) struct FilaCapa {
     /// Receta a la que pertenece la capa (UUID en texto).
     pub(crate) receta_id: String,
     /// Ingrediente del catálogo al que apunta la capa.
@@ -63,21 +61,17 @@ pub(crate) struct FilaCapa
 
 // FUNCIONES
 
-impl MedidasVaso
-{
+impl MedidasVaso {
     /// Convierte las medidas en el vaso que dibuja el motor de proporciones.
-    pub(crate) fn a_vaso(self) -> proporciones::Vaso
-    {
+    pub(crate) fn a_vaso(self) -> proporciones::Vaso {
         // Elegir el asa según el texto guardado en la base
-        let asa_val = match self.asa.as_deref()
-        {
+        let asa_val = match self.asa.as_deref() {
             Some("chica") => Some(proporciones::Asa::Chica), // Asa chica
             Some("grande") => Some(proporciones::Asa::Grande), // Asa grande
-            _ => None, // Vaso sin asa
+            _ => None,                                       // Vaso sin asa
         };
 
-        proporciones::Vaso
-        {
+        proporciones::Vaso {
             capacidad_ml: self.vaso_capacidad_ml,
             radio_boca: self.radio_boca,
             radio_fondo: self.radio_fondo,
@@ -91,16 +85,13 @@ impl MedidasVaso
     }
 }
 
-impl FilaCapa
-{
+impl FilaCapa {
     /// Convierte la capa en un componente del motor.
     ///
     /// De momento 1 g = 1 ml: el motor recibe todas las capas como volumen. El detalle con
     /// unidad se conserva en `a_ficha` para guardar versiones y armar la lista de compra.
-    pub(crate) fn a_componente(&self) -> proporciones::Componente
-    {
-        proporciones::Componente
-        {
+    pub(crate) fn a_componente(&self) -> proporciones::Componente {
+        proporciones::Componente {
             nombre: self.nombre.clone(),
             ml: crate::ml_equivalentes(self.cantidad, &self.unidad),
             graduacion: self.graduacion_pct,
@@ -111,10 +102,8 @@ impl FilaCapa
     }
 
     /// Convierte la capa en el componente con ingrediente y unidad que viaja a la app.
-    pub(crate) fn a_ficha(&self) -> ComponenteFicha
-    {
-        ComponenteFicha
-        {
+    pub(crate) fn a_ficha(&self) -> ComponenteFicha {
+        ComponenteFicha {
             ingrediente_id: self.ingrediente_id.clone(),
             posicion: self.posicion,
             nombre: self.nombre.clone(),

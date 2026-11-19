@@ -6,7 +6,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::capas::{LLENADO_MAX, Capa, DetalleCapa, capas, detalle};
+use crate::capas::{Capa, DetalleCapa, LLENADO_MAX, capas, detalle};
 use crate::geometria::{Geometria, fraccion_por_volumen, radio, volumen};
 use crate::tipos::{Asa, Receta};
 
@@ -246,9 +246,7 @@ fn aclarar(hex: &str, factor: f64) -> String {
 
 /// Comprueba que el color venga en el formato `#RRGGBB`.
 fn hex_valido(s: &str) -> bool {
-    s.len() == 7
-        && s.starts_with('#')
-        && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+    s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
 /// Capas de líquido apiladas desde el fondo, cada una con su menisco.
@@ -446,7 +444,9 @@ pub fn svg(receta: &Receta, opciones: &Opciones) -> String {
         n(m.radio_boca),
         n(m.boca_ry),
     ));
-    salida.push_str(&format!("<g clip-path=\"url(#clip-{id})\">{cuerpo}{brillo}</g>"));
+    salida.push_str(&format!(
+        "<g clip-path=\"url(#clip-{id})\">{cuerpo}{brillo}</g>"
+    ));
     salida.push_str(&format!("<path class=\"cup-contorno\" d=\"{externa}\" />"));
     salida.push_str(&format!("<path class=\"cup-pared\" d=\"{interna}\" />"));
     salida.push_str(&format!(
@@ -470,7 +470,11 @@ fn n(x: f64) -> String {
 
     let texto = format!("{x}");
 
-    if texto == "-0" { "0".to_string() } else { texto }
+    if texto == "-0" {
+        "0".to_string()
+    } else {
+        texto
+    }
 }
 
 /// Escapa el texto que va dentro del SVG.

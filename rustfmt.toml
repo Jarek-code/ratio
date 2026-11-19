@@ -1,0 +1,2 @@
+# Formato del workspace: lo aplica `cargo fmt` con el estilo de Rust (llave en la misma línea).
+edition = "2024"

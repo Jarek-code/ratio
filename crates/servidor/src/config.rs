@@ -23,7 +23,8 @@ impl Config {
     /// Supabase rechaza las conexiones sin cifrar.
     pub fn desde_entorno() -> Result<Self, String> {
         let database_url = std::env::var("DATABASE_URL").map_err(|_| {
-            "missing DATABASE_URL: copy .env.example to .env locally, or set it in Render".to_string()
+            "missing DATABASE_URL: copy .env.example to .env locally, or set it in Render"
+                .to_string()
         })?;
 
         if !database_url.starts_with("postgres://") && !database_url.starts_with("postgresql://") {
@@ -38,15 +39,24 @@ impl Config {
             format!("{database_url}{separador}sslmode=require")
         };
 
-        let supabase_url = std::env::var("SUPABASE_URL").ok().filter(|v| !v.trim().is_empty());
-        let supabase_anon = std::env::var("SUPABASE_ANON_KEY").ok().filter(|v| !v.trim().is_empty());
+        let supabase_url = std::env::var("SUPABASE_URL")
+            .ok()
+            .filter(|v| !v.trim().is_empty());
+        let supabase_anon = std::env::var("SUPABASE_ANON_KEY")
+            .ok()
+            .filter(|v| !v.trim().is_empty());
 
         Ok(Self {
             database_url,
             supabase_url,
             supabase_anon,
             migrar: std::env::var("MIGRACIONES_AL_ARRANCAR")
-                .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "si" | "sí"))
+                .map(|v| {
+                    matches!(
+                        v.trim().to_ascii_lowercase().as_str(),
+                        "1" | "true" | "si" | "sí"
+                    )
+                })
                 .unwrap_or(false),
         })
     }
