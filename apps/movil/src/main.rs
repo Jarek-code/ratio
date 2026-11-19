@@ -3,15 +3,18 @@
 mod actividad;
 mod ajustar;
 mod ajustes;
+mod api_textos;
 mod barra;
 mod biblioteca;
 mod comparar;
+mod crear;
 mod descubrir;
 mod ficha;
 mod foro;
 mod fotos;
 mod guardados;
 mod historial;
+mod i18n;
 mod la_barra;
 mod lista_compra;
 mod local;
@@ -25,6 +28,8 @@ mod red;
 mod reportar;
 mod rutas;
 mod salud;
+#[cfg(target_os = "android")]
+mod selector_android;
 #[cfg(target_os = "ios")]
 mod selector_ios;
 mod sesion;
@@ -51,11 +56,16 @@ fn App() -> Element {
     // Los cambios hechos sin conexión se envían cuando vuelve la red
     let pendientes = use_context_provider(|| Signal::new(0_usize));
     use_future(move || local::vaciar(sesion, pendientes));
+    // Los datos de Storage para subir fotos se piden al servidor una vez
+    use_future(fotos::cargar_configuracion);
     // Las novedades sin leer de La Barra se consultan cada minuto
     let no_leidas = use_context_provider(|| actividad::NoLeidas(Signal::new(0_u32)));
     use_future(move || actividad::vigilar(sesion, no_leidas));
-    // Unidad preferida y bienvenida, leídas del archivo de ajustes
-    use_context_provider(|| Signal::new(ajustes::cargar()));
+    // Unidad, tema y bienvenida, leídas del archivo de ajustes
+    let ajustes = use_context_provider(|| Signal::new(ajustes::cargar()));
+    let tema = ajustes.read().tema;
+    // El idioma guardado manda desde el primer texto que se pinta
+    i18n::fijar_actual(ajustes.read().idioma);
 
     rsx! {
         // Fuentes usadas por el diseño de Penpot.
@@ -63,7 +73,10 @@ fn App() -> Element {
             rel: "stylesheet",
             href: "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap",
         }
-        Router::<Rutas> {}
+        // El tema se aplica aquí: las hojas leen `data-theme` para cambiar sus colores
+        div { class: "app", "data-theme": "{tema.atributo()}",
+            Router::<Rutas> {}
+        }
     }
 }
 
