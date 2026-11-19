@@ -3,17 +3,16 @@
 //! Los tipos viajan entre la app y el servidor; las consultas a Supabase solo compilan en el servidor
 
 // LIBRERÍAS
+#[cfg(feature = "server")]
+use crate::base::ConPlazo;
 use dioxus::prelude::*; // Macro server y tipo ServerFnError (única importación con comodín permitida)
 use serde::Deserialize; // Derive para recibir la sugerencia en la app
-use serde::Serialize; // Derive para enviar la sugerencia desde el servidor
-#[cfg(feature = "server")]
-use crate::base::ConPlazo; // Plazo de cada consulta
+use serde::Serialize; // Derive para enviar la sugerencia desde el servidor // Plazo de cada consulta
 
 // ESTRUCTURAS
 /// Receta sugerida para la tarjeta del día, lista para dibujarse con el motor de proporciones
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RecetaSugerida
-{
+pub struct RecetaSugerida {
     /// Identificador de la receta (UUID en texto)
     pub id: String,
     /// Tipo de bebida ("cafe" o "cocteleria")
@@ -24,8 +23,7 @@ pub struct RecetaSugerida
 
 /// Fila de una receta con las medidas de su vaso, tal como sale de la consulta (solo servidor)
 #[cfg(feature = "server")]
-struct FilaReceta
-{
+struct FilaReceta {
     /// Identificador de la receta (UUID en texto)
     id: String,
     /// Nombre visible de la bebida
@@ -56,8 +54,7 @@ struct FilaReceta
 
 /// Fila de una capa líquida de receta, tal como sale de la consulta (solo servidor)
 #[cfg(feature = "server")]
-struct FilaCapa
-{
+struct FilaCapa {
     /// Receta a la que pertenece la capa (UUID en texto)
     receta_id: String,
     /// Nombre del ingrediente en esta receta
@@ -74,22 +71,18 @@ struct FilaCapa
 
 /// Conversión de las filas de la base al formato del motor de proporciones (solo servidor)
 #[cfg(feature = "server")]
-impl FilaReceta
-{
+impl FilaReceta {
     /// Convierte la fila y sus capas en una receta sugerida, con las capas de abajo hacia arriba
-    fn a_sugerencia(self, capas_lista: &[FilaCapa]) -> RecetaSugerida
-    {
+    fn a_sugerencia(self, capas_lista: &[FilaCapa]) -> RecetaSugerida {
         // Elegir el asa según el texto guardado en la base
-        let asa_val = match self.asa.as_deref()
-        {
+        let asa_val = match self.asa.as_deref() {
             Some("chica") => Some(proporciones::Asa::Chica), // Asa chica
             Some("grande") => Some(proporciones::Asa::Grande), // Asa grande
-            _ => None, // Vaso sin asa
+            _ => None,                                       // Vaso sin asa
         };
 
         // Construir el vaso con las mismas medidas que usa el motor
-        let vaso_val = proporciones::Vaso
-        {
+        let vaso_val = proporciones::Vaso {
             capacidad_ml: self.vaso_capacidad_ml,
             radio_boca: self.radio_boca,
             radio_fondo: self.radio_fondo,
@@ -105,8 +98,7 @@ impl FilaReceta
         let ingredientes_vec = capas_lista
             .iter()
             .filter(|capa_iter| capa_iter.receta_id == self.id) // Conservar solo las capas de esta receta
-            .map(|capa_iter| proporciones::Componente
-            {
+            .map(|capa_iter| proporciones::Componente {
                 nombre: capa_iter.nombre.clone(),
                 ml: capa_iter.cantidad,
                 graduacion: capa_iter.graduacion_pct,
@@ -116,12 +108,10 @@ impl FilaReceta
             })
             .collect();
 
-        RecetaSugerida
-        {
+        RecetaSugerida {
             id: self.id,
             tipo: self.tipo,
-            receta: proporciones::Receta
-            {
+            receta: proporciones::Receta {
                 nombre: self.nombre,
                 vaso: vaso_val,
                 capacidad_ml: self.capacidad_ml,
@@ -142,8 +132,7 @@ impl FilaReceta
 ///
 /// Devuelve `ServerFnError` si el servidor no tiene pool de conexiones o si alguna consulta falla
 #[server(endpoint = "sugerencias_dia")]
-pub async fn sugerencias_dia(token: Option<String>) -> Result<Vec<RecetaSugerida>, ServerFnError>
-{
+pub async fn sugerencias_dia(token: Option<String>) -> Result<Vec<RecetaSugerida>, ServerFnError> {
     // Pool que instaló el binario; si no lo hay, el fallo ya dice qué pasó
     let pool_val = crate::base::pool()?;
 
@@ -187,7 +176,8 @@ pub async fn sugerencias_dia(token: Option<String>) -> Result<Vec<RecetaSugerida
         .collect();
 
     // Consultar las capas líquidas de las recetas elegidas desde el fondo (los sólidos en mg no ocupan volumen en el vaso)
-    let capas_vec = sqlx::query_as!(FilaCapa,
+    let capas_vec = sqlx::query_as!(
+        FilaCapa,
         r#"
         SELECT receta_id::text AS "receta_id!", nombre, cantidad, graduacion_pct, color, dilucion
         FROM componente_receta
@@ -197,9 +187,9 @@ pub async fn sugerencias_dia(token: Option<String>) -> Result<Vec<RecetaSugerida
         "#,
         &ids_vec[..] // Recetas elegidas (UUID en texto)
     )
-        .fetch_all(pool_val) // Ejecutar consulta con el pool compartido
-        .con_plazo("las capas de la sugerencia")
-        .await?;
+    .fetch_all(pool_val) // Ejecutar consulta con el pool compartido
+    .con_plazo("las capas de la sugerencia")
+    .await?;
 
     // Convertir cada fila en una sugerencia con sus capas
     let sugerencias_vec = recetas_vec

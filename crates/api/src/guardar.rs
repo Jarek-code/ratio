@@ -57,13 +57,22 @@ pub struct RecetaNueva {
     pub id: Option<String>,
 }
 
+/// Aviso que el servidor devuelve al guardar una versión.
+///
+/// Viaja como clave, no como frase: la app lo escribe en el idioma elegido.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Aviso {
+    /// La bebida ocupa casi todo el vaso.
+    AlLimiteDelVaso,
+}
+
 /// Resultado de guardar una version.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VersionGuardada {
     /// Identificador de la receta nueva.
     pub receta_id: String,
     /// Avisos no bloqueantes, como quedar por encima del 94 % del vaso.
-    pub advertencias: Vec<String>,
+    pub advertencias: Vec<Aviso>,
 }
 
 /// Fila de la receta origen que se copia en la version (solo servidor).
@@ -174,14 +183,12 @@ pub async fn guardar_receta(
             "El identificador de la versión no es válido: vuelve a intentarlo.",
         ));
     }
-    if !crate::fallos::es_uuid(&datos.origen_id)
-    {
+    if !crate::fallos::es_uuid(&datos.origen_id) {
         return Err(crate::fallos::datos(
             "La receta original no es válida: vuelve a abrir la ficha.",
         ));
     }
-    if !crate::fallos::es_uuid(&datos.vaso_id)
-    {
+    if !crate::fallos::es_uuid(&datos.vaso_id) {
         return Err(crate::fallos::datos("El vaso elegido no es válido."));
     }
 
@@ -217,7 +224,10 @@ pub async fn guardar_receta(
         ));
     }
 
-    let mut tx = pool.begin().con_plazo("la transacción de la versión").await?;
+    let mut tx = pool
+        .begin()
+        .con_plazo("la transacción de la versión")
+        .await?;
 
     let origen = sqlx::query_as::<_, FilaOrigen>(
         r#"
@@ -498,11 +508,271 @@ pub async fn guardar_receta(
 
     let mut advertencias = Vec::new();
     if total_ml > datos.capacidad_ml * proporciones::LLENADO_MAX {
-        advertencias.push("La bebida queda al limite del vaso.".to_string());
+        advertencias.push(Aviso::AlLimiteDelVaso);
     }
 
     Ok(VersionGuardada {
         receta_id,
         advertencias,
     })
+}
+
+// CREAR UNA RECETA NUEVA (D1)
+
+/// Datos para crear una receta desde cero, sin partir de otra.
+///
+/// El nombre, el tipo y la familia los elige la persona; las capas apuntan al catálogo de
+/// ingredientes y el servidor copia su metadata (unidad, graduación, color y dilución) para
+/// no confiar en lo que manda el cliente.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecetaDesdeCero {
+    /// Nombre visible de la bebida.
+    pub nombre: String,
+    /// Pestaña: «cafe» o «cocteleria».
+    pub tipo: String,
+    /// Familia de la bebida, para los filtros de la biblioteca.
+    pub familia: String,
+    /// Vaso elegido en el catálogo.
+    pub vaso_id: String,
+    /// Capacidad efectiva de la bebida (ml).
+    pub capacidad_ml: f64,
+    /// Capas de abajo hacia arriba.
+    pub componentes: Vec<ComponenteAgregado>,
+    /// Pasos de preparación, en orden.
+    #[serde(default)]
+    pub pasos: Vec<PasoNuevo>,
+    /// UUID que genera la app: reenviar desde la cola no duplica la receta.
+    #[serde(default)]
+    pub id: Option<String>,
+}
+
+/// Paso de preparación de una receta nueva.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PasoNuevo {
+    /// Encabezado corto del paso.
+    pub titulo: String,
+    /// Texto del paso.
+    pub instruccion: String,
+    /// Temporizador en segundos, si el paso lo necesita.
+    #[serde(default)]
+    pub temporizador_s: Option<i32>,
+}
+
+/// Crea una receta desde cero y la deja como borrador de la cuenta (D1).
+///
+/// La receta nace sin publicar: se publica después desde Mi recetario o desde La Barra.
+/// Devuelve el identificador de la receta nueva.
+///
+/// # Errores
+///
+/// Devuelve [`crate::fallos::CODIGO_SESION`] si no hay sesión, [`crate::fallos::CODIGO_DATOS`]
+/// si el nombre, el tipo, la familia, el vaso o las cantidades no son válidos, y
+/// [`crate::fallos::CODIGO_REINTENTO`] si la base no contesta.
+#[server(endpoint = "crear_receta")]
+pub async fn crear_receta(token: String, datos: RecetaDesdeCero) -> Result<String, ServerFnError> {
+    let pool = crate::base::pool()?;
+
+    let cuenta = crate::auth::cuenta(Some(&token))
+        .await
+        .ok_or_else(|| crate::fallos::sesion("Inicia sesión para crear una receta."))?;
+
+    // Datos del formulario: nada de esto puede llegar a la base sin revisarse
+    let nombre = datos.nombre.trim();
+    if nombre.is_empty() || nombre.chars().count() > 120 {
+        return Err(crate::fallos::datos(
+            "El nombre de la receta necesita entre 1 y 120 caracteres.",
+        ));
+    }
+    if !matches!(datos.tipo.as_str(), "cafe" | "cocteleria") {
+        return Err(crate::fallos::datos("Elige café o coctelería."));
+    }
+    if datos.familia.trim().is_empty() || datos.familia.chars().count() > 40 {
+        return Err(crate::fallos::datos(
+            "La familia de la bebida necesita entre 1 y 40 caracteres.",
+        ));
+    }
+    if !crate::fallos::es_uuid(&datos.vaso_id) {
+        return Err(crate::fallos::datos("Elige un vaso del catálogo."));
+    }
+    if let Some(id) = &datos.id
+        && !crate::fallos::es_uuid(id)
+    {
+        return Err(crate::fallos::datos(
+            "El identificador de la receta no es válido: vuelve a intentarlo.",
+        ));
+    }
+    if datos.componentes.is_empty() {
+        return Err(crate::fallos::datos(
+            "Una receta necesita al menos un ingrediente.",
+        ));
+    }
+    if !datos.capacidad_ml.is_finite() || datos.capacidad_ml <= 0.0 {
+        return Err(crate::fallos::datos(
+            "La capacidad del vaso tiene que ser un número mayor que cero.",
+        ));
+    }
+
+    // Un reenvío de la cola: la receta ya existe y no se crea otra
+    if let Some(id) = &datos.id {
+        let existente = sqlx::query_scalar::<_, String>(
+            "SELECT id::text FROM receta WHERE id = $1::uuid AND autor_id = $2::uuid",
+        )
+        .bind(id)
+        .bind(&cuenta)
+        .fetch_optional(pool)
+        .con_plazo("la receta guardada")
+        .await?;
+
+        if let Some(receta_id) = existente {
+            return Ok(receta_id);
+        }
+    }
+
+    // La capacidad no puede pasarse de la del vaso elegido
+    let capacidad_vaso =
+        sqlx::query_scalar::<_, f64>("SELECT capacidad_ml FROM vaso WHERE id = $1::uuid")
+            .bind(&datos.vaso_id)
+            .fetch_optional(pool)
+            .con_plazo("el vaso")
+            .await?
+            .ok_or_else(|| crate::fallos::no_encontrado("El vaso elegido no existe."))?;
+    if datos.capacidad_ml > capacidad_vaso + 0.01 {
+        return Err(crate::fallos::datos(
+            "La capacidad no puede superar la del vaso elegido.",
+        ));
+    }
+
+    // Metadata de cada ingrediente, leída del catálogo (no del cliente)
+    let mut capas_vec = Vec::with_capacity(datos.componentes.len());
+    let mut total_ml = 0.0;
+    let mut tiene_alcohol = false;
+
+    for (posicion, componente) in datos.componentes.iter().enumerate() {
+        if !crate::fallos::es_uuid(&componente.ingrediente_id) {
+            return Err(crate::fallos::datos(
+                "Uno de los ingredientes no es válido: vuelve a elegirlo.",
+            ));
+        }
+        if !componente.cantidad.is_finite() || componente.cantidad <= 0.0 {
+            return Err(crate::fallos::datos(
+                "Las cantidades tienen que ser mayores que cero.",
+            ));
+        }
+
+        let fila = sqlx::query_as::<_, FilaIngredienteCatalogo>(
+            r#"
+            SELECT nombre, unidad, graduacion_pct, color, es_dilucion AS dilucion
+            FROM ingrediente
+            WHERE id = $1::uuid
+            "#,
+        )
+        .bind(&componente.ingrediente_id)
+        .fetch_optional(pool)
+        .con_plazo("el ingrediente")
+        .await?
+        .ok_or_else(|| crate::fallos::no_encontrado("El ingrediente elegido no existe."))?;
+
+        total_ml += crate::ml_equivalentes(componente.cantidad, &fila.unidad);
+        tiene_alcohol |= fila.graduacion_pct > 0.0;
+        capas_vec.push((posicion as i16, componente.cantidad, fila));
+    }
+
+    if total_ml > datos.capacidad_ml {
+        return Err(crate::fallos::datos(
+            "La bebida no cabe en el vaso: quita cantidad o elige uno más grande.",
+        ));
+    }
+    if tiene_alcohol && !crate::auth::es_adulto(Some(&token)).await {
+        return Err(crate::fallos::datos(
+            "Solo una cuenta de mayor de edad puede crear bebidas con alcohol.",
+        ));
+    }
+
+    let mut tx = pool
+        .begin()
+        .con_plazo("la transacción de la receta")
+        .await?;
+
+    let receta_id = sqlx::query_scalar::<_, String>(
+        r#"
+        INSERT INTO receta (autor_id, nombre, tipo, familia, vaso_id, capacidad_ml, id)
+        VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, COALESCE($7::uuid, gen_random_uuid()))
+        RETURNING id::text
+        "#,
+    )
+    .bind(&cuenta)
+    .bind(nombre)
+    .bind(&datos.tipo)
+    .bind(datos.familia.trim())
+    .bind(&datos.vaso_id)
+    .bind(datos.capacidad_ml)
+    .bind(&datos.id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|causa| {
+        dioxus::logger::tracing::error!("no se pudo crear la receta: {causa}");
+
+        crate::fallos::reintento("No se pudo crear la receta. Vuelve a intentarlo.")
+    })?;
+
+    for (posicion, cantidad, fila) in capas_vec {
+        sqlx::query(
+            r#"
+            INSERT INTO componente_receta (
+                receta_id, posicion, ingrediente_id, nombre,
+                graduacion_pct, color, cantidad, unidad, dilucion
+            )
+            VALUES ($1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8, $9)
+            "#,
+        )
+        .bind(&receta_id)
+        .bind(posicion)
+        .bind(&datos.componentes[posicion as usize].ingrediente_id)
+        .bind(&fila.nombre)
+        .bind(fila.graduacion_pct)
+        .bind(&fila.color)
+        .bind(cantidad)
+        .bind(&fila.unidad)
+        .bind(fila.dilucion)
+        .execute(&mut *tx)
+        .await
+        .map_err(|causa| {
+            dioxus::logger::tracing::error!("no se pudieron guardar las capas: {causa}");
+
+            crate::fallos::reintento(
+                "No se pudieron guardar los ingredientes. Vuelve a intentarlo.",
+            )
+        })?;
+    }
+
+    for (posicion, paso) in datos.pasos.iter().enumerate() {
+        if paso.instruccion.trim().is_empty() {
+            continue; // Un paso sin texto no se guarda
+        }
+
+        sqlx::query(
+            r#"
+            INSERT INTO paso (receta_id, posicion, titulo, instruccion, temporizador_s)
+            VALUES ($1::uuid, $2, $3, $4, $5)
+            "#,
+        )
+        .bind(&receta_id)
+        .bind(posicion as i16)
+        .bind(paso.titulo.trim())
+        .bind(paso.instruccion.trim())
+        .bind(paso.temporizador_s)
+        .execute(&mut *tx)
+        .await
+        .map_err(|causa| {
+            dioxus::logger::tracing::error!("no se pudieron guardar los pasos: {causa}");
+
+            crate::fallos::reintento("No se pudieron guardar los pasos. Vuelve a intentarlo.")
+        })?;
+    }
+
+    tx.commit()
+        .con_plazo("la confirmación de la receta")
+        .await?;
+
+    Ok(receta_id)
 }

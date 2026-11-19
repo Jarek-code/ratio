@@ -11,11 +11,11 @@ pub mod base; // Pool y plazo de las consultas (solo servidor)
 pub mod biblioteca; // Catálogo completo de la pantalla Biblioteca (B2)
 #[cfg(feature = "server")]
 pub mod db;
-#[cfg(feature = "server")]
-mod filas; // Filas de vaso y capa compartidas por las consultas
 pub mod descubrir; // Sugerencias del día de la pantalla Descubrir (B1)
 pub mod diario; // Gusto, duración y diario de preparaciones (D4)
 pub mod fallos; // Fallos con código: dato inválido, reintento, sesión o no encontrado
+#[cfg(feature = "server")]
+mod filas; // Filas de vaso y capa compartidas por las consultas
 pub mod foro; // La Barra: publicar, hilo, comentar, valorar, reportar y fotos (D1-D7)
 pub mod guardados; // Recetas guardadas por la cuenta (C5)
 pub mod guardar; // C2: guardar una version privada ajustada
@@ -74,10 +74,14 @@ pub struct EstadoSalud {
 #[server(endpoint = "analizar")]
 pub async fn analizar(receta: Receta) -> Result<Detalle, ServerFnError> {
     if receta.ingredientes.is_empty() {
-        return Err(fallos::datos("La receta no tiene ingredientes que analizar."));
+        return Err(fallos::datos(
+            "La receta no tiene ingredientes que analizar.",
+        ));
     }
     if receta.capacidad_ml.is_nan() || receta.capacidad_ml <= 0.0 {
-        return Err(fallos::datos("El vaso necesita una capacidad mayor que cero."));
+        return Err(fallos::datos(
+            "El vaso necesita una capacidad mayor que cero.",
+        ));
     }
 
     Ok(proporciones::detalle(&receta))

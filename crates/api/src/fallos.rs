@@ -93,8 +93,11 @@ pub fn es_uuid(texto: &str) -> bool {
         return false;
     }
 
-    bytes.iter().enumerate().all(|(posicion, byte)| match posicion {
-        8 | 13 | 18 | 23 => *byte == b'-',
-        _ => byte.is_ascii_hexdigit(),
-    })
+    bytes
+        .iter()
+        .enumerate()
+        .all(|(posicion, byte)| match posicion {
+            8 | 13 | 18 | 23 => *byte == b'-',
+            _ => byte.is_ascii_hexdigit(),
+        })
 }

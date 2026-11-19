@@ -13,9 +13,9 @@ use std::sync::OnceLock;
 #[cfg(feature = "server")]
 use crate::Sesion;
 #[cfg(feature = "server")]
-use crate::base::ConPlazo; // Plazo de cada consulta
-#[cfg(feature = "server")]
 use crate::base;
+#[cfg(feature = "server")]
+use crate::base::ConPlazo; // Plazo de cada consulta
 #[cfg(feature = "server")]
 use crate::fallos; // Fallos con código: dato inválido, reintento o sesión
 
@@ -157,6 +157,18 @@ fn supabase() -> Result<&'static (String, String), ServerFnError> {
     })
 }
 
+/// Dirección y clave pública de Supabase, para que la app suba fotos a Storage.
+///
+/// Son valores públicos: la clave anónima solo permite lo que las políticas del bucket
+/// dejan. El servidor los tiene en su entorno, así que la app no necesita compilarlos.
+#[cfg(feature = "server")]
+pub fn datos_publicos() -> Option<crate::foro::DatosStorage> {
+    SUPABASE.get().map(|(url, anon)| crate::foro::DatosStorage {
+        url: url.clone(),
+        anon: anon.clone(),
+    })
+}
+
 /// Estado y cuerpo de una respuesta de Supabase Auth.
 #[cfg(feature = "server")]
 async fn leer_respuesta(respuesta: reqwest::Response) -> (bool, serde_json::Value) {
@@ -215,24 +227,28 @@ async fn token_con_contrasena(
         let motivo = motivo_de(&cuerpo);
         let codigo = cuerpo["error_code"].as_str().unwrap_or("");
 
-        return Err(if codigo == "invalid_credentials"
-            || motivo.contains("Invalid login credentials")
-            || motivo.contains("invalid_grant")
-        {
-            fallos::datos("Correo o contraseña incorrectos.")
-        } else if codigo == "email_not_confirmed" || motivo.contains("Email not confirmed") {
-            fallos::datos("Confirma el correo que te enviamos y vuelve a entrar.")
-        } else if codigo == "over_request_rate_limit" || motivo.contains("rate limit") {
-            fallos::datos("Demasiados intentos seguidos: espera unos minutos y vuelve a probar.")
-        } else if motivo.is_empty() {
-            // Supabase contestó con un fallo suyo: reintentar sí sirve
-            fallos::reintento(format!(
-                "El servicio de cuentas falló ({}). Vuelve a intentarlo en un momento.",
-                cuerpo["code"].as_u64().unwrap_or(0)
-            ))
-        } else {
-            fallos::datos(format!("No se pudo entrar: {motivo}"))
-        });
+        return Err(
+            if codigo == "invalid_credentials"
+                || motivo.contains("Invalid login credentials")
+                || motivo.contains("invalid_grant")
+            {
+                fallos::datos("Correo o contraseña incorrectos.")
+            } else if codigo == "email_not_confirmed" || motivo.contains("Email not confirmed") {
+                fallos::datos("Confirma el correo que te enviamos y vuelve a entrar.")
+            } else if codigo == "over_request_rate_limit" || motivo.contains("rate limit") {
+                fallos::datos(
+                    "Demasiados intentos seguidos: espera unos minutos y vuelve a probar.",
+                )
+            } else if motivo.is_empty() {
+                // Supabase contestó con un fallo suyo: reintentar sí sirve
+                fallos::reintento(format!(
+                    "El servicio de cuentas falló ({}). Vuelve a intentarlo en un momento.",
+                    cuerpo["code"].as_u64().unwrap_or(0)
+                ))
+            } else {
+                fallos::datos(format!("No se pudo entrar: {motivo}"))
+            },
+        );
     }
 
     Ok(cuerpo)
@@ -299,8 +315,7 @@ async fn clave_de(kid: &str) -> Result<jsonwebtoken::DecodingKey, ServerFnError>
         Err(_) => false,
     };
 
-    if recientes
-    {
+    if recientes {
         return Err(fallos::sesion("La sesión caducó: vuelve a entrar."));
     }
 
@@ -312,9 +327,13 @@ async fn clave_de(kid: &str) -> Result<jsonwebtoken::DecodingKey, ServerFnError>
         .send()
         .await
         .map_err(|causa| {
-            dioxus::logger::tracing::error!("no se pudieron descargar las claves de Supabase: {causa}");
+            dioxus::logger::tracing::error!(
+                "no se pudieron descargar las claves de Supabase: {causa}"
+            );
 
-            fallos::reintento("No se pudo comprobar tu sesión: el servidor de cuentas no contestó. Reintenta.")
+            fallos::reintento(
+                "No se pudo comprobar tu sesión: el servidor de cuentas no contestó. Reintenta.",
+            )
         })?
         .json()
         .await
@@ -337,8 +356,7 @@ async fn clave_de(kid: &str) -> Result<jsonwebtoken::DecodingKey, ServerFnError>
 #[cfg(feature = "server")]
 async fn cuenta_del_token(token: &str) -> Result<String, ServerFnError> {
     let caducada = || fallos::sesion("La sesión caducó: vuelve a entrar.");
-    if token.trim().is_empty()
-    {
+    if token.trim().is_empty() {
         return Err(caducada());
     }
     let (url, _) = supabase()?;
@@ -415,8 +433,7 @@ pub async fn entrar(credenciales: Credenciales) -> Result<SesionIniciada, Server
 /// Devuelve `ServerFnError` si faltan las variables de Supabase o si no se pudo hablar con él.
 #[server(endpoint = "renovar")]
 pub async fn renovar(refresco: String) -> Result<Option<SesionIniciada>, ServerFnError> {
-    if refresco.trim().is_empty()
-    {
+    if refresco.trim().is_empty() {
         return Err(fallos::sesion("La sesión caducó: vuelve a entrar."));
     }
 
@@ -501,26 +518,30 @@ pub async fn registrar(datos: Registro) -> Result<SesionIniciada, ServerFnError>
         let motivo = motivo_de(&cuerpo);
         let codigo = cuerpo["error_code"].as_str().unwrap_or("");
 
-        return Err(if codigo == "user_already_exists"
-            || motivo.contains("already registered")
-            || motivo.contains("already been registered")
-        {
-            fallos::datos("Ese correo ya tiene cuenta: entra con tu contraseña.")
-        } else if codigo == "weak_password" || motivo.contains("at least 6 characters") {
-            fallos::datos("La contraseña necesita al menos 6 caracteres.")
-        } else if codigo == "over_email_send_rate_limit" || motivo.contains("rate limit") {
-            fallos::datos("Demasiados correos seguidos: espera unos minutos y vuelve a probar.")
-        } else if codigo == "signup_disabled" || motivo.contains("Signups not allowed") {
-            fallos::datos("El alta de cuentas está desactivada: avisa a quien administra el proyecto.")
-        } else if codigo == "email_address_invalid" || motivo.contains("is invalid") {
-            fallos::datos("Ese correo no parece válido: revísalo y vuelve a probar.")
-        } else if motivo.is_empty() {
-            fallos::reintento(
-                "El servicio de cuentas no pudo crear la cuenta. Vuelve a intentarlo en un momento.",
-            )
-        } else {
-            fallos::datos(format!("No se pudo crear la cuenta: {motivo}"))
-        });
+        return Err(
+            if codigo == "user_already_exists"
+                || motivo.contains("already registered")
+                || motivo.contains("already been registered")
+            {
+                fallos::datos("Ese correo ya tiene cuenta: entra con tu contraseña.")
+            } else if codigo == "weak_password" || motivo.contains("at least 6 characters") {
+                fallos::datos("La contraseña necesita al menos 6 caracteres.")
+            } else if codigo == "over_email_send_rate_limit" || motivo.contains("rate limit") {
+                fallos::datos("Demasiados correos seguidos: espera unos minutos y vuelve a probar.")
+            } else if codigo == "signup_disabled" || motivo.contains("Signups not allowed") {
+                fallos::datos(
+                    "El alta de cuentas está desactivada: avisa a quien administra el proyecto.",
+                )
+            } else if codigo == "email_address_invalid" || motivo.contains("is invalid") {
+                fallos::datos("Ese correo no parece válido: revísalo y vuelve a probar.")
+            } else if motivo.is_empty() {
+                fallos::reintento(
+                    "El servicio de cuentas no pudo crear la cuenta. Vuelve a intentarlo en un momento.",
+                )
+            } else {
+                fallos::datos(format!("No se pudo crear la cuenta: {motivo}"))
+            },
+        );
     }
 
     if cuerpo["access_token"].as_str().is_none() {
@@ -530,6 +551,53 @@ pub async fn registrar(datos: Registro) -> Result<SesionIniciada, ServerFnError>
     }
 
     iniciada_de(&cuerpo).await
+}
+
+/// Manda el correo para restablecer la contraseña de la cuenta.
+///
+/// El enlace lo manda Supabase Auth y la app no lo ve ni lo guarda: solo avisa de que el
+/// correo salió. La respuesta es la misma exista o no la cuenta, para que la pantalla no
+/// sirva para averiguar qué correos están dados de alta.
+///
+/// # Errores
+///
+/// Devuelve [`fallos::CODIGO_DATOS`] si el correo no tiene forma de correo, y
+/// [`fallos::CODIGO_REINTENTO`] si no se pudo hablar con el servicio de cuentas.
+#[server(endpoint = "recuperar")]
+pub async fn recuperar(correo: String) -> Result<(), ServerFnError> {
+    if let Some(aviso) = revisar_correo(&correo) {
+        return Err(fallos::datos(aviso));
+    }
+
+    let (url, anon) = supabase()?;
+
+    let respuesta = base::cliente_http()?
+        .post(format!("{url}/auth/v1/recover"))
+        .header("apikey", anon)
+        .json(&serde_json::json!({ "email": correo.trim() }))
+        .send()
+        .await
+        .map_err(|causa| {
+            dioxus::logger::tracing::error!("Supabase Auth no contestó al recuperar: {causa}");
+
+            fallos::reintento(
+                "No se pudo pedir el cambio de contraseña. Revisa la conexión y reintenta.",
+            )
+        })?;
+
+    if respuesta.status().is_server_error() {
+        return Err(fallos::reintento(
+            "El servicio de cuentas falló al mandar el correo. Vuelve a intentarlo en un momento.",
+        ));
+    }
+    if respuesta.status().is_client_error() {
+        // Supabase contesta 4xx con el motivo del correo, pero no se filtra al cliente
+        return Err(fallos::datos(
+            "No se pudo mandar el correo de cambio de contraseña: revisa la dirección.",
+        ));
+    }
+
+    Ok(())
 }
 
 /// Revalida un token guardado y devuelve el perfil que le corresponde.
@@ -542,6 +610,23 @@ pub async fn sesion(token: String) -> Result<crate::Sesion, ServerFnError> {
     let cuenta = cuenta_del_token(&token).await?;
 
     perfil_de(&cuenta).await
+}
+
+/// Cuenta de la petición, distinguiendo «sin sesión» de «sesión vencida».
+///
+/// Las lecturas públicas aceptan a quien no ha entrado, pero si la app manda un token que ya
+/// no vale no debe enseñar una versión recortada del contenido: devuelve 401 para que la
+/// persona vuelva a entrar.
+///
+/// # Errores
+///
+/// Devuelve [`fallos::CODIGO_SESION`] si llega un token que no se puede verificar.
+#[cfg(feature = "server")]
+pub async fn cuenta_estricta(token: Option<&str>) -> Result<Option<String>, ServerFnError> {
+    match token {
+        Some(token) if !token.trim().is_empty() => cuenta_del_token(token).await.map(Some),
+        _ => Ok(None), // Sin token: se lee como anónimo
+    }
 }
 
 /// Cuenta a la que pertenece el token, si el token sigue siendo válido.
@@ -561,7 +646,10 @@ pub async fn es_adulto(token: Option<&str>) -> bool {
     };
 
     match cuenta_del_token(token).await {
-        Ok(cuenta) => perfil_de(&cuenta).await.map(|p| p.mayor_de_edad).unwrap_or(false),
+        Ok(cuenta) => perfil_de(&cuenta)
+            .await
+            .map(|p| p.mayor_de_edad)
+            .unwrap_or(false),
         Err(_) => false,
     }
 }

@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 use crate::biblioteca::RecetaResumen;
 
 #[cfg(feature = "server")]
-use crate::biblioteca::{FilaCapa, FilaReceta};
+use crate::base::ConPlazo;
 #[cfg(feature = "server")]
-use crate::base::ConPlazo; // Plazo de cada consulta
+use crate::biblioteca::{FilaCapa, FilaReceta}; // Plazo de cada consulta
 
 /// Receta guardada con la fecha en que se añadió a la lista.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -88,8 +88,8 @@ pub async fn guardados(token: String) -> Result<Vec<RecetaGuardada>, ServerFnErr
                r.minutos,
                r.dificultad,
                r.intensidad,
-               to_char(g.creado_en AT TIME ZONE 'UTC', 'DD/MM/YYYY') AS guardado_en,
-               to_char(MAX(p.creada_en) AT TIME ZONE 'UTC', 'DD/MM/YYYY') AS ultima_preparacion
+               to_char(g.creado_en AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS guardado_en,
+               to_char(MAX(p.creada_en) AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS ultima_preparacion
         FROM guardado g
         JOIN receta r ON r.id = g.receta_id
         JOIN vaso v ON v.id = r.vaso_id

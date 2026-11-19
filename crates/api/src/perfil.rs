@@ -19,8 +19,7 @@ use crate::base::ConPlazo; // Plazo de cada consulta
 
 /// Perfil público de una cuenta.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PerfilPublico
-{
+pub struct PerfilPublico {
     /// Alias visible.
     pub alias: String,
     /// Si el perfil es el de la cuenta que pregunta.
@@ -38,8 +37,7 @@ pub struct PerfilPublico
 /// Fila con la cuenta del alias y sus contadores (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
-struct FilaPerfil
-{
+struct FilaPerfil {
     /// Alias tal como se guardó.
     alias: String,
     /// Si es la cuenta que pregunta.
@@ -62,10 +60,11 @@ struct FilaPerfil
 ///
 /// Devuelve `ServerFnError` si el servidor no tiene pool o si alguna consulta falla.
 #[server(endpoint = "perfil")]
-pub async fn perfil(alias: String, token: Option<String>) -> Result<Option<PerfilPublico>, ServerFnError>
-{
-    if alias.trim().is_empty()
-    {
+pub async fn perfil(
+    alias: String,
+    token: Option<String>,
+) -> Result<Option<PerfilPublico>, ServerFnError> {
+    if alias.trim().is_empty() {
         return Ok(None); // Sin alias no hay nada que buscar
     }
 
@@ -94,16 +93,14 @@ pub async fn perfil(alias: String, token: Option<String>) -> Result<Option<Perfi
     .con_plazo("el perfil")
     .await?;
 
-    let Some(fila) = fila else
-    {
+    let Some(fila) = fila else {
         return Ok(None); // Alias inexistente
     };
 
     // Traer, con la regla de edad, las recetas publicadas por este alias
     let recetas = crate::barra::tarjetas_de(pool, &cuenta, adulto, &fila.alias).await?;
 
-    Ok(Some(PerfilPublico
-    {
+    Ok(Some(PerfilPublico {
         alias: fila.alias,
         propio: fila.propio,
         recetas,
@@ -122,10 +119,8 @@ pub async fn perfil(alias: String, token: Option<String>) -> Result<Option<Perfi
 /// Devuelve `ServerFnError` si no hay sesión, si el alias no existe o es el propio, o si la
 /// consulta falla.
 #[server(endpoint = "seguir")]
-pub async fn seguir(token: String, alias: String, sigue: bool) -> Result<bool, ServerFnError>
-{
-    if alias.trim().is_empty()
-    {
+pub async fn seguir(token: String, alias: String, sigue: bool) -> Result<bool, ServerFnError> {
+    if alias.trim().is_empty() {
         return Err(crate::fallos::datos("Elige un perfil para seguir."));
     }
 
@@ -146,12 +141,9 @@ pub async fn seguir(token: String, alias: String, sigue: bool) -> Result<bool, S
     .ok_or_else(|| crate::fallos::no_encontrado("Ese perfil no existe."))?;
 
     // Seguir: insertar si no existe; dejar de seguir: borrar si existe
-    let consulta = if sigue
-    {
+    let consulta = if sigue {
         "INSERT INTO seguimiento (seguidor_id, seguido_id) VALUES ($1::uuid, $2::uuid) ON CONFLICT DO NOTHING"
-    }
-    else
-    {
+    } else {
         "DELETE FROM seguimiento WHERE seguidor_id = $1::uuid AND seguido_id = $2::uuid"
     };
     sqlx::query(consulta)

@@ -39,8 +39,7 @@ const LARGO_RESUMEN: usize = 140;
 
 /// Pestaña del muro: decide qué recetas salen y en qué orden.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Pestana
-{
+pub enum Pestana {
     /// Todas las recetas publicadas, de la más nueva a la más vieja.
     Recientes,
     /// Solo las recetas de las cuentas que sigue quien pregunta.
@@ -49,13 +48,10 @@ pub enum Pestana
     Populares,
 }
 
-impl Pestana
-{
+impl Pestana {
     /// Clave de la pestaña dentro de la consulta.
-    pub fn clave(self) -> &'static str
-    {
-        match self
-        {
+    pub fn clave(self) -> &'static str {
+        match self {
             Pestana::Recientes => "recientes",
             Pestana::Siguiendo => "siguiendo",
             Pestana::Populares => "populares",
@@ -63,10 +59,8 @@ impl Pestana
     }
 
     /// Orden de la consulta: siempre termina en fecha e id para que la paginación sea estable.
-    pub fn orden_sql(self) -> &'static str
-    {
-        match self
-        {
+    pub fn orden_sql(self) -> &'static str {
+        match self {
             Pestana::Populares => "c.recientes + p.recientes DESC, r.publicada_en DESC, r.id",
             Pestana::Recientes | Pestana::Siguiendo => "r.publicada_en DESC, r.id",
         }
@@ -75,8 +69,7 @@ impl Pestana
 
 /// Receta publicada tal como se pinta en el muro y en los perfiles.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TarjetaBarra
-{
+pub struct TarjetaBarra {
     /// Receta con su vaso y sus capas.
     pub receta: RecetaResumen,
     /// Si deriva de otra receta, aunque esa otra no sea visible para quien pregunta.
@@ -97,19 +90,16 @@ pub struct TarjetaBarra
     pub hace_s: i64,
 }
 
-impl TarjetaBarra
-{
+impl TarjetaBarra {
     /// Porcentaje de personas a las que les salió; `None` si nadie la ha valorado.
-    pub fn porcentaje_me_salio(&self) -> Option<i64>
-    {
+    pub fn porcentaje_me_salio(&self) -> Option<i64> {
         porcentaje(self.me_salio, self.valoraciones)
     }
 }
 
 /// Comentario de cualquier receta tal como se pinta en la conversación.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ComentarioMuro
-{
+pub struct ComentarioMuro {
     /// Identificador del comentario (UUID en texto).
     pub id: String,
     /// Alias de quien comenta.
@@ -121,7 +111,15 @@ pub struct ComentarioMuro
     /// Texto del comentario, recortado a 140 caracteres.
     pub texto: String,
     /// Texto del ancla, por ejemplo «Capa · Leche» o «Paso 2 · Espumar».
-    pub ancla: Option<String>,
+    /// Nombre de la capa a la que se ancla, si va anclado a una capa.
+    #[serde(default)]
+    pub capa: Option<String>,
+    /// Posición del paso al que se ancla, si va anclado a un paso.
+    #[serde(default)]
+    pub paso: Option<i16>,
+    /// Título de ese paso.
+    #[serde(default)]
+    pub paso_titulo: Option<String>,
     /// Si responde a otro comentario.
     pub es_respuesta: bool,
     /// Segundos desde que se escribió.
@@ -130,8 +128,7 @@ pub struct ComentarioMuro
 
 /// Página de una lista: sus elementos y si quedan más por pedir.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Pagina<T>
-{
+pub struct Pagina<T> {
     /// Elementos de esta página, en orden.
     pub elementos: Vec<T>,
     /// Si la página siguiente trae algo.
@@ -141,8 +138,7 @@ pub struct Pagina<T>
 /// Fila de una tarjeta del muro (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
-struct FilaTarjeta
-{
+struct FilaTarjeta {
     /// Campos compartidos con el catálogo público.
     #[sqlx(flatten)]
     cabecera: FilaReceta,
@@ -169,8 +165,7 @@ struct FilaTarjeta
 /// Fila de un comentario de la conversación (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
-struct FilaComentarioMuro
-{
+struct FilaComentarioMuro {
     /// Identificador del comentario.
     id: String,
     /// Alias del autor.
@@ -196,17 +191,14 @@ struct FilaComentarioMuro
 // FUNCIONES
 
 /// Porcentaje entero de `parte` sobre `total`; `None` si el total es cero.
-pub fn porcentaje(parte: i64, total: i64) -> Option<i64>
-{
+pub fn porcentaje(parte: i64, total: i64) -> Option<i64> {
     (total > 0).then(|| (parte.clamp(0, total) * 100 + total / 2) / total) // Redondeo al entero más cercano
 }
 
 /// Recorta un texto a `LARGO_RESUMEN` caracteres y marca el corte con puntos suspensivos.
-pub fn resumen(texto: &str) -> String
-{
+pub fn resumen(texto: &str) -> String {
     let limpio = texto.split_whitespace().collect::<Vec<_>>().join(" "); // Sin saltos de línea
-    if limpio.chars().count() <= LARGO_RESUMEN
-    {
+    if limpio.chars().count() <= LARGO_RESUMEN {
         return limpio; // Cabe completo
     }
 
@@ -215,25 +207,14 @@ pub fn resumen(texto: &str) -> String
 }
 
 /// Tiempo transcurrido en palabras: «hace un momento», «hace 5 min», «hace 3 h», «hace 2 d».
-pub fn hace(segundos: i64) -> String
-{
-    match segundos.max(0)
-    {
-        0..60 => "hace un momento".to_string(),
-        60..3_600 => format!("hace {} min", segundos / 60),
-        3_600..86_400 => format!("hace {} h", segundos / 3_600),
-        86_400..2_592_000 => format!("hace {} d", segundos / 86_400),
-        2_592_000..5_184_000 => "hace 1 mes".to_string(),
-        5_184_000..31_536_000 => format!("hace {} meses", segundos / 2_592_000),
-        31_536_000..63_072_000 => "hace 1 año".to_string(),
-        _ => format!("hace {} años", segundos / 31_536_000),
-    }
+pub fn hace(segundos: i64) -> i64 {
+    // El cliente decide cómo se escribe: aquí solo viaja el dato
+    segundos.max(0)
 }
 
 /// Filas que se saltan para llegar a una página.
 #[cfg(feature = "server")]
-fn desplazamiento(pagina: u32) -> i64
-{
+fn desplazamiento(pagina: u32) -> i64 {
     i64::from(pagina.min(PAGINA_MAXIMA)) * i64::from(POR_PAGINA)
 }
 
@@ -250,8 +231,7 @@ async fn tarjetas(
     alias: Option<&str>,
     limite: i64,
     salto: i64,
-) -> Result<Vec<TarjetaBarra>, ServerFnError>
-{
+) -> Result<Vec<TarjetaBarra>, ServerFnError> {
     // Consultar las recetas con sus contadores en una sola pasada
     let consulta = format!(
         r#"
@@ -340,7 +320,10 @@ async fn tarjetas(
         .await?;
 
     // Consultar las capas de esas recetas para dibujar cada vaso
-    let ids_vec: Vec<String> = filas_vec.iter().map(|fila| fila.tarjeta_id.clone()).collect();
+    let ids_vec: Vec<String> = filas_vec
+        .iter()
+        .map(|fila| fila.tarjeta_id.clone())
+        .collect();
     let capas_vec = sqlx::query_as::<_, FilaCapa>(
         r#"
         SELECT receta_id::text AS receta_id,
@@ -365,8 +348,7 @@ async fn tarjetas(
     // Convertir cada fila en la tarjeta que pinta la app
     let tarjetas_vec = filas_vec
         .into_iter()
-        .map(|fila| TarjetaBarra
-        {
+        .map(|fila| TarjetaBarra {
             receta: fila.cabecera.a_resumen(&capas_vec),
             derivada: fila.derivada,
             origen: fila.origen_nombre,
@@ -393,9 +375,17 @@ pub(crate) async fn tarjetas_de(
     cuenta: &Option<String>,
     adulto: bool,
     alias: &str,
-) -> Result<Vec<TarjetaBarra>, ServerFnError>
-{
-    tarjetas(pool, cuenta, adulto, Pestana::Recientes, Some(alias), i64::from(RECETAS_POR_PERFIL), 0).await
+) -> Result<Vec<TarjetaBarra>, ServerFnError> {
+    tarjetas(
+        pool,
+        cuenta,
+        adulto,
+        Pestana::Recientes,
+        Some(alias),
+        i64::from(RECETAS_POR_PERFIL),
+        0,
+    )
+    .await
 }
 
 /// Trae una página del muro de La Barra (D2).
@@ -405,17 +395,30 @@ pub(crate) async fn tarjetas_de(
 ///
 /// # Errores
 ///
-/// Devuelve `ServerFnError` si el servidor no tiene pool o si alguna consulta falla.
+/// Devuelve [`crate::fallos::CODIGO_SESION`] si llega un token vencido, y
+/// [`crate::fallos::CODIGO_REINTENTO`] si la base no contesta. `pagina` se recorta al máximo
+/// en lugar de rechazarse: el cliente nunca la inventa y el tope protege la consulta.
 #[server(endpoint = "muro")]
-pub async fn muro(token: Option<String>, pestana: Pestana, pagina: u32) -> Result<Pagina<TarjetaBarra>, ServerFnError>
-{
+pub async fn muro(
+    token: Option<String>,
+    pestana: Pestana,
+    pagina: u32,
+) -> Result<Pagina<TarjetaBarra>, ServerFnError> {
     let pool = crate::base::pool()?;
-    let cuenta = crate::auth::cuenta(token.as_deref()).await;
+    let cuenta = crate::auth::cuenta_estricta(token.as_deref()).await?;
     let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
     // Pedir una fila de más para saber si queda otra página
-    let mut elementos =
-        tarjetas(pool, &cuenta, adulto, pestana, None, i64::from(POR_PAGINA) + 1, desplazamiento(pagina)).await?;
+    let mut elementos = tarjetas(
+        pool,
+        &cuenta,
+        adulto,
+        pestana,
+        None,
+        i64::from(POR_PAGINA) + 1,
+        desplazamiento(pagina),
+    )
+    .await?;
     let hay_mas = elementos.len() > POR_PAGINA as usize;
     elementos.truncate(POR_PAGINA as usize);
 
@@ -428,11 +431,16 @@ pub async fn muro(token: Option<String>, pestana: Pestana, pagina: u32) -> Resul
 ///
 /// # Errores
 ///
-/// Devuelve `ServerFnError` si el servidor no tiene pool o si la consulta falla.
+/// Devuelve [`crate::fallos::CODIGO_SESION`] si llega un token vencido, y
+/// [`crate::fallos::CODIGO_REINTENTO`] si la base no contesta.
 #[server(endpoint = "conversacion")]
-pub async fn conversacion(token: Option<String>, pagina: u32) -> Result<Pagina<ComentarioMuro>, ServerFnError>
-{
+pub async fn conversacion(
+    token: Option<String>,
+    pagina: u32,
+) -> Result<Pagina<ComentarioMuro>, ServerFnError> {
     let pool = crate::base::pool()?;
+    // La conversación es pública, pero un token vencido se avisa en vez de ignorarse
+    crate::auth::cuenta_estricta(token.as_deref()).await?;
     let adulto = crate::auth::es_adulto(token.as_deref()).await;
 
     // Consultar los comentarios más recientes con su receta y su ancla
@@ -475,9 +483,10 @@ pub async fn conversacion(token: Option<String>, pagina: u32) -> Result<Pagina<C
     // Convertir cada fila en el comentario que pinta la app
     let elementos = filas_vec
         .into_iter()
-        .map(|fila| ComentarioMuro
-        {
-            ancla: crate::foro::texto_ancla(&fila.capa, fila.paso_posicion, &fila.paso_titulo),
+        .map(|fila| ComentarioMuro {
+            capa: fila.capa,
+            paso: fila.paso_posicion,
+            paso_titulo: fila.paso_titulo,
             id: fila.id,
             autor: fila.autor,
             receta_id: fila.receta_id,
@@ -494,21 +503,19 @@ pub async fn conversacion(token: Option<String>, pagina: u32) -> Result<Pagina<C
 // PUNTO DE PARTIDA
 
 #[cfg(test)]
-mod pruebas
-{
+mod pruebas {
     // LIBRERÍAS
 
+    use super::Pestana;
     use super::hace; // Tiempo transcurrido en palabras
     use super::porcentaje; // Porcentaje de «me salió»
-    use super::resumen; // Recorte del comentario
-    use super::Pestana; // Pestañas del muro
+    use super::resumen; // Recorte del comentario // Pestañas del muro
 
     // FUNCIONES
 
     /// Comprueba el porcentaje de «me salió»: redondea y no se calcula sin valoraciones.
     #[test]
-    fn porcentaje_me_salio()
-    {
+    fn porcentaje_me_salio() {
         assert_eq!(porcentaje(0, 0), None);
         assert_eq!(porcentaje(3, 4), Some(75));
         assert_eq!(porcentaje(2, 3), Some(67));
@@ -519,22 +526,33 @@ mod pruebas
 
     /// Comprueba el orden del muro: Populares va por actividad y todas desempatan igual.
     #[test]
-    fn orden_del_muro()
-    {
-        assert!(Pestana::Populares.orden_sql().starts_with("c.recientes + p.recientes DESC"));
-        assert!(Pestana::Recientes.orden_sql().starts_with("r.publicada_en DESC"));
-        assert_eq!(Pestana::Siguiendo.orden_sql(), Pestana::Recientes.orden_sql());
+    fn orden_del_muro() {
+        assert!(
+            Pestana::Populares
+                .orden_sql()
+                .starts_with("c.recientes + p.recientes DESC")
+        );
+        assert!(
+            Pestana::Recientes
+                .orden_sql()
+                .starts_with("r.publicada_en DESC")
+        );
+        assert_eq!(
+            Pestana::Siguiendo.orden_sql(),
+            Pestana::Recientes.orden_sql()
+        );
 
-        for pestana in [Pestana::Recientes, Pestana::Siguiendo, Pestana::Populares]
-        {
-            assert!(pestana.orden_sql().ends_with("r.publicada_en DESC, r.id"), "stable tie-break");
+        for pestana in [Pestana::Recientes, Pestana::Siguiendo, Pestana::Populares] {
+            assert!(
+                pestana.orden_sql().ends_with("r.publicada_en DESC, r.id"),
+                "stable tie-break"
+            );
         }
     }
 
     /// Comprueba que el comentario largo se corta a 140 caracteres y el corto queda igual.
     #[test]
-    fn resumen_del_comentario()
-    {
+    fn resumen_del_comentario() {
         assert_eq!(resumen("Me salió\n  muy bien"), "Me salió muy bien");
 
         let largo = "a".repeat(300);
@@ -543,18 +561,12 @@ mod pruebas
         assert!(corto.ends_with('…'));
     }
 
-    /// Comprueba el tiempo transcurrido en cada escala.
+    /// El servidor solo manda los segundos transcurridos: las palabras las pone el cliente,
+    /// que es el único que sabe en qué idioma está la app.
     #[test]
-    fn tiempo_transcurrido()
-    {
-        assert_eq!(hace(-5), "hace un momento");
-        assert_eq!(hace(59), "hace un momento");
-        assert_eq!(hace(125), "hace 2 min");
-        assert_eq!(hace(7_200), "hace 2 h");
-        assert_eq!(hace(3 * 86_400), "hace 3 d");
-        assert_eq!(hace(35 * 86_400), "hace 1 mes");
-        assert_eq!(hace(70 * 86_400), "hace 2 meses");
-        assert_eq!(hace(400 * 86_400), "hace 1 año");
-        assert_eq!(hace(800 * 86_400), "hace 2 años");
+    fn tiempo_transcurrido_en_segundos() {
+        assert_eq!(hace(-5), 0);
+        assert_eq!(hace(125), 125);
+        assert_eq!(hace(3 * 86_400), 3 * 86_400);
     }
 }

@@ -23,8 +23,7 @@ const NOVEDADES_MAXIMAS: i64 = 50;
 
 /// Tipo de novedad que aparece en Actividad.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum TipoEvento
-{
+pub enum TipoEvento {
     /// Alguien comentó una receta propia.
     Comentario,
     /// Alguien respondió a un comentario propio.
@@ -37,10 +36,31 @@ pub enum TipoEvento
     Moderacion,
 }
 
+/// Detalle de una novedad que escribe el sistema, no una persona.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DetalleSistema {
+    /// Alguien preparó la receta y le salió.
+    LeSalio,
+    /// Alguien preparó la receta y no le salió.
+    NoLeSalio,
+    /// Alguien publicó una versión de la receta, con su nombre.
+    VersionDe(String),
+    /// Decisión de moderación sobre el contenido de la cuenta.
+    Moderacion {
+        /// Acción tomada: «ocultar», «restaurar», «avisar» o «descartar».
+        accion: Option<String>,
+        /// Nota que dejó quien moderó.
+        nota: Option<String>,
+        /// Si quien recibe es el autor del contenido.
+        soy_autor: bool,
+        /// Si el contenido era un comentario y no una receta.
+        sobre_comentario: bool,
+    },
+}
+
 /// Novedad sobre las recetas, los comentarios o los reportes de la cuenta.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Evento
-{
+pub struct Evento {
     /// Qué pasó.
     pub tipo: TipoEvento,
     /// Alias de quien lo hizo; «Moderación» en las decisiones de moderación.
@@ -49,8 +69,11 @@ pub struct Evento
     pub receta_id: Option<String>,
     /// Nombre de esa receta.
     pub receta_nombre: String,
-    /// Detalle: el texto del comentario, «Le salió» o la decisión de moderación.
+    /// Texto que escribió una persona (un comentario) o el nombre de la versión.
     pub detalle: String,
+    /// Qué contar de una novedad del sistema, para que la app lo escriba en su idioma.
+    #[serde(default)]
+    pub sistema: Option<DetalleSistema>,
     /// Fecha legible, por ejemplo «12 nov 2026».
     pub fecha: String,
     /// Si la cuenta todavía no la había visto.
@@ -59,8 +82,7 @@ pub struct Evento
 
 /// Aviso que se guarda para otra cuenta (solo servidor).
 #[cfg(feature = "server")]
-pub(crate) struct Aviso<'a>
-{
+pub(crate) struct Aviso<'a> {
     /// Cuenta que recibe el aviso.
     pub(crate) para: &'a str,
     /// Cuenta que hizo la acción.
@@ -76,8 +98,7 @@ pub(crate) struct Aviso<'a>
 /// Fila de una novedad de Actividad (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
-struct FilaEvento
-{
+struct FilaEvento {
     /// Tipo guardado en la tabla.
     tipo: String,
     /// Alias de quien la hizo.
@@ -119,29 +140,42 @@ struct FilaEvento
 /// Cuenta que debe recibir el aviso, o `None` si quien actúa es el propio dueño.
 ///
 /// Nadie se notifica a sí mismo: comentar la receta propia o responderse no avisa.
-pub fn destinatario<'a>(dueno: &'a str, actor: &str) -> Option<&'a str>
-{
+pub fn destinatario<'a>(dueno: &'a str, actor: &str) -> Option<&'a str> {
     (!dueno.is_empty() && !dueno.eq_ignore_ascii_case(actor)).then_some(dueno)
 }
 
 /// Texto de una decisión de moderación para quien reportó o para quien publicó el contenido.
-pub fn texto_moderacion(accion: Option<&str>, nota: Option<&str>, soy_autor: bool, sobre_comentario: bool) -> String
-{
-    let que = if sobre_comentario { "comentario" } else { "receta" };
-    let base = match (accion, soy_autor)
-    {
-        (Some("ocultar"), true) => format!("Retiramos tu {que} de La Barra porque no cumple las normas."),
+pub fn texto_moderacion(
+    accion: Option<&str>,
+    nota: Option<&str>,
+    soy_autor: bool,
+    sobre_comentario: bool,
+) -> String {
+    let que = if sobre_comentario {
+        "comentario"
+    } else {
+        "receta"
+    };
+    let base = match (accion, soy_autor) {
+        (Some("ocultar"), true) => {
+            format!("Retiramos tu {que} de La Barra porque no cumple las normas.")
+        }
         (Some("restaurar"), true) => format!("Restauramos tu {que}: vuelve a estar visible."),
-        (Some("avisar"), true) => format!("Recibimos un reporte sobre tu {que}. Revísalo, por favor."),
+        (Some("avisar"), true) => {
+            format!("Recibimos un reporte sobre tu {que}. Revísalo, por favor.")
+        }
         (Some("ocultar"), false) => "Revisamos tu reporte y retiramos el contenido.".to_string(),
-        (Some("avisar"), false) => "Revisamos tu reporte y avisamos a quien lo publicó.".to_string(),
-        (Some("descartar"), false) => "Revisamos tu reporte: el contenido cumple las normas y se mantiene.".to_string(),
+        (Some("avisar"), false) => {
+            "Revisamos tu reporte y avisamos a quien lo publicó.".to_string()
+        }
+        (Some("descartar"), false) => {
+            "Revisamos tu reporte: el contenido cumple las normas y se mantiene.".to_string()
+        }
         _ => "Moderación revisó este contenido.".to_string(),
     };
 
     // La nota de moderación solo la lee quien publicó el contenido
-    match nota.map(str::trim).filter(|texto| !texto.is_empty())
-    {
+    match nota.map(str::trim).filter(|texto| !texto.is_empty()) {
         Some(texto) if soy_autor => format!("{base} Nota: {texto}"),
         _ => base,
     }
@@ -153,8 +187,7 @@ pub fn texto_moderacion(accion: Option<&str>, nota: Option<&str>, soy_autor: boo
 /// `$2` como la mayoría de edad. Una decisión de moderación se muestra aunque el contenido
 /// esté retirado, porque de eso trata el aviso.
 #[cfg(feature = "server")]
-fn visible_sql() -> String
-{
+fn visible_sql() -> String {
     format!(
         r#"
         ($2 OR {sin_alcohol})
@@ -180,11 +213,12 @@ fn visible_sql() -> String
 ///
 /// Devuelve `ServerFnError` si la base rechaza la escritura.
 #[cfg(feature = "server")]
-pub(crate) async fn notificar(conexion: &mut sqlx::PgConnection, aviso: Aviso<'_>) -> Result<(), ServerFnError>
-{
+pub(crate) async fn notificar(
+    conexion: &mut sqlx::PgConnection,
+    aviso: Aviso<'_>,
+) -> Result<(), ServerFnError> {
     // Quitar el aviso anterior equivalente cuando no trata de un comentario concreto
-    if aviso.comentario_id.is_none()
-    {
+    if aviso.comentario_id.is_none() {
         sqlx::query(
             r#"
             DELETE FROM notificacion
@@ -232,8 +266,7 @@ pub(crate) async fn notificar(conexion: &mut sqlx::PgConnection, aviso: Aviso<'_
 ///
 /// Devuelve `ServerFnError` si no hay sesión o si la consulta falla.
 #[server(endpoint = "actividad")]
-pub async fn actividad(token: String) -> Result<Vec<Evento>, ServerFnError>
-{
+pub async fn actividad(token: String) -> Result<Vec<Evento>, ServerFnError> {
     let pool = crate::base::pool()?;
     let cuenta = crate::foro::cuenta_obligatoria(&token).await?;
     let adulto = crate::auth::es_adulto(Some(&token)).await;
@@ -295,33 +328,57 @@ pub async fn actividad(token: String) -> Result<Vec<Evento>, ServerFnError>
     // Convertir cada fila en la novedad que pinta la app
     let eventos_vec = filas_vec
         .into_iter()
-        .map(|fila|
-        {
-            let (tipo, detalle) = match fila.tipo.as_str()
-            {
+        .map(|fila| {
+            // El texto del sistema viaja como dato; los comentarios llevan lo que escribió
+            // la persona. Así la app lo escribe en el idioma que eligió.
+            let (tipo, detalle, sistema) = match fila.tipo.as_str() {
                 "valoracion" => (
                     TipoEvento::Valoracion,
-                    if fila.me_salio == Some(false) { "No le salió" } else { "Le salió" }.to_string(),
+                    String::new(),
+                    Some(if fila.me_salio == Some(false) {
+                        DetalleSistema::NoLeSalio
+                    } else {
+                        DetalleSistema::LeSalio
+                    }),
                 ),
                 "version_derivada" => (
                     TipoEvento::Derivada,
-                    fila.origen_nombre.map(|nombre| format!("Versión de {nombre}")).unwrap_or_default(),
+                    String::new(),
+                    fila.origen_nombre.map(DetalleSistema::VersionDe),
                 ),
                 "reporte_resuelto" => (
                     TipoEvento::Moderacion,
-                    texto_moderacion(fila.accion.as_deref(), fila.nota.as_deref(), fila.soy_autor, fila.sobre_comentario),
+                    String::new(),
+                    Some(DetalleSistema::Moderacion {
+                        accion: fila.accion.clone(),
+                        nota: fila.nota.clone(),
+                        soy_autor: fila.soy_autor,
+                        sobre_comentario: fila.sobre_comentario,
+                    }),
                 ),
-                _ if fila.es_respuesta => (TipoEvento::Respuesta, fila.comentario.unwrap_or_default()),
-                _ => (TipoEvento::Comentario, fila.comentario.unwrap_or_default()),
+                _ if fila.es_respuesta => (
+                    TipoEvento::Respuesta,
+                    fila.comentario.unwrap_or_default(),
+                    None,
+                ),
+                _ => (
+                    TipoEvento::Comentario,
+                    fila.comentario.unwrap_or_default(),
+                    None,
+                ),
             };
 
-            Evento
-            {
-                actor: if tipo == TipoEvento::Moderacion { "Moderación".to_string() } else { fila.actor },
+            Evento {
+                actor: if tipo == TipoEvento::Moderacion {
+                    "Moderación".to_string()
+                } else {
+                    fila.actor
+                },
                 tipo,
                 receta_id: fila.receta_visible.then_some(fila.receta_id),
                 receta_nombre: fila.receta_nombre,
                 detalle,
+                sistema,
                 fecha: crate::foro::fecha_legible(fila.dia, fila.mes, fila.anio),
                 nueva: fila.nueva,
             }
@@ -337,8 +394,7 @@ pub async fn actividad(token: String) -> Result<Vec<Evento>, ServerFnError>
 ///
 /// Devuelve `ServerFnError` si no hay sesión o si la consulta falla.
 #[server(endpoint = "no_leidas")]
-pub async fn no_leidas(token: String) -> Result<u32, ServerFnError>
-{
+pub async fn no_leidas(token: String) -> Result<u32, ServerFnError> {
     let pool = crate::base::pool()?;
     let cuenta = crate::foro::cuenta_obligatoria(&token).await?;
     let adulto = crate::auth::es_adulto(Some(&token)).await;
@@ -372,16 +428,17 @@ pub async fn no_leidas(token: String) -> Result<u32, ServerFnError>
 ///
 /// Devuelve `ServerFnError` si no hay sesión o si la escritura falla.
 #[server(endpoint = "marcar_leidas")]
-pub async fn marcar_leidas(token: String) -> Result<(), ServerFnError>
-{
+pub async fn marcar_leidas(token: String) -> Result<(), ServerFnError> {
     let pool = crate::base::pool()?;
     let cuenta = crate::foro::cuenta_obligatoria(&token).await?;
 
-    sqlx::query("UPDATE notificacion SET leida_en = now() WHERE usuario_id = $1::uuid AND leida_en IS NULL")
-        .bind(&cuenta)
-        .execute(pool)
-        .con_plazo("tus novedades")
-        .await?;
+    sqlx::query(
+        "UPDATE notificacion SET leida_en = now() WHERE usuario_id = $1::uuid AND leida_en IS NULL",
+    )
+    .bind(&cuenta)
+    .execute(pool)
+    .con_plazo("tus novedades")
+    .await?;
 
     Ok(())
 }
@@ -389,8 +446,7 @@ pub async fn marcar_leidas(token: String) -> Result<(), ServerFnError>
 // PUNTO DE PARTIDA
 
 #[cfg(test)]
-mod pruebas
-{
+mod pruebas {
     // LIBRERÍAS
 
     use super::destinatario; // Cuenta que recibe el aviso
@@ -400,21 +456,23 @@ mod pruebas
 
     /// Comprueba que nadie se notifica a sí mismo y que el dueño ajeno sí recibe el aviso.
     #[test]
-    fn nadie_se_notifica_a_si_mismo()
-    {
+    fn nadie_se_notifica_a_si_mismo() {
         let ana = "11111111-1111-4111-8111-111111111111";
         let luis = "22222222-2222-4222-8222-222222222222";
 
         assert_eq!(destinatario(ana, ana), None);
-        assert_eq!(destinatario(ana, &ana.to_uppercase()), None, "uuid case must not matter");
+        assert_eq!(
+            destinatario(ana, &ana.to_uppercase()),
+            None,
+            "uuid case must not matter"
+        );
         assert_eq!(destinatario(ana, luis), Some(ana));
         assert_eq!(destinatario("", luis), None, "no owner, no notice");
     }
 
     /// Comprueba que la nota de moderación solo llega a quien publicó el contenido.
     #[test]
-    fn nota_solo_para_el_autor()
-    {
+    fn nota_solo_para_el_autor() {
         let autor = texto_moderacion(Some("avisar"), Some("Cuida el tono"), true, true);
         let reportante = texto_moderacion(Some("avisar"), Some("Cuida el tono"), false, true);
 

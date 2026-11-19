@@ -105,12 +105,6 @@ WITH RECURSIVE arriba AS (
 )
 "#;
 
-/// Nombres de los meses en español, para la fecha legible.
-#[cfg(feature = "server")]
-pub(crate) const MESES: [&str; 12] = [
-    "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic",
-];
-
 /// Proporción entre el total y el ingrediente base, con coma decimal («1:4,5»).
 #[cfg(feature = "server")]
 fn ratio_de(total: f64, base: f64) -> String {
@@ -302,11 +296,12 @@ pub async fn versiones(
                 id: fila.id.clone(),
                 nombre: fila.nombre.clone(),
                 autor: fila.autor.clone(),
+                // Fecha neutra: el cliente la escribe en el idioma elegido
                 fecha: format!(
-                    "{} {} {}",
-                    fila.dia,
-                    MESES[(fila.mes.clamp(1, 12) - 1) as usize],
-                    fila.anio
+                    "{:04}-{:02}-{:02}",
+                    fila.anio,
+                    fila.mes.clamp(1, 12),
+                    fila.dia.clamp(1, 31)
                 ),
                 publica: fila.publica,
                 derivada: fila.origen_id.is_some(),

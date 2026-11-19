@@ -12,18 +12,18 @@ use serde::Deserialize; // Lectura de los tipos que viajan entre app y servidor
 use serde::Serialize; // Escritura de los tipos que viajan entre app y servidor
 
 use crate::Rol; // Rol de la cuenta
-use crate::Sesion; // Cuenta que llama, con su rol
+use crate::Sesion;
+use crate::foro::Motivo; // Causa de un reporte // Cuenta que llama, con su rol
 
 #[cfg(feature = "server")]
 use crate::base::ConPlazo; // Plazo de cada consulta
 #[cfg(feature = "server")]
-use crate::foro::Motivo; // Causa de un reporte
+#[cfg(feature = "server")]
+use crate::notificaciones::Aviso;
 #[cfg(feature = "server")]
 use crate::notificaciones::destinatario; // Cuenta que recibe el aviso, si no es uno mismo
 #[cfg(feature = "server")]
-use crate::notificaciones::notificar; // Aviso dentro de la transacción
-#[cfg(feature = "server")]
-use crate::notificaciones::Aviso; // Datos del aviso
+use crate::notificaciones::notificar; // Aviso dentro de la transacción // Datos del aviso
 
 // CONSTANTES Y VARIABLES GLOBALES
 
@@ -42,31 +42,25 @@ const DECISIONES_MAXIMAS: i64 = 50;
 
 /// Clase de contenido sobre el que actúa moderación.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TipoObjetivo
-{
+pub enum TipoObjetivo {
     /// Una receta publicada.
     Receta,
     /// Un comentario del hilo.
     Comentario,
 }
 
-impl TipoObjetivo
-{
+impl TipoObjetivo {
     /// Clave del tipo en la base.
-    pub fn clave(self) -> &'static str
-    {
-        match self
-        {
+    pub fn clave(self) -> &'static str {
+        match self {
             TipoObjetivo::Receta => "receta",
             TipoObjetivo::Comentario => "comentario",
         }
     }
 
     /// Nombre visible del tipo.
-    pub fn etiqueta(self) -> &'static str
-    {
-        match self
-        {
+    pub fn etiqueta(self) -> &'static str {
+        match self {
             TipoObjetivo::Receta => "Receta",
             TipoObjetivo::Comentario => "Comentario",
         }
@@ -75,8 +69,7 @@ impl TipoObjetivo
 
 /// Decisión que puede tomar moderación.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Accion
-{
+pub enum Accion {
     /// Retirar el contenido y aceptar sus reportes.
     Ocultar,
     /// Volver a mostrar un contenido retirado.
@@ -87,13 +80,10 @@ pub enum Accion
     Avisar,
 }
 
-impl Accion
-{
+impl Accion {
     /// Clave de la acción en la base.
-    pub fn clave(self) -> &'static str
-    {
-        match self
-        {
+    pub fn clave(self) -> &'static str {
+        match self {
             Accion::Ocultar => "ocultar",
             Accion::Restaurar => "restaurar",
             Accion::Descartar => "descartar",
@@ -103,10 +93,8 @@ impl Accion
 
     /// Acción que corresponde a una clave de la base; lo desconocido se lee como descartar.
     #[cfg(feature = "server")]
-    fn de_clave(clave: &str) -> Accion
-    {
-        match clave
-        {
+    fn de_clave(clave: &str) -> Accion {
+        match clave {
             "ocultar" => Accion::Ocultar,
             "restaurar" => Accion::Restaurar,
             "avisar" => Accion::Avisar,
@@ -115,10 +103,8 @@ impl Accion
     }
 
     /// Texto visible de la acción ya tomada.
-    pub fn etiqueta(self) -> &'static str
-    {
-        match self
-        {
+    pub fn etiqueta(self) -> &'static str {
+        match self {
             Accion::Ocultar => "Retirado",
             Accion::Restaurar => "Restaurado",
             Accion::Descartar => "Reportes descartados",
@@ -127,10 +113,20 @@ impl Accion
     }
 }
 
+/// Un reporte de la cola, con sus datos sueltos para que la app los redacte.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReporteCorto {
+    /// Motivo declarado.
+    pub motivo: Motivo,
+    /// Detalle que escribió quien reportó.
+    pub detalle: Option<String>,
+    /// Alias de quien reportó.
+    pub reportante: String,
+}
+
 /// Contenido con reportes pendientes, tal como lo ve moderación.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReporteCola
-{
+pub struct ReporteCola {
     /// Si se reportó una receta o un comentario.
     pub tipo: TipoObjetivo,
     /// Identificador del contenido reportado (UUID en texto).
@@ -144,15 +140,14 @@ pub struct ReporteCola
     /// Alias de quien publicó el contenido.
     pub autor: String,
     /// Un texto por reporte: motivo, detalle y quién reportó.
-    pub motivos: Vec<String>,
+    pub motivos: Vec<ReporteCorto>,
     /// Fecha del primer reporte, por ejemplo «12 nov 2026».
     pub fecha: String,
 }
 
 /// Decisión registrada en el historial de moderación.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Decision
-{
+pub struct Decision {
     /// Qué se decidió.
     pub accion: Accion,
     /// Si la decisión fue sobre una receta o un comentario.
@@ -174,8 +169,7 @@ pub struct Decision
 /// Fila de un reporte pendiente (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
-struct FilaReporte
-{
+struct FilaReporte {
     /// Comentario reportado, si se reportó un comentario.
     comentario_id: Option<String>,
     /// Receta reportada o receta del comentario.
@@ -203,8 +197,7 @@ struct FilaReporte
 /// Fila de una decisión del historial (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
-struct FilaDecision
-{
+struct FilaDecision {
     /// Clave de la acción.
     accion: String,
     /// Clave del tipo de contenido.
@@ -234,22 +227,19 @@ struct FilaDecision
 /// # Errores
 ///
 /// Devuelve un fallo «no encontrado» para cualquier otro rol, sin confirmar que la sección existe.
-pub fn autorizar(sesion: &Sesion) -> Result<(), ServerFnError>
-{
-    if sesion.rol == Rol::Moderador
-    {
+pub fn autorizar(sesion: &Sesion) -> Result<(), ServerFnError> {
+    if sesion.rol == Rol::Moderador {
         Ok(())
-    }
-    else
-    {
-        Err(crate::fallos::no_encontrado("Esta sección es solo para el equipo de moderación."))
+    } else {
+        Err(crate::fallos::no_encontrado(
+            "Esta sección es solo para el equipo de moderación.",
+        ))
     }
 }
 
 /// Cuenta que llama, comprobando en la base que tiene rol de moderación.
 #[cfg(feature = "server")]
-async fn moderador(token: String) -> Result<Sesion, ServerFnError>
-{
+async fn moderador(token: String) -> Result<Sesion, ServerFnError> {
     let sesion = crate::auth::sesion(token).await?; // Verifica el token y lee el rol de `usuario`
     autorizar(&sesion)?;
 
@@ -258,28 +248,39 @@ async fn moderador(token: String) -> Result<Sesion, ServerFnError>
 
 /// Junta los reportes pendientes por contenido, en el orden en que llegaron.
 #[cfg(feature = "server")]
-fn agrupar(filas_vec: Vec<FilaReporte>) -> Vec<ReporteCola>
-{
+fn agrupar(filas_vec: Vec<FilaReporte>) -> Vec<ReporteCola> {
     let mut cola_vec: Vec<ReporteCola> = Vec::new(); // Un elemento por contenido reportado
 
-    for fila in filas_vec
-    {
-        let objetivo_id = fila.comentario_id.clone().unwrap_or_else(|| fila.receta_id.clone());
-        let motivo = Motivo::de_clave(&fila.motivo).map(Motivo::etiqueta).unwrap_or("Otro motivo");
-        let detalle = fila.detalle.as_deref().map(str::trim).filter(|texto| !texto.is_empty());
-        let texto = match detalle
-        {
-            Some(detalle) => format!("{motivo}: {detalle} (reportó {})", fila.reportante),
-            None => format!("{motivo} (reportó {})", fila.reportante),
+    for fila in filas_vec {
+        let objetivo_id = fila
+            .comentario_id
+            .clone()
+            .unwrap_or_else(|| fila.receta_id.clone());
+        let motivo = Motivo::de_clave(&fila.motivo).unwrap_or(Motivo::Otro);
+        let detalle = fila
+            .detalle
+            .as_deref()
+            .map(str::trim)
+            .filter(|texto| !texto.is_empty());
+        // El motivo y el detalle viajan sueltos: la app los escribe en su idioma
+        let texto = ReporteCorto {
+            motivo,
+            detalle: detalle.map(str::to_string),
+            reportante: fila.reportante.clone(),
         };
 
         // Contenido ya visto: sumar el motivo; contenido nuevo: abrir su entrada
-        match cola_vec.iter_mut().find(|entrada| entrada.objetivo_id == objetivo_id)
+        match cola_vec
+            .iter_mut()
+            .find(|entrada| entrada.objetivo_id == objetivo_id)
         {
             Some(entrada) => entrada.motivos.push(texto),
-            None => cola_vec.push(ReporteCola
-            {
-                tipo: if fila.comentario_id.is_some() { TipoObjetivo::Comentario } else { TipoObjetivo::Receta },
+            None => cola_vec.push(ReporteCola {
+                tipo: if fila.comentario_id.is_some() {
+                    TipoObjetivo::Comentario
+                } else {
+                    TipoObjetivo::Receta
+                },
                 objetivo_id,
                 receta_id: fila.receta_id,
                 receta_nombre: fila.receta_nombre,
@@ -300,8 +301,7 @@ fn agrupar(filas_vec: Vec<FilaReporte>) -> Vec<ReporteCola>
 ///
 /// Devuelve `ServerFnError` si no hay sesión, si la cuenta no modera o si la consulta falla.
 #[server(endpoint = "cola_reportes")]
-pub async fn cola_reportes(token: String) -> Result<Vec<ReporteCola>, ServerFnError>
-{
+pub async fn cola_reportes(token: String) -> Result<Vec<ReporteCola>, ServerFnError> {
     let pool = crate::base::pool()?;
     moderador(token).await?;
 
@@ -354,20 +354,21 @@ pub async fn moderar(
     objetivo_id: String,
     accion: Accion,
     nota: Option<String>,
-) -> Result<(), ServerFnError>
-{
-    if !crate::fallos::es_uuid(&objetivo_id)
-    {
-        return Err(crate::fallos::datos("Ese contenido no es válido: vuelve a abrir la cola."));
+) -> Result<(), ServerFnError> {
+    if !crate::fallos::es_uuid(&objetivo_id) {
+        return Err(crate::fallos::datos(
+            "Ese contenido no es válido: vuelve a abrir la cola.",
+        ));
     }
     let nota = nota
         .as_deref()
         .map(str::trim)
         .filter(|texto| !texto.is_empty())
         .map(|texto| texto.chars().take(NOTA_MAXIMA).collect::<String>()); // Nota limpia y acotada
-    if accion == Accion::Avisar && nota.is_none()
-    {
-        return Err(crate::fallos::datos("Escribe la nota del aviso: es lo que leerá quien publicó."));
+    if accion == Accion::Avisar && nota.is_none() {
+        return Err(crate::fallos::datos(
+            "Escribe la nota del aviso: es lo que leerá quien publicó.",
+        ));
     }
 
     let pool = crate::base::pool()?;
@@ -375,10 +376,13 @@ pub async fn moderar(
     let mut tx = pool.begin().con_plazo("la decisión").await?;
 
     // Leer el contenido: quién lo publicó, de qué receta es y si está retirado
-    let lectura = match tipo
-    {
-        TipoObjetivo::Receta => "SELECT autor_id::text, id::text, oculta FROM receta WHERE id = $1::uuid FOR UPDATE",
-        TipoObjetivo::Comentario => "SELECT autor_id::text, receta_id::text, oculto FROM comentario WHERE id = $1::uuid FOR UPDATE",
+    let lectura = match tipo {
+        TipoObjetivo::Receta => {
+            "SELECT autor_id::text, id::text, oculta FROM receta WHERE id = $1::uuid FOR UPDATE"
+        }
+        TipoObjetivo::Comentario => {
+            "SELECT autor_id::text, receta_id::text, oculto FROM comentario WHERE id = $1::uuid FOR UPDATE"
+        }
     };
     let (autor, receta_id, retirado) = sqlx::query_as::<_, (String, String, bool)>(lectura)
         .bind(&objetivo_id)
@@ -388,14 +392,15 @@ pub async fn moderar(
         .ok_or_else(|| crate::fallos::no_encontrado("Ese contenido ya no existe."))?;
 
     // Cambiar la visibilidad cuando la decisión lo pide
-    match (accion, retirado)
-    {
-        (Accion::Ocultar, true) => return Err(crate::fallos::datos("Ese contenido ya está retirado.")),
-        (Accion::Restaurar, false) => return Err(crate::fallos::datos("Ese contenido no está retirado.")),
-        (Accion::Ocultar | Accion::Restaurar, _) =>
-        {
-            let escritura = match tipo
-            {
+    match (accion, retirado) {
+        (Accion::Ocultar, true) => {
+            return Err(crate::fallos::datos("Ese contenido ya está retirado."));
+        }
+        (Accion::Restaurar, false) => {
+            return Err(crate::fallos::datos("Ese contenido no está retirado."));
+        }
+        (Accion::Ocultar | Accion::Restaurar, _) => {
+            let escritura = match tipo {
                 TipoObjetivo::Receta => "UPDATE receta SET oculta = $2 WHERE id = $1::uuid",
                 TipoObjetivo::Comentario => "UPDATE comentario SET oculto = $2 WHERE id = $1::uuid",
             };
@@ -410,12 +415,9 @@ pub async fn moderar(
     }
 
     // Cerrar los reportes pendientes del contenido; restaurar no toca reportes
-    let reportes_vec: Vec<(String, String)> = if accion == Accion::Restaurar
-    {
+    let reportes_vec: Vec<(String, String)> = if accion == Accion::Restaurar {
         Vec::new()
-    }
-    else
-    {
+    } else {
         sqlx::query_as::<_, (String, String)>(
             r#"
             UPDATE reporte
@@ -427,15 +429,20 @@ pub async fn moderar(
         )
         .bind(&objetivo_id)
         .bind(&sesion.usuario_id)
-        .bind(if accion == Accion::Descartar { "descartado" } else { "aceptado" })
+        .bind(if accion == Accion::Descartar {
+            "descartado"
+        } else {
+            "aceptado"
+        })
         .bind(tipo == TipoObjetivo::Receta)
         .fetch_all(&mut *tx)
         .con_plazo("los reportes del contenido")
         .await?
     };
-    if accion == Accion::Descartar && reportes_vec.is_empty()
-    {
-        return Err(crate::fallos::datos("Ese contenido ya no tiene reportes pendientes."));
+    if accion == Accion::Descartar && reportes_vec.is_empty() {
+        return Err(crate::fallos::datos(
+            "Ese contenido ya no tiene reportes pendientes.",
+        ));
     }
 
     // Registrar la decisión
@@ -457,18 +464,28 @@ pub async fn moderar(
 
     // Avisar a quien reportó y, salvo al descartar, a quien publicó el contenido
     let comentario_id = (tipo == TipoObjetivo::Comentario).then_some(objetivo_id.as_str());
-    let mut avisados_vec: Vec<&str> = reportes_vec.iter().map(|(_, reportante)| reportante.as_str()).collect();
-    if accion != Accion::Descartar
-    {
+    let mut avisados_vec: Vec<&str> = reportes_vec
+        .iter()
+        .map(|(_, reportante)| reportante.as_str())
+        .collect();
+    if accion != Accion::Descartar {
         avisados_vec.push(&autor);
     }
     avisados_vec.sort_unstable();
     avisados_vec.dedup();
-    for para in avisados_vec.into_iter().filter_map(|cuenta| destinatario(cuenta, &sesion.usuario_id))
+    for para in avisados_vec
+        .into_iter()
+        .filter_map(|cuenta| destinatario(cuenta, &sesion.usuario_id))
     {
         notificar(
             &mut tx,
-            Aviso { para, actor: &sesion.usuario_id, tipo: "reporte_resuelto", receta_id: &receta_id, comentario_id },
+            Aviso {
+                para,
+                actor: &sesion.usuario_id,
+                tipo: "reporte_resuelto",
+                receta_id: &receta_id,
+                comentario_id,
+            },
         )
         .await?;
     }
@@ -484,8 +501,7 @@ pub async fn moderar(
 ///
 /// Devuelve `ServerFnError` si no hay sesión, si la cuenta no modera o si la consulta falla.
 #[server(endpoint = "historial_moderacion")]
-pub async fn historial_moderacion(token: String) -> Result<Vec<Decision>, ServerFnError>
-{
+pub async fn historial_moderacion(token: String) -> Result<Vec<Decision>, ServerFnError> {
     let pool = crate::base::pool()?;
     moderador(token).await?;
 
@@ -518,10 +534,13 @@ pub async fn historial_moderacion(token: String) -> Result<Vec<Decision>, Server
     // Convertir cada fila en la decisión que pinta la app
     let decisiones_vec = filas_vec
         .into_iter()
-        .map(|fila| Decision
-        {
+        .map(|fila| Decision {
             accion: Accion::de_clave(&fila.accion),
-            tipo: if fila.objetivo_tipo == "comentario" { TipoObjetivo::Comentario } else { TipoObjetivo::Receta },
+            tipo: if fila.objetivo_tipo == "comentario" {
+                TipoObjetivo::Comentario
+            } else {
+                TipoObjetivo::Receta
+            },
             objetivo_id: fila.objetivo_id,
             contenido: fila.contenido.unwrap_or_default(),
             moderador: fila.moderador,
@@ -537,8 +556,7 @@ pub async fn historial_moderacion(token: String) -> Result<Vec<Decision>, Server
 // PUNTO DE PARTIDA
 
 #[cfg(test)]
-mod pruebas
-{
+mod pruebas {
     // LIBRERÍAS
 
     use super::autorizar; // Puerta de la moderación
@@ -548,10 +566,8 @@ mod pruebas
     // FUNCIONES
 
     /// Arma una sesión de prueba con el rol dado.
-    fn sesion(rol: Rol) -> Sesion
-    {
-        Sesion
-        {
+    fn sesion(rol: Rol) -> Sesion {
+        Sesion {
             usuario_id: "11111111-1111-4111-8111-111111111111".to_string(),
             alias: "ana".to_string(),
             rol,
@@ -561,8 +577,7 @@ mod pruebas
 
     /// Comprueba que solo el rol de moderación puede ocultar, restaurar o descartar.
     #[test]
-    fn solo_modera_el_moderador()
-    {
+    fn solo_modera_el_moderador() {
         assert!(autorizar(&sesion(Rol::Moderador)).is_ok());
 
         let rechazo = autorizar(&sesion(Rol::Usuario));

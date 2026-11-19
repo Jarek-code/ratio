@@ -18,7 +18,9 @@ pub const ESPERA: Duration = Duration::from_secs(8);
 /// El pool que instaló el binario al arrancar, o el fallo que se le cuenta al cliente.
 pub fn pool() -> Result<&'static PgPool, ServerFnError> {
     crate::db::pool().ok_or_else(|| {
-        fallos::reintento("El servidor no tiene la base de datos conectada. Vuelve a intentarlo en un momento.")
+        fallos::reintento(
+            "El servidor no tiene la base de datos conectada. Vuelve a intentarlo en un momento.",
+        )
     })
 }
 

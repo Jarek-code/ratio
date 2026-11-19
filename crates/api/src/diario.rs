@@ -26,8 +26,7 @@ const ENTRADAS_MAXIMAS: i64 = 100;
 
 /// Preparación de la cuenta tal como se pinta en «Mi diario».
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EntradaDiario
-{
+pub struct EntradaDiario {
     /// Receta preparada; `None` si la cuenta ya no puede abrirla.
     pub receta_id: Option<String>,
     /// Nombre de la receta preparada.
@@ -45,8 +44,7 @@ pub struct EntradaDiario
 /// Fila de una preparación del diario (solo servidor).
 #[cfg(feature = "server")]
 #[derive(sqlx::FromRow)]
-struct FilaEntrada
-{
+struct FilaEntrada {
     /// Receta preparada.
     receta_id: String,
     /// Nombre de la receta.
@@ -70,11 +68,9 @@ struct FilaEntrada
 // FUNCIONES
 
 /// Duración en palabras: «45 s», «8 min» o «1 h 5 min».
-pub fn duracion_legible(segundos: i32) -> String
-{
+pub fn duracion_legible(segundos: i32) -> String {
     let segundos = segundos.max(0); // Una duración nunca es negativa
-    match segundos
-    {
+    match segundos {
         0..60 => format!("{segundos} s"),
         60..3_600 => format!("{} min", segundos / 60),
         _ => format!("{} h {} min", segundos / 3_600, segundos % 3_600 / 60),
@@ -95,21 +91,19 @@ pub async fn detallar_preparacion(
     receta_id: String,
     gusto: Option<i16>,
     duracion_s: Option<i32>,
-) -> Result<(), ServerFnError>
-{
-    if !crate::fallos::es_uuid(&receta_id)
-    {
+) -> Result<(), ServerFnError> {
+    if !crate::fallos::es_uuid(&receta_id) {
         return Err(crate::fallos::datos(
             "La receta pedida no es válida: vuelve a abrirla desde el recetario.",
         ));
     }
-    if gusto.is_some_and(|valor| !(1..=5).contains(&valor))
-    {
+    if gusto.is_some_and(|valor| !(1..=5).contains(&valor)) {
         return Err(crate::fallos::datos("El gusto va de 1 a 5."));
     }
-    if duracion_s.is_some_and(|valor| !(0..=DURACION_MAXIMA_S).contains(&valor))
-    {
-        return Err(crate::fallos::datos("La duración de la preparación no es válida."));
+    if duracion_s.is_some_and(|valor| !(0..=DURACION_MAXIMA_S).contains(&valor)) {
+        return Err(crate::fallos::datos(
+            "La duración de la preparación no es válida.",
+        ));
     }
 
     let pool = crate::base::pool()?;
@@ -151,8 +145,7 @@ pub async fn detallar_preparacion(
 ///
 /// Devuelve `ServerFnError` si no hay sesión o si la consulta falla.
 #[server(endpoint = "diario")]
-pub async fn diario(token: String) -> Result<Vec<EntradaDiario>, ServerFnError>
-{
+pub async fn diario(token: String) -> Result<Vec<EntradaDiario>, ServerFnError> {
     let pool = crate::base::pool()?;
     let cuenta = crate::foro::cuenta_obligatoria(&token).await?;
     let adulto = crate::auth::es_adulto(Some(&token)).await;
@@ -189,8 +182,7 @@ pub async fn diario(token: String) -> Result<Vec<EntradaDiario>, ServerFnError>
     // Convertir cada fila en la entrada que pinta la app
     let entradas_vec = filas_vec
         .into_iter()
-        .map(|fila| EntradaDiario
-        {
+        .map(|fila| EntradaDiario {
             receta_id: fila.receta_visible.then_some(fila.receta_id),
             receta_nombre: fila.receta_nombre,
             me_salio: fila.me_salio,
@@ -206,8 +198,7 @@ pub async fn diario(token: String) -> Result<Vec<EntradaDiario>, ServerFnError>
 // PUNTO DE PARTIDA
 
 #[cfg(test)]
-mod pruebas
-{
+mod pruebas {
     // LIBRERÍAS
 
     use super::duracion_legible; // Duración en palabras
@@ -216,8 +207,7 @@ mod pruebas
 
     /// Comprueba la duración en segundos, minutos y horas.
     #[test]
-    fn duracion_en_palabras()
-    {
+    fn duracion_en_palabras() {
         assert_eq!(duracion_legible(45), "45 s");
         assert_eq!(duracion_legible(492), "8 min");
         assert_eq!(duracion_legible(3_900), "1 h 5 min");

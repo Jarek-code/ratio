@@ -129,8 +129,8 @@ pub async fn mis_recetas(token: String) -> Result<Vec<RecetaPropia>, ServerFnErr
                o.nombre AS origen_nombre,
                (r.publicada_en IS NOT NULL) AS publicada,
                r.oculta,
-               to_char(r.creada_en AT TIME ZONE 'UTC', 'DD/MM/YYYY') AS creada_en,
-               to_char(r.actualizado_en AT TIME ZONE 'UTC', 'DD/MM/YYYY') AS actualizada_en
+               to_char(r.creada_en AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS creada_en,
+               to_char(r.actualizado_en AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS actualizada_en
         FROM receta r
         JOIN vaso v ON v.id = r.vaso_id
         JOIN usuario u ON u.id = r.autor_id
