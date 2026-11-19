@@ -17,9 +17,10 @@ use proporciones::Equivalencia; // Cantidad de una capa en varias unidades
 
 use crate::ajustes::SenalAjustes; // Unidad elegida en Ajustes
 use crate::ajustes::Unidad; // Mililitros, onzas o partes
+use crate::i18n::Texto;
 use crate::red::AvisoRed; // Aviso de fallo con su botón de reintentar
 use crate::rutas::Rutas; // Rutas para volver a la ficha y elegir otra receta
-use crate::sesion::SenalSesion; // Cuenta y token para leer las recetas
+use crate::sesion::SenalSesion; // Cuenta y token para leer las recetas // Textos traducibles
 
 // CONSTANTES Y VARIABLES GLOBALES
 
@@ -35,8 +36,7 @@ const MARGEN_IGUAL: f64 = 0.05;
 // ESTRUCTURAS
 
 /// Medidas de una receta que se pueden poner al lado de las de otra.
-struct Medidas
-{
+struct Medidas {
     /// Volumen servido, en mililitros.
     total_ml: f64,
     /// Alcohol por volumen, en %.
@@ -47,15 +47,12 @@ struct Medidas
     ingredientes: Vec<Equivalencia>,
 }
 
-impl Medidas
-{
+impl Medidas {
     /// Saca las medidas del motor: las mismas cuentas que dibujan el vaso.
-    fn de(receta: &proporciones::Receta) -> Self
-    {
+    fn de(receta: &proporciones::Receta) -> Self {
         let capas_res = proporciones::capas(receta);
 
-        Self
-        {
+        Self {
             total_ml: capas_res.total_ml,
             abv: capas_res.abv,
             capas: capas_res.capas.len(),
@@ -64,8 +61,7 @@ impl Medidas
     }
 
     /// Mililitros del ingrediente con ese nombre, si la receta lo lleva.
-    fn ml_de(&self, nombre: &str) -> Option<f64>
-    {
+    fn ml_de(&self, nombre: &str) -> Option<f64> {
         self.ingredientes
             .iter()
             .find(|equivalencia| equivalencia.nombre == nombre)
@@ -73,8 +69,7 @@ impl Medidas
     }
 
     /// Nombres de los ingredientes en el orden en que aparecen en el vaso.
-    fn nombres(&self) -> Vec<&str>
-    {
+    fn nombres(&self) -> Vec<&str> {
         self.ingredientes
             .iter()
             .map(|equivalencia| equivalencia.nombre.as_str())
@@ -84,8 +79,7 @@ impl Medidas
 
 /// Diferencia de una fila, ya decidida: a favor de A, en contra o ninguna.
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum Delta
-{
+enum Delta {
     /// A queda por encima de B.
     Mayor(f64),
     /// A queda por debajo de B.
@@ -94,32 +88,23 @@ enum Delta
     Igual,
 }
 
-impl Delta
-{
+impl Delta {
     /// Decide la diferencia entre dos cantidades.
-    fn de(a: f64, b: f64) -> Self
-    {
+    fn de(a: f64, b: f64) -> Self {
         let diferencia = a - b;
 
-        if diferencia.abs() < MARGEN_IGUAL
-        {
+        if diferencia.abs() < MARGEN_IGUAL {
             Delta::Igual
-        }
-        else if diferencia > 0.0
-        {
+        } else if diferencia > 0.0 {
             Delta::Mayor(diferencia)
-        }
-        else
-        {
+        } else {
             Delta::Menor(diferencia)
         }
     }
 
     /// Clase del color: verde si A gana, cobre si pierde, gris si empatan.
-    fn clase(&self) -> &'static str
-    {
-        match self
-        {
+    fn clase(&self) -> &'static str {
+        match self {
             Delta::Mayor(_) => "cmp-delta cmp-delta--mayor",
             Delta::Menor(_) => "cmp-delta cmp-delta--menor",
             Delta::Igual => "cmp-delta cmp-delta--igual",
@@ -127,20 +112,17 @@ impl Delta
     }
 
     /// Texto de la diferencia, con su flecha y sus decimales.
-    fn texto(&self, decimales: usize) -> String
-    {
-        match self
-        {
+    fn texto(&self, decimales: usize) -> String {
+        match self {
             Delta::Mayor(diferencia) => format!("↑ +{diferencia:.decimales$}"),
             Delta::Menor(diferencia) => format!("↓ {diferencia:.decimales$}"),
-            Delta::Igual => "— igual".to_string(),
+            Delta::Igual => crate::i18n::ahora(Texto::Igual).to_string(),
         }
     }
 }
 
 /// Una fila de la tabla: qué se compara y qué tiene cada receta.
-struct Fila
-{
+struct Fila {
     /// Nombre de la medida o del ingrediente.
     nombre: String,
     /// Valor en la receta A, ya escrito.
@@ -154,8 +136,7 @@ struct Fila
 // FUNCIONES
 
 /// Texto accesible del vaso: nombre y porcentaje de cada capa.
-fn descripcion(receta: &proporciones::Receta) -> String
-{
+fn descripcion(receta: &proporciones::Receta) -> String {
     let partes_vec: Vec<String> = proporciones::capas(receta)
         .capas
         .iter()
@@ -169,26 +150,38 @@ fn descripcion(receta: &proporciones::Receta) -> String
 ///
 /// Primero las tres medidas del motor (volumen, graduación y capas) y después un renglón por
 /// ingrediente, en el orden en que aparecen en el vaso de A y luego los que solo tiene B.
-fn filas_de(a: &Medidas, b: &Medidas, unidad: Unidad) -> Vec<Fila>
-{
+fn filas_de(a: &Medidas, b: &Medidas, unidad: Unidad) -> Vec<Fila> {
     let mut filas_vec = vec![
-        Fila
-        {
-            nombre: "Volumen".to_string(),
-            a: format!("{:.0} ml", a.total_ml),
-            b: format!("{:.0} ml", b.total_ml),
+        Fila {
+            nombre: crate::i18n::ahora(Texto::Volumen).to_string(),
+            a: crate::i18n::con(
+                crate::i18n::actual(),
+                Texto::MililitrosCorto,
+                &[&format!("{:.0}", a.total_ml)],
+            ),
+            b: crate::i18n::con(
+                crate::i18n::actual(),
+                Texto::MililitrosCorto,
+                &[&format!("{:.0}", b.total_ml)],
+            ),
             delta: Delta::de(a.total_ml, b.total_ml),
         },
-        Fila
-        {
-            nombre: "Graduación".to_string(),
-            a: if a.abv > 0.0 { format!("{:.1} %", a.abv) } else { "sin alcohol".to_string() },
-            b: if b.abv > 0.0 { format!("{:.1} %", b.abv) } else { "sin alcohol".to_string() },
+        Fila {
+            nombre: crate::i18n::ahora(Texto::Graduacion).to_string(),
+            a: if a.abv > 0.0 {
+                format!("{:.1} %", a.abv)
+            } else {
+                "sin alcohol".to_string()
+            },
+            b: if b.abv > 0.0 {
+                format!("{:.1} %", b.abv)
+            } else {
+                "sin alcohol".to_string()
+            },
             delta: Delta::de(a.abv, b.abv),
         },
-        Fila
-        {
-            nombre: "Capas".to_string(),
+        Fila {
+            nombre: { crate::i18n::ahora(Texto::Capas) }.to_string(),
             a: format!("{}", a.capas),
             b: format!("{}", b.capas),
             delta: Delta::de(a.capas as f64, b.capas as f64),
@@ -197,16 +190,13 @@ fn filas_de(a: &Medidas, b: &Medidas, unidad: Unidad) -> Vec<Fila>
 
     // Ingredientes de las dos recetas, sin repetir y en orden de aparición
     let mut nombres_vec = a.nombres();
-    for nombre in b.nombres()
-    {
-        if !nombres_vec.contains(&nombre)
-        {
+    for nombre in b.nombres() {
+        if !nombres_vec.contains(&nombre) {
             nombres_vec.push(nombre);
         }
     }
 
-    for nombre in nombres_vec
-    {
+    for nombre in nombres_vec {
         let valor_a = a
             .ingredientes
             .iter()
@@ -220,8 +210,7 @@ fn filas_de(a: &Medidas, b: &Medidas, unidad: Unidad) -> Vec<Fila>
             .map(|equivalencia| unidad.cantidad(equivalencia))
             .unwrap_or_else(|| "—".to_string()); // La receta B no lo lleva
 
-        filas_vec.push(Fila
-        {
+        filas_vec.push(Fila {
             nombre: nombre.to_string(),
             a: valor_a,
             b: valor_b,
@@ -237,52 +226,54 @@ fn filas_de(a: &Medidas, b: &Medidas, unidad: Unidad) -> Vec<Fila>
 
 /// Pantalla B4: compara la receta `id` con la receta `con`; sin `con`, deja elegirla.
 #[component]
-pub fn PantallaComparar(id: String, con: String) -> Element
-{
+pub fn PantallaComparar(id: String, con: String) -> Element {
     let sesion = use_context::<SenalSesion>(); // Cuenta y token
     let ajustes = use_context::<SenalAjustes>(); // Unidad de las cantidades
     let navegador = navigator();
 
     // Receta de la ficha, con la copia local cuando no hay red
     let id_a = id.clone();
-    let mut recurso_a = use_resource(use_reactive!(|(id_a,)|
-    {
+    let mut recurso_a = use_resource(use_reactive!(|(id_a,)| {
         let token = crate::sesion::token(&sesion);
         let cuenta = crate::sesion::cuenta(&sesion);
-        crate::red::con_reintentos(move || crate::local::receta(id_a.clone(), token.clone(), cuenta.clone()))
+        crate::red::con_reintentos(move || {
+            crate::local::receta(id_a.clone(), token.clone(), cuenta.clone())
+        })
     }));
 
     // Receta elegida para comparar; sin elegir, no hay nada que pedir
     let con_b = con.clone();
-    let mut recurso_b = use_resource(use_reactive!(|(con_b,)|
-    {
+    let mut recurso_b = use_resource(use_reactive!(|(con_b,)| {
         let token = crate::sesion::token(&sesion);
         let cuenta = crate::sesion::cuenta(&sesion);
-        async move
-        {
+        async move {
             // Sin segunda receta todavía: no hay nada que pedir al servidor
-            if con_b.trim().is_empty()
-            {
+            if con_b.trim().is_empty() {
                 return Ok(None);
             }
 
-            crate::red::con_reintentos(move || crate::local::receta(con_b.clone(), token.clone(), cuenta.clone())).await
+            crate::red::con_reintentos(move || {
+                crate::local::receta(con_b.clone(), token.clone(), cuenta.clone())
+            })
+            .await
         }
     }));
 
     // Catálogo de los dos selectores
-    let mut catalogo_res = use_resource(move ||
-    {
+    let mut catalogo_res = use_resource(move || {
         let token = crate::sesion::token(&sesion);
         crate::red::con_reintentos(move || api::biblioteca::catalogo(token.clone()))
     });
 
     let unidad = ajustes().unidad;
-    let catalogo = catalogo_res.read().as_ref().and_then(|res| res.as_ref().ok()).cloned(); // Recetas para elegir
+    let catalogo = catalogo_res
+        .read()
+        .as_ref()
+        .and_then(|res| res.as_ref().ok())
+        .cloned(); // Recetas para elegir
     let con_para_a = con.clone(); // Segunda receta tal como está, para el selector de A
 
-    rsx!
-    {
+    rsx! {
         document::Stylesheet { href: CSS_BASE }
         document::Stylesheet { href: CSS_COMPARAR }
 
@@ -293,7 +284,7 @@ pub fn PantallaComparar(id: String, con: String) -> Element
             header
             {
                 class: "cmp-cabeza",
-                Link { to: Rutas::Ficha { id: id.clone() }, class: "cmp-volver", aria_label: "Volver a la ficha", "‹ Receta" }
+                Link { to: Rutas::Ficha { id: id.clone() }, class: "volver", aria_label: "{crate::i18n::ahora(Texto::VolverALaFicha)}", "‹ Receta" }
             }
 
             section
@@ -301,7 +292,7 @@ pub fn PantallaComparar(id: String, con: String) -> Element
                 class: "cmp-tarjeta",
 
                 h1 { "Comparar" }
-                p { class: "cmp-subtitulo", "Pon dos recetas frente a frente: el vaso, el volumen y la graduación." }
+                p { class: "cmp-subtitulo", "{crate::i18n::ahora(Texto::CompararSubtitulo)}" }
 
                 // Sin catálogo no se pueden cambiar las recetas: se avisa y se ofrece reintentar
                 if let Some(Err(causa)) = &*catalogo_res.read()
@@ -344,7 +335,7 @@ pub fn PantallaComparar(id: String, con: String) -> Element
             // Vasos y tabla: solo cuando están las dos recetas
             match (&*recurso_a.read(), &*recurso_b.read())
             {
-                (None, _) => rsx! { p { class: "cmp-estado", role: "status", "Cargando la receta A…" } },
+                (None, _) => rsx! { p { class: "cmp-estado", role: "status", "{crate::i18n::ahora(Texto::CargandoRecetaA)}" } },
                 (Some(Err(causa)), _) => rsx!
                 {
                     AvisoRed
@@ -353,8 +344,8 @@ pub fn PantallaComparar(id: String, con: String) -> Element
                         reintentar: move |_| recurso_a.restart(),
                     }
                 },
-                (Some(Ok(None)), _) => rsx! { p { class: "cmp-estado", "Esta receta no existe o ya no está disponible." } },
-                (_, None) => rsx! { p { class: "cmp-estado", role: "status", "Cargando la receta B…" } },
+                (Some(Ok(None)), _) => rsx! { p { class: "cmp-estado", "{crate::i18n::ahora(Texto::RecetaNoDisponible)}" } },
+                (_, None) => rsx! { p { class: "cmp-estado", role: "status", "{crate::i18n::ahora(Texto::CargandoRecetaB)}" } },
                 (_, Some(Err(causa))) => rsx!
                 {
                     AvisoRed
@@ -368,7 +359,7 @@ pub fn PantallaComparar(id: String, con: String) -> Element
                     section
                     {
                         class: "cmp-tarjeta cmp-vacia",
-                        p { class: "cmp-subtitulo", "Elige la receta B para ver las dos tazas y sus diferencias." }
+                        p { class: "cmp-subtitulo", "{crate::i18n::ahora(Texto::EligeRecetaB)}" }
                     }
                 },
                 (Some(Ok(Some(a))), Some(Ok(Some(b)))) => rsx!
@@ -391,16 +382,19 @@ fn SelectorReceta(
     catalogo: Option<Vec<api::biblioteca::RecetaResumen>>,
     /// Qué hacer al elegir otra receta.
     al_elegir: EventHandler<String>,
-) -> Element
-{
+) -> Element {
     let etiqueta_id = etiqueta.to_lowercase().replace(' ', "-");
     let opciones_vec: Vec<(String, String)> = catalogo
-        .map(|lista| lista.into_iter().map(|receta| (receta.id, receta.receta.nombre)).collect())
+        .map(|lista| {
+            lista
+                .into_iter()
+                .map(|receta| (receta.id, receta.receta.nombre))
+                .collect()
+        })
         .unwrap_or_default(); // Vacío mientras el catálogo no llega
     let sin_catalogo = opciones_vec.is_empty();
 
-    rsx!
-    {
+    rsx! {
         div
         {
             class: "cmp-selector",
@@ -414,7 +408,7 @@ fn SelectorReceta(
                 value: actual.clone(),
                 onchange: move |evento| al_elegir.call(evento.value()),
 
-                option { value: "", selected: actual.is_empty(), "Elige una receta…" }
+                option { value: "", selected: actual.is_empty(), "{crate::i18n::ahora(Texto::EligeUnaReceta)}" }
                 for (id_opcion, nombre) in opciones_vec
                 {
                     option
@@ -429,7 +423,7 @@ fn SelectorReceta(
 
             if sin_catalogo
             {
-                p { class: "cmp-selector-aviso", "Sin el catálogo no se pueden cambiar las recetas." }
+                p { class: "cmp-selector-aviso", "{crate::i18n::ahora(Texto::SinCatalogoComparar)}" }
             }
         }
     }
@@ -444,12 +438,19 @@ fn Comparacion(
     b: RecetaCompleta,
     /// Unidad en la que se escriben las cantidades.
     unidad: Unidad,
-) -> Element
-{
+) -> Element {
     let filas_vec = filas_de(&Medidas::de(&a.receta), &Medidas::de(&b.receta), unidad);
+    // Nombre de la unidad en el idioma elegido, para la frase con dato
+    let unidad_nombre = crate::i18n::t(
+        crate::i18n::actual(),
+        match unidad {
+            Unidad::Mililitros => Texto::Mililitros,
+            Unidad::Onzas => Texto::Onzas,
+            Unidad::Partes => Texto::PartesUnidad,
+        },
+    );
 
-    rsx!
-    {
+    rsx! {
         div
         {
             class: "cmp-tazas",
@@ -462,8 +463,11 @@ fn Comparacion(
         {
             class: "cmp-tarjeta cmp-diferencias",
 
-            h2 { "Diferencias · A frente a B" }
-            p { class: "cmp-subtitulo", "Medidas del motor de proporciones, con las cantidades en {unidad.etiqueta()}." }
+            h2 { "{crate::i18n::ahora(Texto::DiferenciasAB)}" }
+            p {
+                class: "cmp-subtitulo",
+                {crate::i18n::con(crate::i18n::actual(), Texto::MedidasDelMotor, &[unidad_nombre])}
+            }
 
             div
             {
@@ -472,7 +476,7 @@ fn Comparacion(
                 div
                 {
                     class: "cmp-fila cmp-fila-cabecera",
-                    span { class: "cmp-nutriente", "Medida" }
+                    span { class: "cmp-nutriente", "{crate::i18n::ahora(Texto::Medida)}" }
                     span { class: "cmp-valor", "A" }
                     span { class: "cmp-valor", "B" }
                     span { class: "cmp-delta", "Δ" }
@@ -496,8 +500,8 @@ fn Comparacion(
         div
         {
             class: "cmp-pie",
-            Link { to: Rutas::Equivalencias { id: a.id.clone() }, class: "chip", "Ingredientes en otras unidades" }
-            Link { to: Rutas::Ficha { id: a.id.clone() }, class: "chip", "Volver a la receta" }
+            Link { to: Rutas::Equivalencias { id: a.id.clone() }, class: "chip", "{crate::i18n::ahora(Texto::IngredientesOtrasUnidades)}" }
+            Link { to: Rutas::Ficha { id: a.id.clone() }, class: "chip", "{crate::i18n::ahora(Texto::VolverALaReceta)}" }
         }
     }
 }
@@ -509,13 +513,17 @@ fn Taza(
     receta: RecetaCompleta,
     /// Si es la receta A (la de la ficha) se resalta.
     activa: bool,
-) -> Element
-{
+) -> Element {
     let capas_res = proporciones::capas(&receta.receta);
-    let svg_val = proporciones::svg(&receta.receta, &proporciones::Opciones { escalas: false, mini: false }); // Vaso real del motor
+    let svg_val = proporciones::svg(
+        &receta.receta,
+        &proporciones::Opciones {
+            escalas: false,
+            mini: false,
+        },
+    ); // Vaso real del motor
 
-    rsx!
-    {
+    rsx! {
         article
         {
             class: if activa { "cmp-taza cmp-taza--activa" } else { "cmp-taza" },
@@ -540,23 +548,21 @@ fn Taza(
             p
             {
                 class: "cmp-taza-dato",
-                if capas_res.abv > 0.0 { "{capas_res.abv:.1} % ABV" } else { "Sin alcohol" }
+                if capas_res.abv > 0.0 { "{capas_res.abv:.1} % ABV" } else { "{crate::i18n::ahora(Texto::SinAlcoholCorto)}" }
             }
         }
     }
 }
 
 #[cfg(test)]
-mod pruebas
-{
+mod pruebas {
     use super::*;
     use proporciones::Componente;
     use proporciones::Receta;
     use proporciones::Vaso;
 
     /// Receta de prueba: un vaso alto con dos ingredientes.
-    fn receta(nombre: &str, cafe: f64, leche: f64) -> Receta
-    {
+    fn receta(nombre: &str, cafe: f64, leche: f64) -> Receta {
         Receta::nueva(
             nombre,
             Vaso::nuevo(300.0, 40.0, 32.0, 120.0, 2.0),
@@ -569,19 +575,18 @@ mod pruebas
 
     /// Las tres primeras filas son las medidas del motor y luego va cada ingrediente.
     #[test]
-    fn filas_llevan_las_medidas_del_motor()
-    {
+    fn filas_llevan_las_medidas_del_motor() {
         let a = Medidas::de(&receta("A", 120.0, 30.0));
         let b = Medidas::de(&receta("B", 60.0, 30.0));
         let filas_vec = filas_de(&a, &b, Unidad::Mililitros);
 
         assert_eq!(filas_vec.len(), 5); // Volumen, graduación, capas y los dos ingredientes
-        assert_eq!(filas_vec[0].nombre, "Volumen");
+        assert_eq!(filas_vec[0].nombre, "Volumen"); // Español, el idioma por defecto
         assert_eq!(filas_vec[0].a, "150 ml");
         assert_eq!(filas_vec[0].b, "90 ml");
         assert_eq!(filas_vec[0].delta, Delta::Mayor(60.0));
         assert_eq!(filas_vec[1].nombre, "Graduación");
-        assert_eq!(filas_vec[2].nombre, "Capas");
+        assert_eq!(filas_vec[2].nombre, { "Capas" });
         assert_eq!(filas_vec[3].nombre, "Café");
         assert_eq!(filas_vec[3].delta, Delta::Mayor(60.0));
         assert_eq!(filas_vec[4].nombre, "Leche");
@@ -590,8 +595,7 @@ mod pruebas
 
     /// Un ingrediente que solo tiene una de las dos recetas se compara contra cero.
     #[test]
-    fn ingredientes_que_faltan_cuentan_como_cero()
-    {
+    fn ingredientes_que_faltan_cuentan_como_cero() {
         let solo_cafe = Receta::nueva(
             "Solo café",
             Vaso::nuevo(300.0, 40.0, 32.0, 120.0, 2.0),
@@ -601,7 +605,10 @@ mod pruebas
         let b = Medidas::de(&receta("Con leche", 100.0, 50.0));
         let filas_vec = filas_de(&a, &b, Unidad::Mililitros);
 
-        let leche = filas_vec.iter().find(|fila| fila.nombre == "Leche").expect("la fila de la leche");
+        let leche = filas_vec
+            .iter()
+            .find(|fila| fila.nombre == "Leche")
+            .expect("la fila de la leche");
 
         assert_eq!(leche.a, "—"); // La receta A no lleva leche
         assert_eq!(leche.delta, Delta::Menor(-50.0));
@@ -609,32 +616,43 @@ mod pruebas
 
     /// Dos recetas iguales no muestran ninguna diferencia.
     #[test]
-    fn recetas_iguales_empatan()
-    {
+    fn recetas_iguales_empatan() {
         let a = Medidas::de(&receta("A", 100.0, 50.0));
         let b = Medidas::de(&receta("B", 100.0, 50.0));
 
-        assert!(filas_de(&a, &b, Unidad::Mililitros).iter().all(|fila| fila.delta == Delta::Igual));
+        assert!(
+            filas_de(&a, &b, Unidad::Mililitros)
+                .iter()
+                .all(|fila| fila.delta == Delta::Igual)
+        );
     }
 }
 
 /// Pantalla B5: cada capa de la receta en mililitros, onzas, partes y cucharadas.
 #[component]
-pub fn PantallaEquivalencias(id: String) -> Element
-{
+pub fn PantallaEquivalencias(id: String) -> Element {
     let sesion = use_context::<SenalSesion>(); // Cuenta y token
     let ajustes = use_context::<SenalAjustes>(); // Unidad destacada
     let id_recurso = id.clone();
-    let mut recurso = use_resource(use_reactive!(|(id_recurso,)|
-    {
+    let mut recurso = use_resource(use_reactive!(|(id_recurso,)| {
         let token = crate::sesion::token(&sesion);
         let cuenta = crate::sesion::cuenta(&sesion);
-        crate::red::con_reintentos(move || crate::local::receta(id_recurso.clone(), token.clone(), cuenta.clone()))
+        crate::red::con_reintentos(move || {
+            crate::local::receta(id_recurso.clone(), token.clone(), cuenta.clone())
+        })
     })); // Receta de la ficha
     let unidad = ajustes().unidad;
+    // Nombre de la unidad en el idioma elegido, para las frases con dato
+    let unidad_nombre = crate::i18n::t(
+        crate::i18n::actual(),
+        match unidad {
+            crate::ajustes::Unidad::Mililitros => Texto::Mililitros,
+            crate::ajustes::Unidad::Onzas => Texto::Onzas,
+            crate::ajustes::Unidad::Partes => Texto::PartesUnidad,
+        },
+    );
 
-    rsx!
-    {
+    rsx! {
         document::Stylesheet { href: CSS_BASE }
 
         main
@@ -644,14 +662,14 @@ pub fn PantallaEquivalencias(id: String) -> Element
             header
             {
                 class: "seccion-cabeza",
-                Link { to: Rutas::Ficha { id: id.clone() }, class: "enlace", aria_label: "Volver a la ficha", "‹ Receta" }
+                Link { to: Rutas::Ficha { id: id.clone() }, class: "volver", aria_label: "Volver a la ficha", "‹ Receta" }
             }
             p { class: "eyebrow", "Recetario" }
-            h1 { "Ingredientes y equivalencias" }
+            h1 { "{crate::i18n::ahora(Texto::IngredientesYEquivalencias)}" }
 
             match &*recurso.read()
             {
-                None => rsx! { p { class: "estado", role: "status", "Cargando la receta…" } },
+                None => rsx! { p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoReceta)}" } },
                 Some(Err(causa)) => rsx!
                 {
                     AvisoRed
@@ -660,7 +678,7 @@ pub fn PantallaEquivalencias(id: String) -> Element
                         reintentar: move |_| recurso.restart(),
                     }
                 },
-                Some(Ok(None)) => rsx! { p { class: "estado", "Esta receta no existe o ya no está disponible." } },
+                Some(Ok(None)) => rsx! { p { class: "estado", "{crate::i18n::ahora(Texto::RecetaNoDisponible)}" } },
                 Some(Ok(Some(receta))) =>
                 {
                     let equivalencias_vec = proporciones::equivalencias(&receta.receta);
@@ -668,21 +686,24 @@ pub fn PantallaEquivalencias(id: String) -> Element
                     rsx!
                     {
                         h2 { "{receta.receta.nombre}" }
-                        p { class: "nota", "Unidad preferida: {unidad.etiqueta()}. Las partes se cuentan contra el ingrediente más pequeño que no es hielo ni agua; 1 cucharada = 15 ml." }
+                        p {
+                            class: "nota",
+                            {crate::i18n::con(crate::i18n::actual(), Texto::NotaEquivalencias, &[unidad_nombre])}
+                        }
 
                         table
                         {
                             class: "comparar-tabla",
-                            caption { class: "solo-lector", "Cada ingrediente en varias unidades" }
+                            caption { class: "solo-lector", {"CadaIngredienteEnUnidades"} }
                             thead
                             {
                                 tr
                                 {
-                                    th { scope: "col", "Ingrediente" }
+                                    th { scope: "col", "{crate::i18n::ahora(Texto::Ingrediente)}" }
                                     th { scope: "col", "ml" }
                                     th { scope: "col", "oz" }
-                                    th { scope: "col", "Partes" }
-                                    th { scope: "col", "Cdas" }
+                                    th { scope: "col", "{crate::i18n::ahora(Texto::PartesUnidad)}" }
+                                    th { scope: "col", "{crate::i18n::ahora(Texto::Cucharadas)}" }
                                 }
                             }
                             tbody
@@ -702,7 +723,7 @@ pub fn PantallaEquivalencias(id: String) -> Element
                             }
                         }
 
-                        Link { to: Rutas::Ajustes, class: "chip", "Cambiar la unidad preferida" }
+                        Link { to: Rutas::Ajustes, class: "chip", "{crate::i18n::ahora(Texto::CambiarUnidadPreferida)}" }
                     }
                 }
             }
