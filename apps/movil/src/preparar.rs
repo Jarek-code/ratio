@@ -11,9 +11,10 @@ use std::time::Instant; // Momento en que empezó la preparación
 
 use dioxus::prelude::*; // Componentes, señales y recursos
 
+use crate::i18n::Texto;
 use crate::red::AvisoRed; // Aviso de fallo con su botón de reintentar
 use crate::rutas::Rutas; // Ruta para volver a la ficha
-use crate::sesion::SenalSesion; // Cuenta, alias y token
+use crate::sesion::SenalSesion; // Cuenta, alias y token // Textos traducibles
 
 // CONSTANTES Y VARIABLES GLOBALES
 
@@ -23,22 +24,21 @@ const CSS_BASE: Asset = asset!("/assets/descubrir.css");
 // FUNCIONES
 
 /// Tiempo restante en «m:ss».
-fn reloj(segundos: u32) -> String
-{
+fn reloj(segundos: u32) -> String {
     format!("{}:{:02}", segundos / 60, segundos % 60)
 }
 
 /// Pantalla C3: los pasos de la receta uno a uno, con temporizador y valoración al final.
 #[component]
-pub fn PantallaPreparar(id: String) -> Element
-{
+pub fn PantallaPreparar(id: String) -> Element {
     let sesion = use_context::<SenalSesion>(); // Cuenta y token
     let id_recurso = id.clone();
-    let mut recurso = use_resource(use_reactive!(|(id_recurso,)|
-    {
+    let mut recurso = use_resource(use_reactive!(|(id_recurso,)| {
         let token = crate::sesion::token(&sesion);
         let cuenta = crate::sesion::cuenta(&sesion);
-        crate::red::con_reintentos(move || crate::local::receta(id_recurso.clone(), token.clone(), cuenta.clone()))
+        crate::red::con_reintentos(move || {
+            crate::local::receta(id_recurso.clone(), token.clone(), cuenta.clone())
+        })
     })); // Receta de la ficha
     let mut paso_sel = use_signal(|| 0_usize); // Paso visible (el último + 1 es «terminado»)
     let mut restante_sel = use_signal(|| None::<u32>); // Segundos que faltan del temporizador
@@ -47,8 +47,7 @@ pub fn PantallaPreparar(id: String) -> Element
     let mut duracion_sel = use_signal(|| None::<i32>); // Lo que tomó, al terminar
 
     // Al cargar la receta, dejar listo el temporizador del primer paso
-    use_effect(move ||
-    {
+    use_effect(move || {
         if let Some(Ok(Some(receta))) = &*recurso.read()
             && *paso_sel.peek() == 0
             && restante_sel.peek().is_none()
@@ -59,20 +58,15 @@ pub fn PantallaPreparar(id: String) -> Element
     });
 
     // Avanzar el temporizador un segundo a la vez mientras la pantalla esté abierta
-    use_future(move || async move
-    {
-        loop
-        {
+    use_future(move || async move {
+        loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            if !corriendo()
-            {
+            if !corriendo() {
                 continue; // En pausa: esperar
             }
-            match restante_sel()
-            {
+            match restante_sel() {
                 Some(segundos) if segundos > 1 => restante_sel.set(Some(segundos - 1)),
-                Some(_) =>
-                {
+                Some(_) => {
                     // Tiempo cumplido: dejarlo en cero y detenerlo
                     restante_sel.set(Some(0));
                     corriendo.set(false);
@@ -82,8 +76,7 @@ pub fn PantallaPreparar(id: String) -> Element
         }
     });
 
-    rsx!
-    {
+    rsx! {
         document::Stylesheet { href: CSS_BASE }
 
         main
@@ -93,12 +86,12 @@ pub fn PantallaPreparar(id: String) -> Element
             header
             {
                 class: "seccion-cabeza",
-                Link { to: Rutas::Ficha { id: id.clone() }, class: "enlace", aria_label: "Salir de la preparación", "‹ Receta" }
+                Link { to: Rutas::Ficha { id: id.clone() }, class: "volver", aria_label: "{crate::i18n::ahora(Texto::SalirDeLaPreparacion)}", "‹ Receta" }
             }
 
             match &*recurso.read()
             {
-                None => rsx! { p { class: "estado", role: "status", "Cargando la receta…" } },
+                None => rsx! { p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoReceta)}" } },
                 Some(Err(causa)) => rsx!
                 {
                     AvisoRed
@@ -107,11 +100,11 @@ pub fn PantallaPreparar(id: String) -> Element
                         reintentar: move |_| recurso.restart(),
                     }
                 },
-                Some(Ok(None)) => rsx! { p { class: "estado", "Esta receta no existe o ya no está disponible." } },
+                Some(Ok(None)) => rsx! { p { class: "estado", "{crate::i18n::ahora(Texto::RecetaNoDisponible)}" } },
                 Some(Ok(Some(receta))) if receta.pasos.is_empty() => rsx!
                 {
                     h1 { "{receta.receta.nombre}" }
-                    p { class: "estado", "Esta receta todavía no tiene pasos de preparación." }
+                    p { class: "estado", "{crate::i18n::ahora(Texto::RecetaSinPasos)}" }
                 },
                 Some(Ok(Some(receta))) =>
                 {
@@ -150,7 +143,7 @@ pub fn PantallaPreparar(id: String) -> Element
                                 let mut ir_atras = ir_a.clone();
                                 rsx!
                                 {
-                                    p { class: "barra-meta", "Paso {paso + 1} de {total}" }
+                                    p { class: "barra-meta", "{crate::i18n::con(crate::i18n::actual(), Texto::PasoDeTotal, &[&(paso + 1).to_string(), &total.to_string()])}" }
                                     h1 { "{actual.titulo}" }
                                     p { class: "bienvenida-texto", "{actual.instruccion}" }
 
@@ -163,7 +156,7 @@ pub fn PantallaPreparar(id: String) -> Element
                                             p { class: "preparar-tiempo", "aria-live": "polite", role: "timer", "{reloj(segundos)}" }
                                             if segundos == 0
                                             {
-                                                p { class: "aviso-pendientes", role: "alert", "¡Tiempo!" }
+                                                p { class: "aviso-pendientes", role: "alert", "{crate::i18n::ahora(Texto::Tiempo)}" }
                                             }
                                             else
                                             {
@@ -172,7 +165,7 @@ pub fn PantallaPreparar(id: String) -> Element
                                                     class: "chip",
                                                     r#type: "button",
                                                     onclick: move |_| corriendo.set(!corriendo()),
-                                                    if corriendo() { "Pausar" } else { "Iniciar temporizador" }
+                                                    if corriendo() { {crate::i18n::ahora(Texto::Pausar)} } else { {crate::i18n::ahora(Texto::IniciarTemporizador)} }
                                                 }
                                             }
                                         }
@@ -183,14 +176,14 @@ pub fn PantallaPreparar(id: String) -> Element
                                         class: "acciones-fila",
                                         if paso > 0
                                         {
-                                            button { class: "chip", r#type: "button", onclick: move |_| ir_atras(paso - 1), "Anterior" }
+                                            button { class: "chip", r#type: "button", onclick: move |_| ir_atras(paso - 1), "{crate::i18n::ahora(Texto::Anterior)}" }
                                         }
                                         button
                                         {
                                             class: "primario",
                                             r#type: "button",
                                             onclick: move |_| ir_a(paso + 1),
-                                            if paso + 1 == total { "Terminar" } else { "Siguiente paso" }
+                                            if paso + 1 == total { {crate::i18n::ahora(Texto::Terminar)} } else { {crate::i18n::ahora(Texto::SiguientePaso)} }
                                         }
                                     }
                                 }
@@ -199,18 +192,18 @@ pub fn PantallaPreparar(id: String) -> Element
                         else
                         {
                             // Terminado: preguntar si salió (D4)
-                            h1 { "¡Listo!" }
-                            p { class: "bienvenida-texto", "¿Te salió igual que en la ficha?" }
+                            h1 { "{crate::i18n::ahora(Texto::Listo)}" }
+                            p { class: "bienvenida-texto", "{crate::i18n::ahora(Texto::TeSalioIgual)}" }
                             if let Some(segundos) = duracion_sel()
                             {
-                                p { class: "barra-meta", "Tiempo de preparación: {api::diario::duracion_legible(segundos)}" }
+                                p { class: "barra-meta", "{crate::i18n::con(crate::i18n::actual(), Texto::TiempoDePreparacion, &[&crate::api_textos::duracion(segundos)])}" }
                             }
                             crate::foro::PanelValoracion { receta_id: receta.id.clone(), propia, duracion_s: duracion_sel() }
                             div
                             {
                                 class: "acciones-fila",
-                                button { class: "chip", r#type: "button", onclick: move |_| ir_a(0), "Preparar otra vez" }
-                                Link { to: Rutas::Ficha { id: receta.id.clone() }, class: "chip", "Volver a la receta" }
+                                button { class: "chip", r#type: "button", onclick: move |_| ir_a(0), "{crate::i18n::ahora(Texto::PrepararOtraVez)}" }
+                                Link { to: Rutas::Ficha { id: receta.id.clone() }, class: "chip", "{crate::i18n::ahora(Texto::VolverALaReceta)}" }
                             }
                         }
                     }
