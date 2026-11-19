@@ -20,6 +20,11 @@ tokio = { workspace = true, features = ["sync"] }
 # Subida directa de fotos a Supabase Storage; ya venía dentro de la app por dioxus-fullstack
 reqwest = { workspace = true }
 
+# Selector de fotos nativo de Android: JNI contra la actividad auxiliar del APK.
+# Las dos versiones ya venían en Cargo.lock por Dioxus.
+jni = "0.21"
+ndk-context = "0.1"
+
 # Selector de fotos nativo de iOS (galería); estas versiones ya venían en Cargo.lock por Dioxus
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = "0.6"

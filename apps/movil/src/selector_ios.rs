@@ -8,15 +8,16 @@
 
 use std::cell::RefCell; // Canal guardado dentro del delegado
 
+use crate::i18n::Texto;
+use objc2::DefinedClass; // Acceso a las variables del delegado
+use objc2::MainThreadMarker; // Prueba de que se está en el hilo principal
+use objc2::MainThreadOnly; // Creación de objetos de UIKit en el hilo principal
 use objc2::define_class; // Clase de Objective-C escrita en Rust
 use objc2::msg_send; // Mensajes de Objective-C sin envoltorio
 use objc2::rc::Retained; // Referencias con conteo de Objective-C
 use objc2::runtime::AnyObject; // Objeto genérico del diccionario de la foto
 use objc2::runtime::NSObject; // Superclase del delegado
 use objc2::runtime::NSObjectProtocol; // Protocolo base del delegado
-use objc2::DefinedClass; // Acceso a las variables del delegado
-use objc2::MainThreadMarker; // Prueba de que se está en el hilo principal
-use objc2::MainThreadOnly; // Creación de objetos de UIKit en el hilo principal
 use objc2_foundation::NSDictionary; // Información de la foto elegida
 use objc2_ui_kit::UIApplication; // Aplicación, para hallar la ventana visible
 use objc2_ui_kit::UIImage; // Foto elegida
@@ -28,7 +29,7 @@ use objc2_ui_kit::UIImagePickerControllerSourceType; // Origen: la galería
 use objc2_ui_kit::UINavigationControllerDelegate; // Protocolo que también exige el selector
 use objc2_ui_kit::UIViewController; // Pantalla sobre la que se presenta el selector
 use objc2_ui_kit::UIWindow; // Ventana visible de la app
-use tokio::sync::oneshot; // Entrega de la foto a la tarea que la pidió
+use tokio::sync::oneshot; // Entrega de la foto a la tarea que la pidió // Textos traducibles
 
 // CONSTANTES Y VARIABLES GLOBALES
 
@@ -44,8 +45,7 @@ const GALERIA: UIImagePickerControllerSourceType = UIImagePickerControllerSource
 // ESTRUCTURAS
 
 /// Variables del delegado: el canal por el que se entrega la foto, o `None` si se canceló.
-struct Estado
-{
+struct Estado {
     /// Extremo de envío; se toma una sola vez.
     enviar: RefCell<Option<oneshot::Sender<Option<Vec<u8>>>>>,
 }
@@ -63,16 +63,14 @@ define_class!(
 
     unsafe impl UINavigationControllerDelegate for Delegado {}
 
-    unsafe impl UIImagePickerControllerDelegate for Delegado
-    {
+    unsafe impl UIImagePickerControllerDelegate for Delegado {
         /// Convierte la foto elegida a JPEG y la entrega.
         #[unsafe(method(imagePickerController:didFinishPickingMediaWithInfo:))]
         unsafe fn elegida(
             &self,
             selector: &UIImagePickerController,
             info: &NSDictionary<UIImagePickerControllerInfoKey, AnyObject>,
-        )
-        {
+        ) {
             // SAFETY: la clave es una constante de UIKit, presente mientras viva la app
             let clave = unsafe { UIImagePickerControllerOriginalImage };
             let bytes = info
@@ -85,8 +83,7 @@ define_class!(
 
         /// Entrega `None` cuando la persona cierra el selector sin elegir.
         #[unsafe(method(imagePickerControllerDidCancel:))]
-        fn cancelada(&self, selector: &UIImagePickerController)
-        {
+        fn cancelada(&self, selector: &UIImagePickerController) {
             self.entregar(selector, None);
         }
     }
@@ -94,13 +91,10 @@ define_class!(
 
 // FUNCIONES
 
-impl Delegado
-{
+impl Delegado {
     /// Crea el delegado con el canal por el que entregará la foto.
-    fn nuevo(mtm: MainThreadMarker, enviar: oneshot::Sender<Option<Vec<u8>>>) -> Retained<Self>
-    {
-        let delegado = Self::alloc(mtm).set_ivars(Estado
-        {
+    fn nuevo(mtm: MainThreadMarker, enviar: oneshot::Sender<Option<Vec<u8>>>) -> Retained<Self> {
+        let delegado = Self::alloc(mtm).set_ivars(Estado {
             enviar: RefCell::new(Some(enviar)),
         });
         // SAFETY: init de NSObject no recibe argumentos y devuelve el mismo objeto
@@ -108,12 +102,10 @@ impl Delegado
     }
 
     /// Cierra el selector y entrega el resultado una sola vez.
-    fn entregar(&self, selector: &UIImagePickerController, bytes: Option<Vec<u8>>)
-    {
+    fn entregar(&self, selector: &UIImagePickerController, bytes: Option<Vec<u8>>) {
         selector.dismissViewControllerAnimated_completion(true, None);
 
-        if let Some(enviar) = self.ivars().enviar.borrow_mut().take()
-        {
+        if let Some(enviar) = self.ivars().enviar.borrow_mut().take() {
             let _ = enviar.send(bytes); // La tarea pudo terminar antes: no hay a quién avisar
         }
     }
@@ -121,16 +113,14 @@ impl Delegado
 
 /// Pantalla visible sobre la que presentar el selector: la raíz de la ventana principal o lo
 /// que esté presentado encima.
-fn pantalla_visible(mtm: MainThreadMarker) -> Option<Retained<UIViewController>>
-{
+fn pantalla_visible(mtm: MainThreadMarker) -> Option<Retained<UIViewController>> {
     let aplicacion = UIApplication::sharedApplication(mtm);
     // SAFETY: keyWindow devuelve la ventana principal o nil; se lee sin el envoltorio obsoleto
     let ventana: Option<Retained<UIWindow>> = unsafe { msg_send![&aplicacion, keyWindow] };
     let mut actual = ventana?.rootViewController()?;
 
     // Subir hasta la pantalla que está encima de todas
-    while let Some(encima) = actual.presentedViewController()
-    {
+    while let Some(encima) = actual.presentedViewController() {
         actual = encima;
     }
 
@@ -140,19 +130,15 @@ fn pantalla_visible(mtm: MainThreadMarker) -> Option<Retained<UIViewController>>
 /// Abre la galería de iOS y devuelve la foto elegida como JPEG, o `None` si se canceló.
 ///
 /// Devuelve un mensaje en español listo para mostrar si no se puede abrir la galería.
-pub async fn elegir_de_galeria() -> Result<Option<Vec<u8>>, String>
-{
-    let Some(mtm) = MainThreadMarker::new() else
-    {
-        return Err("No se pudo abrir la galería en este momento.".to_string()); // UIKit exige el hilo principal
+pub async fn elegir_de_galeria() -> Result<Option<Vec<u8>>, String> {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return Err(crate::i18n::ahora(Texto::GaleriaNoAbre).to_string()); // UIKit exige el hilo principal
     };
-    if !UIImagePickerController::isSourceTypeAvailable(GALERIA, mtm)
-    {
-        return Err("Este dispositivo no tiene galería de fotos.".to_string());
+    if !UIImagePickerController::isSourceTypeAvailable(GALERIA, mtm) {
+        return Err(crate::i18n::ahora(Texto::SinGaleria).to_string());
     }
-    let Some(pantalla) = pantalla_visible(mtm) else
-    {
-        return Err("No se pudo abrir la galería en este momento.".to_string()); // Sin ventana visible
+    let Some(pantalla) = pantalla_visible(mtm) else {
+        return Err(crate::i18n::ahora(Texto::GaleriaNoAbre).to_string()); // Sin ventana visible
     };
 
     let (enviar, recibir) = oneshot::channel();
@@ -162,8 +148,7 @@ pub async fn elegir_de_galeria() -> Result<Option<Vec<u8>>, String>
 
     // SAFETY: el delegado implementa los dos protocolos que exige el selector y sigue vivo
     // mientras se espera la respuesta, porque esta función lo conserva hasta el final
-    unsafe
-    {
+    unsafe {
         selector.setSourceType(GALERIA);
         selector.setDelegate(Some(delegado_objeto));
     }
