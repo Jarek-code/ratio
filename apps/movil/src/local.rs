@@ -15,16 +15,17 @@ use std::time::Duration; // Espera entre dos intentos de envío
 use api::foro::ComentarioNuevo; // Comentario que espera a ser enviado
 use api::foro::ReporteNuevo; // Reporte que espera a ser enviado
 use api::guardados::alternar_guardado; // Envío de un guardado pendiente
-use api::guardar::guardar_receta; // Envío de una versión pendiente
 use api::guardar::RecetaNueva; // Versión que espera a ser enviada
-use api::receta::completa; // Ficha completa desde el servidor
+use api::guardar::guardar_receta; // Envío de una versión pendiente
 use api::receta::RecetaCompleta; // Ficha que se guarda en A2
+use api::receta::completa; // Ficha completa desde el servidor
 use dioxus::prelude::*; // Señales, componentes y ServerFnError
-use serde::de::DeserializeOwned; // Lectura genérica de los archivos JSON
 use serde::Deserialize; // Lectura de las entradas guardadas
-use serde::Serialize; // Escritura de las entradas guardadas
+use serde::Serialize;
+use serde::de::DeserializeOwned; // Lectura genérica de los archivos JSON // Escritura de las entradas guardadas
 
-use crate::sesion::SenalSesion; // Sesión de la que salen cuenta y token
+use crate::i18n::Texto;
+use crate::sesion::SenalSesion; // Sesión de la que salen cuenta y token // Textos traducibles
 
 // CONSTANTES Y VARIABLES GLOBALES
 
@@ -44,8 +45,7 @@ const REINTENTAR_CADA: u64 = 20;
 
 /// Receta guardada en A2 junto con la cuenta que la vio (`None` sin sesión).
 #[derive(Clone, Serialize, Deserialize)]
-struct RecetaVista
-{
+struct RecetaVista {
     /// Cuenta que la pidió; solo esa cuenta puede leer la copia.
     cuenta: Option<String>,
     /// Ficha tal como la devolvió el servidor.
@@ -54,13 +54,11 @@ struct RecetaVista
 
 /// Cambio que espera a que vuelva la conexión.
 #[derive(Clone, Serialize, Deserialize)]
-pub enum Cambio
-{
+pub enum Cambio {
     /// Guardar una versión privada desde C1 y C2.
     Version(RecetaNueva),
     /// Guardar o quitar una receta de Guardados (C5).
-    Guardado
-    {
+    Guardado {
         /// Receta que se guarda o se quita.
         receta_id: String,
         /// `true` para guardar, `false` para quitar.
@@ -69,8 +67,7 @@ pub enum Cambio
     /// Comentar en el hilo de una receta (D3).
     Comentario(ComentarioNuevo),
     /// Valorar si la receta salió (D4).
-    Valoracion
-    {
+    Valoracion {
         /// Receta valorada.
         receta_id: String,
         /// `true` si salió igual a la ficha.
@@ -79,24 +76,21 @@ pub enum Cambio
     /// Reportar una receta o un comentario (D7).
     Reporte(ReporteNuevo),
     /// Seguir o dejar de seguir un perfil (E3).
-    Seguimiento
-    {
+    Seguimiento {
         /// Alias del perfil.
         alias: String,
         /// `true` para seguir, `false` para dejar de seguir.
         sigue: bool,
     },
     /// Publicar o retirar una receta propia de La Barra (D1).
-    Publicacion
-    {
+    Publicacion {
         /// Receta propia.
         receta_id: String,
         /// `true` para publicar, `false` para retirar.
         publica: bool,
     },
     /// Guardar el gusto y la duración de la última preparación de una receta (D4).
-    Detalle
-    {
+    Detalle {
         /// Receta preparada.
         receta_id: String,
         /// Gusto de 1 a 5, si se contestó.
@@ -108,8 +102,7 @@ pub enum Cambio
 
 /// Entrada de la cola: un cambio con su cuenta y un identificador propio.
 #[derive(Clone, Serialize, Deserialize)]
-struct Pendiente
-{
+struct Pendiente {
     /// Identifica la entrada para quitarla sin tocar las que lleguen mientras se envía.
     id: String,
     /// Cuenta dueña del cambio; solo se envía con su sesión.
@@ -124,34 +117,28 @@ pub type SenalPendientes = Signal<usize>;
 // FUNCIONES
 
 /// Ruta de un archivo dentro de la carpeta privada de la app.
-fn ruta(nombre: &str) -> Option<PathBuf>
-{
+fn ruta(nombre: &str) -> Option<PathBuf> {
     crate::sesion::carpeta_datos().map(|carpeta| carpeta.join(nombre))
 }
 
 /// Lee un valor guardado en un archivo JSON de la carpeta privada, si existe y es válido.
-pub fn leer_valor<T: DeserializeOwned>(nombre: &str) -> Option<T>
-{
+pub fn leer_valor<T: DeserializeOwned>(nombre: &str) -> Option<T> {
     let texto = fs::read_to_string(ruta(nombre)?).ok()?; // Sin carpeta o sin archivo: nada guardado
     serde_json::from_str(&texto).ok() // Archivo dañado: nada guardado
 }
 
 /// Lee una lista guardada; un archivo ausente o dañado se trata como lista vacía.
-fn leer<T: DeserializeOwned>(nombre: &str) -> Vec<T>
-{
+fn leer<T: DeserializeOwned>(nombre: &str) -> Vec<T> {
     leer_valor(nombre).unwrap_or_default()
 }
 
 /// Escribe un valor completo en un archivo JSON; si falla, lo anota y la app sigue en memoria.
-pub fn escribir<T: Serialize + ?Sized>(nombre: &str, valor: &T)
-{
-    let Some(archivo) = ruta(nombre) else
-    {
+pub fn escribir<T: Serialize + ?Sized>(nombre: &str, valor: &T) {
+    let Some(archivo) = ruta(nombre) else {
         return; // Sin carpeta de datos no se puede guardar
     };
 
-    if let Some(carpeta) = archivo.parent()
-    {
+    if let Some(carpeta) = archivo.parent() {
         let _ = fs::create_dir_all(carpeta);
     }
 
@@ -159,8 +146,7 @@ pub fn escribir<T: Serialize + ?Sized>(nombre: &str, valor: &T)
         .ok()
         .map(|texto| fs::write(&archivo, texto).is_ok());
 
-    if escrito != Some(true)
-    {
+    if escrito != Some(true) {
         dioxus::logger::tracing::warn!("could not write {nombre}");
     }
 }
@@ -168,8 +154,7 @@ pub fn escribir<T: Serialize + ?Sized>(nombre: &str, valor: &T)
 /// Genera un UUID v4 con bytes de `/dev/urandom` (iOS, Android y macOS lo tienen).
 ///
 /// Devuelve `None` si no se pueden leer; entonces el servidor genera el identificador.
-pub fn nuevo_id() -> Option<String>
-{
+pub fn nuevo_id() -> Option<String> {
     let mut bytes = [0u8; 16]; // Bytes aleatorios del identificador
     fs::File::open("/dev/urandom")
         .and_then(|mut fuente| fuente.read_exact(&mut bytes))
@@ -192,8 +177,7 @@ pub fn nuevo_id() -> Option<String>
 
 /// Identificador de una entrada de la cola cuando no hay `/dev/urandom`: los nanosegundos
 /// del reloj, que no se repiten dentro del mismo dispositivo.
-fn respaldo_id() -> String
-{
+fn respaldo_id() -> String {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .map(|transcurrido| transcurrido.as_nanos())
@@ -201,38 +185,28 @@ fn respaldo_id() -> String
     format!("local-{nanos}")
 }
 
-/// Indica si el fallo se arregla reintentando: sin red, plazo agotado o servidor caído.
-///
-/// Con `true` la app usa la copia guardada (A2) y deja el cambio en la cola, en vez de
-/// dar la petición por perdida.
-pub fn es_sin_conexion(causa: &ServerFnError) -> bool
-{
-    crate::red::es_red(causa) || api::fallos::es_reintentable(causa)
-}
-
 /// Cuenta de la sesión actual, si la hay.
-fn cuenta_de(sesion: &SenalSesion) -> Option<String>
-{
-    sesion.peek().as_ref().map(|guardada| guardada.perfil.usuario_id.clone())
+fn cuenta_de(sesion: &SenalSesion) -> Option<String> {
+    sesion
+        .peek()
+        .as_ref()
+        .map(|guardada| guardada.perfil.usuario_id.clone())
 }
 
 /// Quita de A2 la copia de una receta para una cuenta.
-fn olvidar(cuenta: &Option<String>, id: &str)
-{
+fn olvidar(cuenta: &Option<String>, id: &str) {
     let mut vistas_vec: Vec<RecetaVista> = leer(ARCHIVO_VISTAS); // Copias guardadas
     vistas_vec.retain(|vista| !(&vista.cuenta == cuenta && vista.receta.id == id));
     escribir(ARCHIVO_VISTAS, &vistas_vec);
 }
 
 /// Guarda una ficha recién traída del servidor como la más reciente de su cuenta.
-fn recordar(cuenta: Option<String>, receta: &RecetaCompleta)
-{
+fn recordar(cuenta: Option<String>, receta: &RecetaCompleta) {
     olvidar(&cuenta, &receta.id);
     let mut vistas_vec: Vec<RecetaVista> = leer(ARCHIVO_VISTAS); // Copias sin la anterior
     vistas_vec.insert(
         0,
-        RecetaVista
-        {
+        RecetaVista {
             cuenta: cuenta.clone(),
             receta: receta.clone(),
         },
@@ -240,10 +214,8 @@ fn recordar(cuenta: Option<String>, receta: &RecetaCompleta)
 
     // Conservar solo las más recientes de esta cuenta
     let mut contador_cuenta = 0; // Copias de esta cuenta ya conservadas
-    vistas_vec.retain(|vista|
-    {
-        if vista.cuenta != cuenta
-        {
+    vistas_vec.retain(|vista| {
+        if vista.cuenta != cuenta {
             return true; // Otra cuenta: no se toca
         }
         contador_cuenta += 1;
@@ -254,8 +226,7 @@ fn recordar(cuenta: Option<String>, receta: &RecetaCompleta)
 }
 
 /// Copia guardada de una receta para la cuenta, si la vio antes.
-fn copia(cuenta: &Option<String>, id: &str) -> Option<RecetaCompleta>
-{
+fn copia(cuenta: &Option<String>, id: &str) -> Option<RecetaCompleta> {
     leer::<RecetaVista>(ARCHIVO_VISTAS)
         .into_iter()
         .find(|vista| &vista.cuenta == cuenta && vista.receta.id == id)
@@ -263,8 +234,7 @@ fn copia(cuenta: &Option<String>, id: &str) -> Option<RecetaCompleta>
 }
 
 /// Últimas recetas vistas por la cuenta, de la más reciente a la más antigua.
-pub fn recientes(cuenta: &Option<String>, cuantas: usize) -> Vec<RecetaCompleta>
-{
+pub fn recientes(cuenta: &Option<String>, cuantas: usize) -> Vec<RecetaCompleta> {
     leer::<RecetaVista>(ARCHIVO_VISTAS)
         .into_iter()
         .filter(|vista| &vista.cuenta == cuenta)
@@ -284,24 +254,19 @@ pub async fn receta(
     id: String,
     token: Option<String>,
     cuenta: Option<String>,
-) -> Result<Option<RecetaCompleta>, ServerFnError>
-{
-    match completa(id.clone(), token).await
-    {
-        Ok(Some(receta)) =>
-        {
+) -> Result<Option<RecetaCompleta>, ServerFnError> {
+    match completa(id.clone(), token).await {
+        Ok(Some(receta)) => {
             // Con red: guardar la copia y devolver la ficha
             recordar(cuenta, &receta);
             Ok(Some(receta))
         }
-        Ok(None) =>
-        {
+        Ok(None) => {
             // Ya no visible para esta cuenta: borrar la copia
             olvidar(&cuenta, &id);
             Ok(None)
         }
-        Err(causa) if es_sin_conexion(&causa) =>
-        {
+        Err(causa) if crate::red::sin_conexion(&causa) => {
             // Sin red: la copia guardada, o el error si no hay
             copia(&cuenta, &id).map(Some).ok_or(causa)
         }
@@ -310,8 +275,7 @@ pub async fn receta(
 }
 
 /// Número de cambios pendientes de una cuenta.
-fn contar(cuenta: &Option<String>) -> usize
-{
+fn contar(cuenta: &Option<String>) -> usize {
     leer::<Pendiente>(ARCHIVO_COLA)
         .iter()
         .filter(|pendiente| Some(&pendiente.cuenta) == cuenta.as_ref())
@@ -321,18 +285,15 @@ fn contar(cuenta: &Option<String>) -> usize
 /// Comentarios de la cuenta actual que esperan en la cola para una receta, en orden.
 ///
 /// El hilo los pinta como «pendiente de enviar» hasta que vuelve la conexión.
-pub fn comentarios_pendientes(sesion: &SenalSesion, receta_id: &str) -> Vec<ComentarioNuevo>
-{
-    let Some(cuenta) = cuenta_de(sesion) else
-    {
+pub fn comentarios_pendientes(sesion: &SenalSesion, receta_id: &str) -> Vec<ComentarioNuevo> {
+    let Some(cuenta) = cuenta_de(sesion) else {
         return Vec::new(); // Sin sesión no hay cola propia
     };
 
     leer::<Pendiente>(ARCHIVO_COLA)
         .into_iter()
         .filter(|pendiente| pendiente.cuenta == cuenta)
-        .filter_map(|pendiente| match pendiente.cambio
-        {
+        .filter_map(|pendiente| match pendiente.cambio {
             Cambio::Comentario(nuevo) if nuevo.receta_id == receta_id => Some(nuevo),
             _ => None, // Otro tipo de cambio u otra receta
         })
@@ -340,16 +301,13 @@ pub fn comentarios_pendientes(sesion: &SenalSesion, receta_id: &str) -> Vec<Come
 }
 
 /// Deja un cambio en la cola de la cuenta actual. Devuelve `false` si no hay sesión.
-pub fn encolar(sesion: &SenalSesion, pendientes: &mut SenalPendientes, cambio: Cambio) -> bool
-{
-    let Some(cuenta) = cuenta_de(sesion) else
-    {
+pub fn encolar(sesion: &SenalSesion, pendientes: &mut SenalPendientes, cambio: Cambio) -> bool {
+    let Some(cuenta) = cuenta_de(sesion) else {
         return false; // Sin sesión no hay a quién atribuir el cambio
     };
 
     let mut cola_vec: Vec<Pendiente> = leer(ARCHIVO_COLA); // Cola guardada
-    cola_vec.push(Pendiente
-    {
+    cola_vec.push(Pendiente {
         id: nuevo_id().unwrap_or_else(respaldo_id),
         cuenta: cuenta.clone(),
         cambio,
@@ -361,30 +319,33 @@ pub fn encolar(sesion: &SenalSesion, pendientes: &mut SenalPendientes, cambio: C
 }
 
 /// Envía un cambio pendiente al servidor.
-async fn enviar(token: String, cambio: Cambio) -> Result<(), ServerFnError>
-{
-    match cambio
-    {
+async fn enviar(token: String, cambio: Cambio) -> Result<(), ServerFnError> {
+    match cambio {
         Cambio::Version(datos) => guardar_receta(token, datos).await.map(|_| ()),
-        Cambio::Guardado { receta_id, guardar } =>
-        {
-            alternar_guardado(token, receta_id, guardar).await.map(|_| ())
-        }
+        Cambio::Guardado { receta_id, guardar } => alternar_guardado(token, receta_id, guardar)
+            .await
+            .map(|_| ()),
         Cambio::Comentario(nuevo) => api::foro::comentar(token, nuevo).await.map(|_| ()),
-        Cambio::Valoracion { receta_id, me_salio } =>
-        {
-            api::foro::valorar(token, receta_id, me_salio).await.map(|_| ())
-        }
+        Cambio::Valoracion {
+            receta_id,
+            me_salio,
+        } => api::foro::valorar(token, receta_id, me_salio)
+            .await
+            .map(|_| ()),
         Cambio::Reporte(reporte) => api::foro::reportar(token, reporte).await.map(|_| ()),
-        Cambio::Seguimiento { alias, sigue } => api::perfil::seguir(token, alias, sigue).await.map(|_| ()),
-        Cambio::Publicacion { receta_id, publica } =>
-        {
-            api::foro::publicar(token, receta_id, publica).await.map(|_| ())
+        Cambio::Seguimiento { alias, sigue } => {
+            api::perfil::seguir(token, alias, sigue).await.map(|_| ())
         }
-        Cambio::Detalle { receta_id, gusto, duracion_s } =>
-        {
-            api::diario::detallar_preparacion(token, receta_id, gusto, duracion_s).await
+        Cambio::Publicacion { receta_id, publica } => {
+            api::foro::publicar(token, receta_id, publica)
+                .await
+                .map(|_| ())
         }
+        Cambio::Detalle {
+            receta_id,
+            gusto,
+            duracion_s,
+        } => api::diario::detallar_preparacion(token, receta_id, gusto, duracion_s).await,
     }
 }
 
@@ -392,31 +353,26 @@ async fn enviar(token: String, cambio: Cambio) -> Result<(), ServerFnError>
 ///
 /// Se detiene al primer fallo de red y lo reintenta más tarde. Un cambio que el servidor
 /// rechaza (por ejemplo, una receta que ya no existe) se descarta para no bloquear la cola.
-pub async fn vaciar(sesion: SenalSesion, mut pendientes: SenalPendientes)
-{
-    loop
-    {
+pub async fn vaciar(sesion: SenalSesion, mut pendientes: SenalPendientes) {
+    loop {
         let cuenta = cuenta_de(&sesion);
         let token = crate::sesion::token(&sesion);
 
-        if let (Some(cuenta_val), Some(token_val)) = (cuenta.clone(), token)
-        {
+        if let (Some(cuenta_val), Some(token_val)) = (cuenta.clone(), token) {
             let propios_vec: Vec<Pendiente> = leer::<Pendiente>(ARCHIVO_COLA)
                 .into_iter()
                 .filter(|pendiente| pendiente.cuenta == cuenta_val)
                 .collect(); // Cambios de esta cuenta, en orden
 
             // Enviar uno por uno hasta vaciar o perder la red
-            for pendiente in propios_vec
-            {
+            for pendiente in propios_vec {
                 // Cada envío lleva plazo: un servidor que no contesta no frena la cola
                 let resultado_res =
-                    crate::red::con_plazo(enviar(token_val.clone(), pendiente.cambio.clone())).await;
+                    crate::red::con_plazo(enviar(token_val.clone(), pendiente.cambio.clone()))
+                        .await;
 
-                if let Err(causa) = &resultado_res
-                {
-                    if es_sin_conexion(causa)
-                    {
+                if let Err(causa) = &resultado_res {
+                    if crate::red::sin_conexion(causa) {
                         break; // Sin red: se reintenta en la siguiente vuelta
                     }
                     dioxus::logger::tracing::warn!("queued change rejected: {causa}");
@@ -436,13 +392,11 @@ pub async fn vaciar(sesion: SenalSesion, mut pendientes: SenalPendientes)
 
 /// Aviso con los cambios que esperan conexión; no pinta nada si no hay ninguno.
 #[component]
-pub fn AvisoPendientes() -> Element
-{
+pub fn AvisoPendientes() -> Element {
     let pendientes = use_context::<SenalPendientes>(); // Cambios por enviar
     let total_pendientes = pendientes();
 
-    rsx!
-    {
+    rsx! {
         if total_pendientes > 0
         {
             p
@@ -452,11 +406,11 @@ pub fn AvisoPendientes() -> Element
 
                 if total_pendientes == 1
                 {
-                    "1 cambio pendiente de enviar: se enviará cuando vuelva la conexión."
+                    "{crate::i18n::ahora(Texto::CambioPendiente)}"
                 }
                 else
                 {
-                    "{total_pendientes} cambios pendientes de enviar: se enviarán cuando vuelva la conexión."
+                    "{crate::i18n::con(crate::i18n::actual(), Texto::CambiosPendientes, &[&total_pendientes.to_string()])}"
                 }
             }
         }
@@ -466,8 +420,7 @@ pub fn AvisoPendientes() -> Element
 // PUNTO DE PARTIDA
 
 #[cfg(test)]
-mod pruebas
-{
+mod pruebas {
     // LIBRERÍAS
 
     use super::nuevo_id; // Generador de identificadores
@@ -476,14 +429,22 @@ mod pruebas
 
     /// Comprueba que el identificador tiene forma de UUID v4.
     #[test]
-    fn nuevo_id_es_uuid_v4()
-    {
+    fn nuevo_id_es_uuid_v4() {
         let id_val = nuevo_id().unwrap_or_default(); // Identificador generado
         let partes_vec: Vec<&str> = id_val.split('-').collect(); // Grupos del UUID
 
-        assert_eq!(partes_vec.iter().map(|parte| parte.len()).collect::<Vec<_>>(), vec![8, 4, 4, 4, 12]);
+        assert_eq!(
+            partes_vec
+                .iter()
+                .map(|parte| parte.len())
+                .collect::<Vec<_>>(),
+            vec![8, 4, 4, 4, 12]
+        );
         assert!(partes_vec[2].starts_with('4'), "version must be 4");
-        assert!(matches!(partes_vec[3].chars().next(), Some('8' | '9' | 'a' | 'b')), "variant must be RFC 4122");
+        assert!(
+            matches!(partes_vec[3].chars().next(), Some('8' | '9' | 'a' | 'b')),
+            "variant must be RFC 4122"
+        );
         assert_ne!(nuevo_id(), nuevo_id(), "ids must differ");
     }
 }

@@ -4,7 +4,8 @@ use api::EstadoSalud;
 use dioxus::prelude::*;
 
 use crate::SERVIDOR;
-use crate::red;
+use crate::i18n::Texto;
+use crate::red; // Textos traducibles
 
 /// Pregunta al backend por su estado: la app va a Render y Render a Supabase.
 #[component]
@@ -25,7 +26,7 @@ pub fn PruebaSalud() -> Element {
                         cargando.set(false);
                     });
                 },
-                if *cargando.read() { "Comprobando…" } else { "Probar conexión" }
+                if *cargando.read() { "{crate::i18n::ahora(Texto::Comprobando)}" } else { "{crate::i18n::ahora(Texto::ProbarConexion)}" }
             }
 
             p { class: "servidor", "Servidor: {SERVIDOR}" }
@@ -33,14 +34,14 @@ pub fn PruebaSalud() -> Element {
             match &*resultado.read() {
                 None => rsx! {},
                 Some(Ok(estado)) if estado.base_de_datos => rsx! {
-                    p { "Backend y base de datos: conectados" }
+                    p { "{crate::i18n::ahora(Texto::BackendConectado)}" }
                 },
                 Some(Ok(estado)) => rsx! {
-                    p { role: "alert", "Backend responde, base de datos no: {estado.detalle}" }
+                    p { role: "alert", "{crate::i18n::con(crate::i18n::actual(), Texto::BackendSinBase, &[&estado.detalle])}" }
                 },
                 Some(Err(causa)) => rsx! {
-                    p { role: "alert", "{red::mensaje(causa)} (probado en {SERVIDOR})" }
-                    p { class: "nota", "El botón de arriba repite la prueba cuando quieras." }
+                    p { role: "alert", "{crate::i18n::con(crate::i18n::actual(), Texto::ProbadoEn, &[&red::mensaje(causa), SERVIDOR])}" }
+                    p { class: "nota", "{crate::i18n::ahora(Texto::BotonPruebaConexion)}" }
                 },
             }
         }

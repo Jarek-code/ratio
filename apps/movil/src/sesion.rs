@@ -5,6 +5,7 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::time::Duration;
 use std::time::SystemTime;
 
@@ -24,7 +25,10 @@ const REVISAR_CADA: i64 = 60;
 
 /// Token de la sesión actual, si la hay.
 pub fn token(sesion: &SenalSesion) -> Option<String> {
-    sesion.read().as_ref().map(|guardada| guardada.token.clone())
+    sesion
+        .read()
+        .as_ref()
+        .map(|guardada| guardada.token.clone())
 }
 
 /// Cuenta (`usuario_id`) de la sesión actual, si la hay.
@@ -37,21 +41,63 @@ pub fn cuenta(sesion: &SenalSesion) -> Option<String> {
 
 /// Carpeta privada de la app, donde nadie más puede leer.
 ///
-/// iOS y el escritorio la dan con `HOME`; Android no tiene `HOME`, así que se arma con el
-/// nombre del paquete, que es la primera palabra de `/proc/self/cmdline`.
+/// Se prueba una lista de candidatas y se queda con la primera que se deje crear: la carpeta
+/// del paquete en Android —que no tiene `HOME`—, la de siempre bajo `HOME` en iOS y
+/// escritorio, y la carpeta temporal como último recurso. Así una plataforma sin `HOME` o sin
+/// permiso en esa ruta no pierde la sesión ni la cola de pendientes sin decir nada.
 pub fn carpeta_datos() -> Option<PathBuf> {
+    static CARPETA: OnceLock<Option<PathBuf>> = OnceLock::new();
+
+    CARPETA.get_or_init(elegir_carpeta).clone()
+}
+
+/// Nombre del paquete en Android, que da la primera palabra de `/proc/self/cmdline`.
+fn paquete_android() -> Option<String> {
     #[cfg(target_os = "android")]
     {
         let linea = fs::read_to_string("/proc/self/cmdline").ok()?;
-        let paquete = linea.split(['\0', ':']).next()?;
-        Some(PathBuf::from(format!("/data/data/{paquete}/files")))
+        let paquete = linea.split(['\0', ':']).next()?.trim().to_string();
+
+        return (!paquete.is_empty()).then_some(paquete);
     }
 
     #[cfg(not(target_os = "android"))]
     {
-        let casa = std::env::var_os("HOME")?;
-        Some(PathBuf::from(casa).join("Library/Application Support/Ratio"))
+        None // En iOS y escritorio la carpeta sale de HOME
     }
+}
+
+/// Rutas donde puede vivir la carpeta privada, en orden de preferencia.
+fn candidatas() -> Vec<PathBuf> {
+    let mut lista = Vec::new();
+
+    if let Some(paquete) = paquete_android() {
+        lista.push(
+            PathBuf::from("/data/data")
+                .join(paquete)
+                .join("files")
+                .join("Ratio"),
+        );
+    }
+    if let Some(casa) = std::env::var_os("HOME") {
+        lista.push(PathBuf::from(casa).join("Library/Application Support/Ratio"));
+    }
+    lista.push(std::env::temp_dir().join("Ratio")); // Último recurso, sigue siendo privada
+
+    lista
+}
+
+/// Primera candidata que se puede crear y escribir.
+fn elegir_carpeta() -> Option<PathBuf> {
+    for candidata in candidatas() {
+        if fs::create_dir_all(&candidata).is_ok() {
+            return Some(candidata);
+        }
+    }
+
+    dioxus::logger::tracing::error!("no hay carpeta de datos escribible: la sesión no se guardará");
+
+    None
 }
 
 /// Ruta del archivo de la sesión.

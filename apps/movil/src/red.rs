@@ -10,6 +10,9 @@ use std::future::Future;
 use std::time::Duration;
 
 use api::fallos;
+
+use crate::i18n;
+use crate::i18n::Texto;
 use dioxus::fullstack::RequestError;
 use dioxus::prelude::*;
 
@@ -122,39 +125,57 @@ pub fn es_red(causa: &ServerFnError) -> bool {
     )
 }
 
+/// ¿El fallo se arregla reintentando: sin red, plazo agotado o servidor caído?
+///
+/// Es la pregunta que hace la app para decidir si usa la copia guardada, si deja el cambio en
+/// la cola de pendientes y si ofrece el botón «Reintentar».
+pub fn sin_conexion(causa: &ServerFnError) -> bool {
+    es_red(causa) || fallos::es_reintentable(causa)
+}
+
+/// ¿Se cerró el intento por plazo agotado?
 /// Texto del fallo listo para mostrar: qué pasó, qué puede hacer la persona y qué se intentó.
 ///
 /// Los mensajes del servidor ya vienen escritos para leerse; los de red se arman aquí.
 pub fn mensaje(causa: &ServerFnError) -> String {
+    let idioma = i18n::actual(); // Idioma elegido en Ajustes
+
     match causa {
-        ServerFnError::Request(RequestError::Timeout(_)) => format!(
-            "El servidor no respondió en {SEGUNDOS_ESPERA} s. Se intentó {} veces: revisa tu conexión y vuelve a probar.",
-            REINTENTOS + 1
+        ServerFnError::Request(RequestError::Timeout(_)) => i18n::con(
+            idioma,
+            Texto::RedTiempo,
+            &[&SEGUNDOS_ESPERA.to_string(), &(REINTENTOS + 1).to_string()],
         ),
-        ServerFnError::Request(RequestError::Connect(_)) => format!(
-            "No se pudo abrir la conexión con el servidor ({} s de espera). Revisa tu red o los datos móviles.",
-            SEGUNDOS_CONEXION
+        ServerFnError::Request(RequestError::Connect(_)) => i18n::con(
+            idioma,
+            Texto::RedConexion,
+            &[&SEGUNDOS_CONEXION.to_string()],
         ),
-        ServerFnError::Request(RequestError::Status(_, codigo)) => format!(
-            "El servidor respondió con un error {codigo}. Vuelve a intentarlo en un momento."
-        ),
-        ServerFnError::Request(_) => {
-            "Sin conexión con el servidor. Revisa tu red o los datos móviles y vuelve a intentarlo."
-                .to_string()
+        ServerFnError::Request(RequestError::Status(_, codigo)) => {
+            i18n::con(idioma, Texto::RedEstado, &[&codigo.to_string()])
         }
-        ServerFnError::ServerError { message, .. } if !message.trim().is_empty() => {
-            message.clone()
-        }
-        ServerFnError::ServerError { .. } => {
-            "El servidor no pudo completar la petición. Vuelve a intentarlo.".to_string()
+        ServerFnError::Request(_) => i18n::t(idioma, Texto::RedSinConexion).to_string(),
+        // El servidor redacta sus avisos en español; si la app está en otro idioma se usa
+        // el mensaje del código, que dice lo mismo sin depender del texto del servidor.
+        ServerFnError::ServerError { message, code, .. } => {
+            if idioma == crate::i18n::Idioma::Espanol && !message.trim().is_empty() {
+                message.clone()
+            } else {
+                let texto = match *code {
+                    422 => Texto::ErrorDatos,
+                    401 => Texto::ErrorSesion,
+                    404 => Texto::ErrorNoEncontrado,
+                    _ => Texto::ErrorServidor,
+                };
+
+                i18n::t(idioma, texto).to_string()
+            }
         }
         ServerFnError::Deserialization(_) | ServerFnError::Serialization(_) => {
-            "La respuesta del servidor llegó incompleta. Vuelve a intentarlo.".to_string()
+            i18n::t(idioma, Texto::RedIncompleta).to_string()
         }
-        ServerFnError::StreamError(_) => {
-            "La conexión se cortó a media respuesta. Vuelve a intentarlo.".to_string()
-        }
-        otra => format!("No se pudo completar la petición: {otra}"),
+        ServerFnError::StreamError(_) => i18n::t(idioma, Texto::RedCortada).to_string(),
+        otra => i18n::con(idioma, Texto::RedOtra, &[&otra.to_string()]),
     }
 }
 
@@ -190,7 +211,7 @@ pub fn AvisoRed(
                     class: "enlace",
                     r#type: "button",
                     onclick: move |evento| reintentar.call(evento),
-                    "Reintentar"
+                    "{i18n::ahora(Texto::Reintentar)}"
                 }
             }
         }
