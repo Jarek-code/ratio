@@ -4,9 +4,10 @@ use api::guardados::alternar_guardado;
 use api::receta::{PasoFicha, RecetaCompleta};
 use dioxus::prelude::*;
 
+use crate::i18n::Texto;
 use crate::red::AvisoRed;
 use crate::reportar::ModalReportar;
-use crate::rutas::Rutas;
+use crate::rutas::Rutas; // Textos traducibles
 
 /// Hoja de estilos propia de la ficha.
 const CSS_FICHA: Asset = asset!("/assets/ficha.css");
@@ -24,7 +25,9 @@ pub fn PantallaFicha(id: String) -> Element {
         let id = id.clone();
         let token = crate::sesion::token(&sesion);
         let cuenta = crate::sesion::cuenta(&sesion);
-        crate::red::con_reintentos(move || crate::local::receta(id.clone(), token.clone(), cuenta.clone()))
+        crate::red::con_reintentos(move || {
+            crate::local::receta(id.clone(), token.clone(), cuenta.clone())
+        })
     });
 
     rsx! {
@@ -36,7 +39,7 @@ pub fn PantallaFicha(id: String) -> Element {
 
             match &*receta_res.read() {
                 None => rsx! {
-                    p { class: "estado", role: "status", "Cargando la receta…" }
+                    p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoReceta)}" }
                 },
                 Some(Err(causa)) => rsx! {
                     AvisoRed {
@@ -45,7 +48,7 @@ pub fn PantallaFicha(id: String) -> Element {
                     }
                 },
                 Some(Ok(None)) => rsx! {
-                    p { class: "estado", "Esta receta no existe o ya no está publicada." }
+                    p { class: "estado", "{crate::i18n::ahora(Texto::RecetaNoPublicadaFicha)}" }
                 },
                 Some(Ok(Some(receta))) => rsx! {
                     Contenido { receta: receta.clone() }
@@ -60,7 +63,7 @@ pub fn PantallaFicha(id: String) -> Element {
 fn BarraSuperior() -> Element {
     rsx! {
         header { class: "ficha-barra",
-            Link { to: Rutas::Descubrir, class: "volver", "‹ Descubrir" }
+            Link { to: Rutas::Descubrir, class: "volver", "{crate::i18n::ahora(Texto::VolverDescubrirBoton)}" }
         }
     }
 }
@@ -79,6 +82,14 @@ fn Contenido(receta: RecetaCompleta) -> Element {
     let graduacion = proporciones::graduacion(&receta.receta);
     let equivalencias = proporciones::equivalencias(&receta.receta);
     let unidad_preferida = use_context::<crate::ajustes::SenalAjustes>()().unidad;
+    let texto_volumen = crate::i18n::con(
+        crate::i18n::actual(),
+        Texto::MlEnVaso,
+        &[
+            &format!("{:.0}", capas.total_ml),
+            &format!("{:.0}", receta.receta.capacidad_ml),
+        ],
+    );
     let svg = proporciones::svg(
         &receta.receta,
         &proporciones::Opciones {
@@ -89,18 +100,32 @@ fn Contenido(receta: RecetaCompleta) -> Element {
 
     rsx! {
         section { class: "ficha-cabeza",
-            p { class: "eyebrow", "{receta.familia}" }
+            p { class: "eyebrow", "{crate::biblioteca::familia_legible(&receta.familia)}" }
             h1 { "{receta.receta.nombre}" }
-            p { class: "ficha-autor",
-                "por "
-                Link { to: Rutas::PerfilPublico { alias: receta.autor.clone() }, "{receta.autor}" }
+            div { class: "ficha-autor",
+                span { class: "ficha-autor-por", "por" }
+                Link {
+                    to: Rutas::PerfilPublico { alias: receta.autor.clone() },
+                    class: "ficha-autor-enlace",
+
+                    span { class: "ficha-autor-inicial", "aria-hidden": "true",
+                        "{receta.autor.chars().next().unwrap_or('R').to_uppercase()}"
+                    }
+                    span { "{receta.autor}" }
+                }
             }
             // Versión derivada: crédito al original (D5)
             if let Some(origen) = receta.origen.clone() {
                 p { class: "ficha-autor",
-                    "Versión de "
-                    Link { to: Rutas::Ficha { id: origen.id }, "{origen.nombre}" }
-                    " · original de {origen.autor}"
+                    span { class: "ficha-autor-por", "{crate::i18n::ahora(Texto::VersionDe)}" }
+                    Link {
+                        to: Rutas::Ficha { id: origen.id.clone() },
+                        class: "ficha-autor-enlace",
+
+                        span { class: "ficha-autor-inicial", "aria-hidden": "true", "↩" }
+                        span { "{origen.nombre}" }
+                    }
+                    span { class: "ficha-autor-por", "{crate::i18n::con(crate::i18n::actual(), Texto::OriginalDe, &[&origen.autor])}" }
                 }
             }
         }
@@ -115,39 +140,39 @@ fn Contenido(receta: RecetaCompleta) -> Element {
 
             dl { class: "ficha-datos",
                 div { class: "dato",
-                    dt { "Vaso" }
+                    dt { "{crate::i18n::ahora(Texto::Vaso)}" }
                     dd { "{receta.vaso_nombre}" }
                 }
                 div { class: "dato",
-                    dt { "Capacidad" }
+                    dt { "{crate::i18n::ahora(Texto::Capacidad)}" }
                     dd { "{receta.receta.capacidad_ml:.0} ml" }
                 }
                 div { class: "dato",
-                    dt { "Servido" }
+                    dt { "{crate::i18n::ahora(Texto::Servido)}" }
                     dd { "{capas.total_ml:.0} ml" }
                 }
                 if graduacion.abv > 0.0 {
                     div { class: "dato",
-                        dt { "Graduación" }
+                        dt { "{crate::i18n::ahora(Texto::Graduacion)}" }
                         dd { "{graduacion.abv:.1} % ABV" }
                     }
                 }
                 if let Some(minutos) = receta.minutos {
                     div { class: "dato",
-                        dt { "Tiempo" }
+                        dt { "{crate::i18n::ahora(Texto::OrdenTiempo)}" }
                         dd { "{minutos} min" }
                     }
                 }
                 if let Some(dificultad) = receta.dificultad {
                     div { class: "dato",
-                        dt { "Dificultad" }
-                        dd { "{dificultad} de 5" }
+                        dt { "{crate::i18n::ahora(Texto::OrdenDificultad)}" }
+                        dd { "{crate::i18n::con(crate::i18n::actual(), Texto::NivelDeCinco, &[&dificultad.to_string()])}" }
                     }
                 }
                 if let Some(intensidad) = receta.intensidad {
                     div { class: "dato",
-                        dt { "Intensidad" }
-                        dd { "{intensidad} de 5" }
+                        dt { "{crate::i18n::ahora(Texto::OrdenIntensidad)}" }
+                        dd { "{crate::i18n::con(crate::i18n::actual(), Texto::NivelDeCinco, &[&intensidad.to_string()])}" }
                     }
                 }
             }
@@ -157,8 +182,8 @@ fn Contenido(receta: RecetaCompleta) -> Element {
 
         section { class: "seccion", "aria-labelledby": "titulo-proporciones",
             div { class: "seccion-cabeza",
-                p { id: "titulo-proporciones", class: "eyebrow", "Proporciones en el vaso" }
-                span { class: "mini", "{capas.total_ml:.0} ml en {receta.receta.capacidad_ml:.0} ml de vaso" }
+                p { id: "titulo-proporciones", class: "eyebrow", "{crate::i18n::ahora(Texto::ProporcionesEnElVaso)}" }
+                span { class: "mini", "{texto_volumen}" }
             }
 
             ul { class: "leyenda",
@@ -206,41 +231,36 @@ fn Contenido(receta: RecetaCompleta) -> Element {
         }
 
         section { class: "seccion", "aria-labelledby": "titulo-acciones",
-            p { id: "titulo-acciones", class: "eyebrow", "Acciones" }
+            p { id: "titulo-acciones", class: "eyebrow", "{crate::i18n::ahora(Texto::Acciones)}" }
 
             div { class: "acciones",
                 Link {
                     to: Rutas::Preparar { id: receta.id.clone() },
                     class: "primario",
-                    "Preparar"
+                    {crate::i18n::ahora(Texto::Preparar)}
                 }
-                div { class: "acciones-fila",
-                    Link {
-                        to: Rutas::Historial { id: receta.id.clone() },
-                        class: "chip chip--enlace",
-                        "Versiones"
-                    }
+                div { class: "acciones-rejilla",
                     Link {
                         to: Rutas::Ajustar { id: receta.id.clone() },
-                        class: "chip chip--enlace",
-                        aria_label: "Ajustar las proporciones o derivar una versión propia",
-                        "Ajustar o derivar"
+                        class: "chip chip--enlace chip--ancho",
+                        aria_label: crate::i18n::ahora(Texto::AjustarAria),
+                        {crate::i18n::ahora(Texto::AjustarODerivar)}
                     }
                     Link {
                         to: Rutas::Comparar { id: receta.id.clone(), con: String::new() },
                         class: "chip chip--enlace",
-                        "Comparar"
+                        {crate::i18n::ahora(Texto::CompararBoton)}
                     }
                     Link {
                         to: Rutas::Equivalencias { id: receta.id.clone() },
                         class: "chip chip--enlace",
-                        "Ingredientes y equivalencias"
+                        {crate::i18n::ahora(Texto::Ingredientes)}
                     }
                     button {
                         class: "chip",
                         r#type: "button",
                         onclick: move |_| reportando.set(true),
-                        "Reportar"
+                        {crate::i18n::ahora(Texto::Reportar)}
                     }
                     button {
                         class: "chip",
@@ -253,7 +273,7 @@ fn Contenido(receta: RecetaCompleta) -> Element {
 
                             let Some(token) = crate::sesion::token(&sesion) else {
                                 aviso_guardado.set(Some(
-                                    "Inicia sesión para guardar la receta.".to_string(),
+                                    {crate::i18n::ahora(Texto::IniciaSesionGuardar)}.to_string(),
                                 ));
                                 return;
                             };
@@ -269,7 +289,7 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                                     }
                                     // Sin red: el guardado queda en la cola
                                     Err(causa)
-                                        if crate::local::es_sin_conexion(&causa)
+                                        if crate::red::sin_conexion(&causa)
                                             && crate::local::encolar(
                                                 &sesion,
                                                 &mut pendientes,
@@ -282,26 +302,23 @@ fn Contenido(receta: RecetaCompleta) -> Element {
                                         guardada.set(true);
                                         guardando.set(false);
                                         aviso_guardado.set(Some(
-                                            "Sin conexión: se guardará cuando vuelva la red."
+                                            {crate::i18n::ahora(Texto::SinConexionSeGuardara)}
                                                 .to_string(),
                                         ));
                                     }
                                     Err(causa) => {
-                                        aviso_guardado.set(Some(format!(
-                                            "No se pudo guardar: {}",
-                                            crate::red::mensaje(&causa)
-                                        )));
+                                        aviso_guardado.set(Some(crate::i18n::con(crate::i18n::actual(), Texto::NoSePudoGuardar, &[&crate::red::mensaje(&causa)])));
                                         guardando.set(false);
                                     }
                                 }
                             });
                         },
                         if *guardada.read() {
-                            "Guardado"
+                            {crate::i18n::ahora(Texto::Guardado)}
                         } else if *guardando.read() {
-                            "Guardando…"
+                            {crate::i18n::ahora(Texto::Guardando)}
                         } else {
-                            "Guardar"
+                            {crate::i18n::ahora(Texto::Guardar)}
                         }
                     }
                 }
@@ -314,7 +331,7 @@ fn Contenido(receta: RecetaCompleta) -> Element {
 
         section { class: "seccion", "aria-labelledby": "titulo-preparacion",
             div { class: "seccion-cabeza",
-                p { id: "titulo-preparacion", class: "eyebrow", "Preparación" }
+                p { id: "titulo-preparacion", class: "eyebrow", "{crate::i18n::ahora(Texto::Preparacion)}" }
                 span { class: "mini", "{receta.pasos.len()} pasos" }
             }
 
@@ -327,7 +344,7 @@ fn Contenido(receta: RecetaCompleta) -> Element {
 
         if !receta.notas.is_empty() {
             section { class: "seccion", "aria-labelledby": "titulo-notas",
-                p { id: "titulo-notas", class: "eyebrow", "Notas de sabor" }
+                p { id: "titulo-notas", class: "eyebrow", "{crate::i18n::ahora(Texto::NotasDeSabor)}" }
                 ul { class: "notas",
                     for nota in receta.notas.iter() {
                         li { class: "chip", "{nota}" }
@@ -336,15 +353,15 @@ fn Contenido(receta: RecetaCompleta) -> Element {
             }
         }
 
-        crate::foro::LaBarra { receta: receta.clone() }
+        crate::foro::ResumenHilo { receta: receta.clone() }
 
         section { class: "seccion", "aria-labelledby": "titulo-versiones",
-            p { id: "titulo-versiones", class: "eyebrow", "Versiones" }
-            p { class: "nota", "Cada versión deriva de otra y conserva el crédito a su original." }
+            p { id: "titulo-versiones", class: "eyebrow", "{crate::i18n::ahora(Texto::VersionesSeccion)}" }
+            p { class: "nota", "{crate::i18n::ahora(Texto::CadaVersionDeriva)}" }
             Link {
                 to: Rutas::Historial { id: receta.id.clone() },
                 class: "chip chip--enlace",
-                "Ver el historial de versiones"
+                {crate::i18n::ahora(Texto::VerHistorialDeVersiones)}
             }
         }
 
