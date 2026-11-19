@@ -3,6 +3,9 @@
 use dioxus::prelude::*;
 
 use crate::actividad::NoLeidas;
+use crate::i18n::Texto;
+use crate::i18n::con;
+use crate::i18n::t;
 use crate::rutas::Rutas;
 
 /// Destino de la barra inferior.
@@ -12,8 +15,8 @@ pub enum Destino {
     Descubrir,
     /// Biblioteca (B2).
     Biblioteca,
-    /// Crear (D1).
-    Crear,
+    /// Recetario propio, donde se crea y se publica (C4 y D1).
+    Recetario,
     /// La Barra (D2).
     LaBarra,
     /// Perfil (E2).
@@ -25,19 +28,19 @@ impl Destino {
     const TODOS: [Destino; 5] = [
         Destino::Descubrir,
         Destino::Biblioteca,
-        Destino::Crear,
+        Destino::Recetario,
         Destino::LaBarra,
         Destino::Perfil,
     ];
 
-    /// Nombre visible del destino.
-    fn nombre(self) -> &'static str {
+    /// Texto del destino, para pedirlo en el idioma elegido.
+    fn texto(self) -> Texto {
         match self {
-            Destino::Descubrir => "Descubrir",
-            Destino::Biblioteca => "Biblioteca",
-            Destino::Crear => "Crear",
-            Destino::LaBarra => "La Barra",
-            Destino::Perfil => "Perfil",
+            Destino::Descubrir => Texto::DestinoDescubrir,
+            Destino::Biblioteca => Texto::DestinoBiblioteca,
+            Destino::Recetario => Texto::DestinoRecetario,
+            Destino::LaBarra => Texto::DestinoLaBarra,
+            Destino::Perfil => Texto::DestinoPerfil,
         }
     }
 }
@@ -46,28 +49,29 @@ impl Destino {
 #[component]
 pub fn BarraInferior(activo: Destino) -> Element {
     let no_leidas = use_context::<NoLeidas>().0;
+    let idioma = use_context::<crate::ajustes::SenalAjustes>().read().idioma;
 
     rsx! {
-        nav { class: "barra-inferior", "aria-label": "Navegación principal",
+        nav { class: "barra-inferior", "aria-label": "{t(idioma, Texto::NavAria)}",
             for destino in Destino::TODOS {
                 if destino == activo {
-                    button { class: "destino activo", r#type: "button", "aria-current": "page", "{destino.nombre()}" }
+                    button { class: "destino activo", r#type: "button", "aria-current": "page", "{t(idioma, destino.texto())}" }
                 } else if destino == Destino::Descubrir {
-                    Link { to: Rutas::Descubrir, class: "destino", "{destino.nombre()}" }
+                    Link { to: Rutas::Descubrir, class: "destino", "{t(idioma, destino.texto())}" }
                 } else if destino == Destino::Biblioteca {
-                    Link { to: Rutas::biblioteca(), class: "destino", "{destino.nombre()}" }
+                    Link { to: Rutas::biblioteca(), class: "destino", "{t(idioma, destino.texto())}" }
                 } else if destino == Destino::LaBarra {
                     Link { to: Rutas::la_barra(), class: "destino",
-                        "{destino.nombre()}"
+                        "{t(idioma, destino.texto())}"
                         if no_leidas() > 0 {
-                            span { class: "destino-punto", role: "img", "aria-label": "{no_leidas()} novedades sin leer" }
+                            span { class: "destino-punto", role: "img", "aria-label": "{con(idioma, Texto::NovedadesSinLeer, &[&no_leidas().to_string()])}" }
                         }
                     }
                 } else if destino == Destino::Perfil {
-                    Link { to: Rutas::Perfil, class: "destino", "{destino.nombre()}" }
+                    Link { to: Rutas::Perfil, class: "destino", "{t(idioma, destino.texto())}" }
                 } else {
-                    // Crear: se crea derivando una receta y se publica desde Mi recetario
-                    Link { to: Rutas::MisRecetas, class: "destino", "{destino.nombre()}" }
+                    // Recetario: se crea derivando una receta y se publica desde Mi recetario
+                    Link { to: Rutas::MisRecetas, class: "destino", "{t(idioma, destino.texto())}" }
                 }
             }
         }
