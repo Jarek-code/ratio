@@ -9,12 +9,16 @@ use dioxus::router::Link;
 
 use api::historial::{CambioHistorial, VersionHistorial, versiones};
 
+use crate::i18n::Texto;
 use crate::marca::Marca;
 use crate::red::AvisoRed;
 use crate::rutas::Rutas;
-use crate::sesion::SenalSesion;
+use crate::sesion::SenalSesion; // Textos traducibles
 
-/// Hoja del acceso: aporta la paleta y los tokens globales que usa el historial.
+/// Hoja del sistema visual que comparten las pantallas: trae la paleta y el tema oscuro.
+const CSS_BASE: Asset = asset!("/assets/descubrir.css");
+
+/// Hoja del acceso: aporta los estilos de marca que reutiliza el historial.
 const CSS_LOGIN: Asset = asset!("/assets/login.css");
 
 /// Hoja propia del historial de versiones.
@@ -35,9 +39,9 @@ impl Filtro {
     /// Texto que se muestra en cada chip.
     fn etiqueta(self) -> &'static str {
         match self {
-            Self::Todas => "Todas",
-            Self::Publicas => "Públicas",
-            Self::Privadas => "Privadas",
+            Self::Todas => crate::i18n::ahora(Texto::TodasFiltro),
+            Self::Publicas => crate::i18n::ahora(Texto::Publicas),
+            Self::Privadas => crate::i18n::ahora(Texto::Privadas),
         }
     }
 
@@ -54,9 +58,9 @@ impl Filtro {
 /// Etiqueta de visibilidad de una versión.
 fn visibilidad(version: &VersionHistorial) -> &'static str {
     if version.publica {
-        "Pública"
+        crate::i18n::ahora(Texto::Publica)
     } else {
-        "Privada"
+        crate::i18n::ahora(Texto::PrivadaFiltro)
     }
 }
 
@@ -101,7 +105,8 @@ pub fn Historial(id: String) -> Element {
     }));
 
     rsx! {
-        // Primero los tokens del acceso; después las reglas propias del historial.
+        // Primero la paleta y el tema; después el acceso y las reglas del historial.
+        document::Stylesheet { href: CSS_BASE }
         document::Stylesheet { href: CSS_LOGIN }
         document::Stylesheet { href: CSS_HISTORIAL }
 
@@ -110,8 +115,8 @@ pub fn Historial(id: String) -> Element {
                 header { class: "historial-top",
                     Link {
                         to: Rutas::Ficha { id: id.clone() },
-                        class: "back",
-                        aria_label: "Volver a la ficha de la receta",
+                        class: "volver",
+                        aria_label: "{crate::i18n::ahora(Texto::VolverALaFichaReceta)}",
                         "←"
                     }
                     div { class: "brand-mini",
@@ -122,12 +127,12 @@ pub fn Historial(id: String) -> Element {
 
                 div { class: "historial-heading",
                     p { class: "eyebrow", "Recetario · B6" }
-                    h1 { "Historial de versiones" }
+                    h1 { "{crate::i18n::ahora(Texto::HistorialDeVersiones)}" }
                 }
 
                 match &*versiones_res.read() {
                     None => rsx! {
-                        p { class: "historial-estado", role: "status", "Cargando el historial…" }
+                        p { class: "historial-estado", role: "status", "{crate::i18n::ahora(Texto::CargandoHistorial)}" }
                     },
                     Some(Err(causa)) => rsx! {
                         AvisoRed {
@@ -137,7 +142,7 @@ pub fn Historial(id: String) -> Element {
                         }
                     },
                     Some(Ok(lista)) if lista.is_empty() => rsx! {
-                        p { class: "historial-estado", "Esta bebida todavía no tiene versiones publicadas." }
+                        p { class: "historial-estado", "{crate::i18n::ahora(Texto::SinVersionesBebida)}" }
                     },
                     Some(Ok(lista)) => rsx! {
                         {
@@ -147,27 +152,27 @@ pub fn Historial(id: String) -> Element {
 
                             rsx! {
                                 if let Some(raiz) = raiz {
-                                    section { class: "recipe-summary", aria_label: "Receta original",
+                                    section { class: "recipe-summary", aria_label: "{crate::i18n::ahora(Texto::RecetaOriginal)}",
                                         div { class: "summary-mark", Marca {} }
                                         div { class: "recipe-summary__body",
-                                            p { class: "summary-label", "Receta original" }
+                                            p { class: "summary-label", "{crate::i18n::ahora(Texto::RecetaOriginal)}" }
                                             h2 { "{raiz.nombre}" }
-                                            p { "{raiz.autor} · {raiz.fecha}" }
+                                            p { "{raiz.autor} · {crate::i18n::fecha_iso(&raiz.fecha)}" }
                                         }
                                         div { class: "recipe-summary__metrics",
                                             div { class: "metric",
                                                 strong { "{raiz.total_ml:.0} ml" }
-                                                span { "Total" }
+                                                span { "{crate::i18n::ahora(Texto::Total)}" }
                                             }
                                             div { class: "metric",
                                                 strong { "{total}" }
-                                                span { if total == 1 { "Versión" } else { "Versiones" } }
+                                                span { if total == 1 { "{crate::i18n::ahora(Texto::VersionUna)}" } else { "{crate::i18n::ahora(Texto::Versiones)}" } }
                                             }
                                         }
                                     }
                                 }
 
-                                nav { class: "filters", aria_label: "Filtrar versiones",
+                                nav { class: "filters", aria_label: "{crate::i18n::ahora(Texto::FiltrarVersiones)}",
                                     for opcion in [Filtro::Todas, Filtro::Publicas, Filtro::Privadas] {
                                         button {
                                             key: "{opcion.etiqueta()}",
@@ -177,10 +182,10 @@ pub fn Historial(id: String) -> Element {
                                             "{opcion.etiqueta()}"
                                         }
                                     }
-                                    span { class: "filters__count", "{visibles} de {total}" }
+                                    span { class: "filters__count", "{crate::i18n::con(crate::i18n::actual(), Texto::DeTotalCorto, &[&visibles.to_string(), &total.to_string()])}" }
                                 }
 
-                                section { class: "timeline", aria_label: "Línea de tiempo de versiones",
+                                section { class: "timeline", aria_label: "{crate::i18n::ahora(Texto::LineaDeTiempoVersiones)}",
                                     for (indice, version) in lista
                                         .iter()
                                         .filter(|version| filtro().incluye(version))
@@ -195,8 +200,8 @@ pub fn Historial(id: String) -> Element {
                                 }
 
                                 footer { class: "historial-foot",
-                                    span { "Toca «Abrir» para ver la ficha de esa versión." }
-                                    span { "Datos de la base de Ratio" }
+                                    span { "{crate::i18n::ahora(Texto::TocaAbrir)}" }
+                                    span { "{crate::i18n::ahora(Texto::DatosDeLaBase)}" }
                                 }
                             }
                         }
@@ -227,12 +232,12 @@ fn VersionCard(indice: usize, version: VersionHistorial) -> Element {
                     } else {
                         "version-badge version-badge--original"
                     },
-                    if version.derivada { "Derivada" } else { "Original" }
+                    if version.derivada { "{crate::i18n::ahora(Texto::Derivada)}" } else { "Original" }
                 }
             }
 
             p { class: "version-meta",
-                "{version.autor} · {version.fecha} · "
+                "{version.autor} · {crate::i18n::fecha_iso(&version.fecha)} · "
                 span {
                     class: if version.publica { "visibilidad" } else { "visibilidad visibilidad--privada" },
                     "{visibilidad(&version)}"
@@ -241,10 +246,10 @@ fn VersionCard(indice: usize, version: VersionHistorial) -> Element {
 
             if version.derivada && version.origen.is_none() {
                 // Origen oculto: no se muestran sus cantidades
-                p { class: "version-note", "Deriva de una versión que no está disponible" }
+                p { class: "version-note", "{crate::i18n::ahora(Texto::DerivaNoDisponible)}" }
             } else if version.cambios.is_empty() {
                 p { class: "version-note",
-                    if version.derivada { "Sin cambios frente a su origen" } else { "Receta original · sin cambios" }
+                    if version.derivada { "{crate::i18n::ahora(Texto::SinCambiosFrenteAlOrigen)}" } else { "{crate::i18n::ahora(Texto::RecetaOriginalSinCambios)}" }
                 }
             } else {
                 div { class: "diff-list",
@@ -276,7 +281,7 @@ fn VersionCard(indice: usize, version: VersionHistorial) -> Element {
                 Link {
                     to: Rutas::Ficha { id: version.id.clone() },
                     class: "version-open",
-                    "Abrir →"
+                    {crate::i18n::ahora(Texto::Abrir)}
                 }
             }
         }

@@ -9,8 +9,9 @@ use dioxus::prelude::*;
 
 use crate::barra::{BarraInferior, Destino};
 use crate::biblioteca::familia_legible;
+use crate::i18n::Texto;
 use crate::red::AvisoRed;
-use crate::rutas::Rutas;
+use crate::rutas::Rutas; // Textos traducibles
 
 /// Hoja de estilos propia de la pantalla Guardados.
 const CSS_GUARDADOS: Asset = asset!("/assets/guardados.css");
@@ -28,7 +29,9 @@ pub fn PantallaGuardados() -> Element {
         let token = crate::sesion::token(&sesion);
         async move {
             match token {
-                Some(token) => crate::red::con_reintentos(move || guardados(token.clone())).await.map(Some),
+                Some(token) => crate::red::con_reintentos(move || guardados(token.clone()))
+                    .await
+                    .map(Some),
                 None => Ok(None),
             }
         }
@@ -42,16 +45,16 @@ pub fn PantallaGuardados() -> Element {
             BarraSuperior {}
 
             header { class: "guardados-cabeza",
-                p { class: "eyebrow", "Tu lista" }
+                p { class: "eyebrow", "{crate::i18n::ahora(Texto::TuLista)}" }
                 h1 { "Guardados" }
-                p { class: "guardados-sub", "Las recetas que quieres volver a preparar." }
+                p { class: "guardados-sub", "{crate::i18n::ahora(Texto::GuardadosSub)}" }
             }
 
             crate::local::AvisoPendientes {}
 
             match &*recurso.read() {
                 None => rsx! {
-                    p { class: "estado", role: "status", "Cargando tus guardados…" }
+                    p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoGuardados)}" }
                 },
                 Some(Err(causa)) => rsx! {
                     AvisoRed {
@@ -79,9 +82,9 @@ fn BarraSuperior() -> Element {
         header { class: "guardados-barra",
             Link {
                 to: Rutas::Descubrir,
-                class: "guardados-volver",
-                aria_label: "Volver a Descubrir",
-                "‹ Descubrir"
+                class: "volver",
+                aria_label: crate::i18n::ahora(Texto::VolverADescubrir),
+                "{crate::i18n::ahora(Texto::VolverDescubrirBoton)}"
             }
             span { class: "guardados-marca", "Ratio" }
         }
@@ -93,8 +96,8 @@ fn BarraSuperior() -> Element {
 fn SinSesion() -> Element {
     rsx! {
         div { class: "estado",
-            p { "Inicia sesión para ver las recetas que guardaste." }
-            Link { to: Rutas::Entrar, class: "guardados-accion", "Entrar" }
+            p { "{crate::i18n::ahora(Texto::GuardadosSinSesion)}" }
+            Link { to: Rutas::Entrar, class: "guardados-accion", "{crate::i18n::ahora(Texto::Entrar)}" }
         }
     }
 }
@@ -105,15 +108,15 @@ fn ListaGuardados(lista: Vec<RecetaGuardada>, recarga: Signal<u32>) -> Element {
     if lista.is_empty() {
         return rsx! {
             div { class: "estado",
-                p { "Todavía no has guardado recetas. Abre una ficha y usa «Guardar»." }
-                Link { to: Rutas::biblioteca(), class: "guardados-accion", "Ir a la biblioteca" }
+                p { "{crate::i18n::ahora(Texto::GuardadosVacio)}" }
+                Link { to: Rutas::biblioteca(), class: "guardados-accion", "{crate::i18n::ahora(Texto::IrALaBiblioteca)}" }
             }
         };
     }
 
     let total = lista.len();
     let resumen = if total == 1 {
-        "1 receta guardada".to_string()
+        crate::i18n::ahora(Texto::NRecetasGuardadas).to_string()
     } else {
         format!("{total} recetas guardadas")
     };
@@ -153,12 +156,20 @@ fn TarjetaGuardada(receta: RecetaGuardada, recarga: Signal<u32>) -> Element {
         },
     );
 
-    let mut datos = vec![format!("{:.0} ml", capas.total_ml)];
+    let mut datos = vec![crate::i18n::con(
+        crate::i18n::actual(),
+        Texto::MililitrosCorto,
+        &[&format!("{:.0}", capas.total_ml)],
+    )];
     if graduacion.abv > 0.0 {
         datos.push(format!("{:.1} % ABV", graduacion.abv));
     }
     if let Some(minutos) = resumen.minutos {
-        datos.push(format!("{minutos} min"));
+        datos.push(crate::i18n::con(
+            crate::i18n::actual(),
+            Texto::MinutosCorto,
+            &[&minutos.to_string()],
+        ));
     }
 
     let id = resumen.id.clone();
@@ -177,9 +188,9 @@ fn TarjetaGuardada(receta: RecetaGuardada, recarga: Signal<u32>) -> Element {
                 div { class: "guardado-cuerpo",
                     h2 { "{nombre}" }
                     p { class: "guardado-meta", "{familia} · {datos.join(\" · \")}" }
-                    p { class: "guardado-fecha", "Guardado el {fecha}" }
+                    p { class: "guardado-fecha", "{crate::i18n::con(crate::i18n::actual(), Texto::GuardadoEl, &[&fecha])}" }
                     if let Some(ultima) = ultima.clone() {
-                        p { class: "guardado-ultima", "Última vez: {ultima}" }
+                        p { class: "guardado-ultima", "{crate::i18n::con(crate::i18n::actual(), Texto::UltimaVez, &[&ultima])}" }
                     }
                 }
             }
@@ -188,14 +199,14 @@ fn TarjetaGuardada(receta: RecetaGuardada, recarga: Signal<u32>) -> Element {
                 class: "guardado-quitar",
                 r#type: "button",
                 disabled: *quitando.read(),
-                aria_label: "Quitar {nombre} de guardados",
+                aria_label: "{crate::i18n::con(crate::i18n::actual(), Texto::QuitarDeGuardados, &[&nombre])}",
                 onclick: move |_| {
                     if *quitando.read() {
                         return;
                     }
 
                     let Some(token) = crate::sesion::token(&sesion) else {
-                        aviso.set(Some("La sesión caducó; vuelve a entrar.".to_string()));
+                        aviso.set(Some({crate::i18n::ahora(Texto::SesionCaducada)}.to_string()));
                         return;
                     };
 
@@ -207,7 +218,7 @@ fn TarjetaGuardada(receta: RecetaGuardada, recarga: Signal<u32>) -> Element {
                             Ok(_) => recarga.set(recarga() + 1),
                             // Sin red: quitarla queda en la cola
                             Err(causa)
-                                if crate::local::es_sin_conexion(&causa)
+                                if crate::red::sin_conexion(&causa)
                                     && crate::local::encolar(
                                         &sesion,
                                         &mut pendientes,
@@ -218,20 +229,17 @@ fn TarjetaGuardada(receta: RecetaGuardada, recarga: Signal<u32>) -> Element {
                                     ) =>
                             {
                                 aviso.set(Some(
-                                    "Sin conexión: se quitará cuando vuelva la red.".to_string(),
+                                    {crate::i18n::ahora(Texto::SinConexionSeQuitara)}.to_string(),
                                 ));
                             }
                             Err(causa) => {
-                                aviso.set(Some(format!(
-                                    "No se pudo quitar: {}",
-                                    crate::red::mensaje(&causa)
-                                )));
+                                aviso.set(Some(crate::i18n::con(crate::i18n::actual(), Texto::NoSePudoQuitar, &[&crate::red::mensaje(&causa)])));
                                 quitando.set(false);
                             }
                         }
                     });
                 },
-                if *quitando.read() { "Quitando…" } else { "Quitar" }
+                if *quitando.read() { {crate::i18n::ahora(Texto::Quitando)} } else { {crate::i18n::ahora(Texto::Quitar)} }
             }
 
             if let Some(texto) = aviso() {

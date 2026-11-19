@@ -11,7 +11,6 @@
 //! mg). De momento los sólidos se convierten con `1 g = 1 ml` para que también sumen
 //! volumen mientras el catálogo termina de definirse.
 
-
 mod atajos;
 mod capas;
 mod guardar;
@@ -21,8 +20,9 @@ use api::receta::RecetaCompleta;
 use api::vasos::{VasoOpcion, vasos as catalogo_vasos};
 use dioxus::prelude::*;
 
+use crate::i18n::Texto;
 use crate::red::AvisoRed;
-use crate::rutas::Rutas;
+use crate::rutas::Rutas; // Textos traducibles
 
 /// Hoja de estilos propia del editor de proporciones.
 const CSS_AJUSTAR: Asset = asset!("/assets/ajustar.css");
@@ -107,7 +107,7 @@ pub fn PantallaAjustar(id: String) -> Element {
 
             match &*recurso.read() {
                 None => rsx! {
-                    p { class: "estado", role: "status", "Cargando las proporciones…" }
+                    p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoProporciones)}" }
                 },
                 Some(Err(causa)) => rsx! {
                     AvisoRed {
@@ -116,7 +116,7 @@ pub fn PantallaAjustar(id: String) -> Element {
                     }
                 },
                 Some(Ok((None, _, _))) => rsx! {
-                    p { class: "estado", "Esta receta no existe o ya no está publicada." }
+                    p { class: "estado", "{crate::i18n::ahora(Texto::RecetaNoPublicada)}" }
                 },
                 Some(Ok((Some(receta), vasos, ingredientes))) => rsx! {
                     Editor {
@@ -137,8 +137,8 @@ fn BarraSuperior(id: String) -> Element {
         header { class: "ajustar-barra",
             Link {
                 to: Rutas::Ficha { id },
-                class: "ajustar-volver",
-                aria_label: "Volver a la ficha de la receta",
+                class: "volver",
+                aria_label: "{crate::i18n::ahora(Texto::VolverALaFichaReceta)}",
                 "‹ Receta"
             }
         }
@@ -176,13 +176,15 @@ fn Editor(
     };
 
     let factores = use_signal(|| vec![1.0_f64; total_ingredientes]);
+    // La escala es un factor aparte: mover una capa no la reinicia ni la pierde
+    let escala = use_signal(|| 1.0_f64);
     let agregados = use_signal(Vec::<CapaAgregada>::new);
     let seleccion_ingrediente = use_signal(String::new);
     let mut indice_vaso = use_signal(move || indice_inicial);
 
     let Some(vaso_actual) = opciones.get(*indice_vaso.read()).cloned() else {
         return rsx! {
-            p { class: "estado", "No hay vasos disponibles para ajustar la receta." }
+            p { class: "estado", "{crate::i18n::ahora(Texto::NoHayVasos)}" }
         };
     };
 
@@ -193,14 +195,20 @@ fn Editor(
     ajustada.vaso = vaso_actual.vaso.clone();
     ajustada.capacidad_ml = vaso_actual.vaso.capacidad_ml;
 
-    aplicar_factores(&mut ajustada, &receta.receta, &factores_actuales);
+    let escala_actual = *escala.read();
+    aplicar_factores(
+        &mut ajustada,
+        &receta.receta,
+        &factores_actuales,
+        escala_actual,
+    );
 
     // Las capas agregadas se suman al final de la pila, encima de las de la receta.
     // De momento 1 g cuenta como 1 ml para que los sólidos también suban el volumen.
     for extra in &agregados_actuales {
         ajustada.ingredientes.push(proporciones::Componente {
             nombre: extra.nombre.clone(),
-            ml: api::ml_equivalentes(extra.cantidad, &extra.unidad) * extra.factor,
+            ml: api::ml_equivalentes(extra.cantidad, &extra.unidad) * extra.factor * escala_actual,
             graduacion: extra.graduacion,
             dilucion: extra.dilucion,
             color: extra.color.clone(),
@@ -220,13 +228,27 @@ fn Editor(
     let capacidad = ajustada.capacidad_ml.max(1.0);
     let porcentaje_vaso = capas.total_ml / capacidad * 100.0;
     let descripcion = descripcion(&ajustada);
+    // Aviso de lo que sobra, ya en el idioma elegido
+    let aviso_sobran = crate::i18n::con(
+        crate::i18n::actual(),
+        Texto::NoCabeSobran,
+        &[&format!("{:.0}", capas.total_ml - capacidad)],
+    );
 
     // La escala global se expresa en mililitros: el deslizador llega hasta 500 ml y
     // reparte ese volumen entre todas las capas de forma proporcional.
-    let total_base: f64 = receta.receta.ingredientes.iter().map(|c| c.ml).sum::<f64>()
+    // Volumen de la receta tal como está, sin la escala global: sirve para convertir
+    // mililitros del deslizador a un factor de escala.
+    let volumen_sin_escala: f64 = receta
+        .receta
+        .ingredientes
+        .iter()
+        .enumerate()
+        .map(|(indice, capa)| capa.ml * factores_actuales.get(indice).copied().unwrap_or(1.0))
+        .sum::<f64>()
         + agregados_actuales
             .iter()
-            .map(|extra| api::ml_equivalentes(extra.cantidad, &extra.unidad))
+            .map(|extra| api::ml_equivalentes(extra.cantidad, &extra.unidad) * extra.factor)
             .sum::<f64>();
     let volumen_escala = capas.total_ml.clamp(0.0, VOLUMEN_MAXIMO_ML);
 
@@ -249,9 +271,9 @@ fn Editor(
 
     rsx! {
         header { class: "ajustar-cabeza",
-            p { class: "eyebrow", "Ajustar proporciones" }
+            p { class: "eyebrow", "{crate::i18n::ahora(Texto::AjustarProporciones)}" }
             h1 { "{receta.receta.nombre}" }
-            p { class: "ajustar-autor", "por {receta.autor}" }
+            p { class: "ajustar-autor", "{crate::i18n::con(crate::i18n::actual(), Texto::PorAutor, &[&receta.autor])}" }
         }
 
         article { class: "tarjeta ajustar-preview",
@@ -264,28 +286,28 @@ fn Editor(
 
             dl { class: "ajustar-totales", "aria-live": "polite",
                 div { class: "dato",
-                    dt { "Total" }
+                    dt { "{crate::i18n::ahora(Texto::Total)}" }
                     dd { "{capas.total_ml:.0} ml" }
                 }
                 div { class: "dato",
-                    dt { "Del vaso" }
+                    dt { "{crate::i18n::ahora(Texto::DelVaso)}" }
                     dd { "{porcentaje_vaso:.0} %" }
                 }
                 div { class: "dato",
-                    dt { "Graduación" }
+                    dt { "{crate::i18n::ahora(Texto::Graduacion)}" }
                     dd {
                         if graduacion.abv > 0.0 {
                             "{graduacion.abv:.1} % ABV"
                         } else {
-                            "Sin alcohol"
+                            {crate::i18n::ahora(Texto::SinAlcohol)}
                         }
                     }
                 }
                 div { class: "dato",
-                    dt { "Intensidad base" }
+                    dt { "{crate::i18n::ahora(Texto::IntensidadBase)}" }
                     dd {
                         if let Some(intensidad) = receta.intensidad {
-                            "{intensidad} de 5"
+                            "{crate::i18n::con(crate::i18n::actual(), Texto::NivelDeCinco, &[&intensidad.to_string()])}"
                         } else {
                             "—"
                         }
@@ -295,16 +317,16 @@ fn Editor(
 
             if capas.total_ml > capacidad {
                 p { class: "ajustar-aviso ajustar-aviso--error", role: "alert",
-                    "No cabe: sobran {(capas.total_ml - capacidad):.0} ml. Baja una capa o elige un vaso más grande."
+                    "{aviso_sobran}"
                 }
             } else if capas.total_ml > capacidad * proporciones::LLENADO_MAX {
                 p { class: "ajustar-aviso", role: "status",
-                    "El vaso queda al límite: el dibujo se corta al 94 % de la capacidad."
+                    {crate::i18n::ahora(Texto::VasoAlLimite)}
                 }
             }
 
             if capas.total_ml <= 0.0 {
-                p { class: "estado", "Todas las capas están a cero. Sube alguna para ver la bebida." }
+                p { class: "estado", "{crate::i18n::ahora(Texto::TodasLasCapasACero)}" }
             }
         }
 
@@ -313,17 +335,19 @@ fn Editor(
             ingredientes: ingredientes.clone(),
             factores,
             agregados,
-            total_base,
+            escala,
+            volumen_sin_escala,
             volumen_escala,
+            capacidad_ml: capacidad,
         }
 
         section { class: "seccion", "aria-labelledby": "titulo-vaso",
             div { class: "seccion-cabeza",
-                p { id: "titulo-vaso", class: "eyebrow", "Vaso" }
+                p { id: "titulo-vaso", class: "eyebrow", "{crate::i18n::ahora(Texto::Vaso)}" }
                 span { class: "mini", "{vaso_actual.nombre} · {vaso_actual.vaso.capacidad_ml:.0} ml" }
             }
 
-            label { class: "solo-lector", r#for: "vaso-editor", "Elegir el vaso" }
+            label { class: "solo-lector", r#for: "vaso-editor", "{crate::i18n::ahora(Texto::ElegirElVaso)}" }
             select {
                 id: "vaso-editor",
                 class: "ajustar-select",
@@ -357,6 +381,8 @@ fn Editor(
             capas: capas.clone(),
             factores,
             agregados,
+            escala,
+            capacidad_ml: capacidad,
         }
 
         guardar::Acciones {
@@ -364,6 +390,7 @@ fn Editor(
             vaso: vaso_actual.clone(),
             factores,
             agregados,
+            escala,
             seleccion_ingrediente,
             indice_vaso,
             indice_inicial,
@@ -372,10 +399,15 @@ fn Editor(
 }
 
 /// Escala cada capa de `ajustada` por su factor sobre la cantidad de `base`: una sola bebida.
-fn aplicar_factores(ajustada: &mut proporciones::Receta, base: &proporciones::Receta, factores: &[f64]) {
+fn aplicar_factores(
+    ajustada: &mut proporciones::Receta,
+    base: &proporciones::Receta,
+    factores: &[f64],
+    escala: f64,
+) {
     for (indice, componente) in ajustada.ingredientes.iter_mut().enumerate() {
         let factor = factores.get(indice).copied().unwrap_or(1.0);
-        componente.ml = base.ingredientes[indice].ml * factor;
+        componente.ml = base.ingredientes[indice].ml * factor * escala;
     }
 }
 
@@ -402,11 +434,14 @@ mod pruebas {
         let base = Receta::nueva(
             "Cortado",
             Vaso::nuevo(135.0, 33.0, 24.0, 53.0, 4.0),
-            vec![Componente::nuevo("Espresso", 40.0, 0.0), Componente::nuevo("Leche", 40.0, 0.0)],
+            vec![
+                Componente::nuevo("Espresso", 40.0, 0.0),
+                Componente::nuevo("Leche", 40.0, 0.0),
+            ],
         );
         let mut ajustada = base.clone();
 
-        aplicar_factores(&mut ajustada, &base, &[1.0, 1.5]);
+        aplicar_factores(&mut ajustada, &base, &[1.0, 1.5], 1.0);
 
         assert_eq!(ajustada.ingredientes[0].ml, 40.0);
         assert_eq!(ajustada.ingredientes[1].ml, 60.0);

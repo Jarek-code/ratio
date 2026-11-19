@@ -4,6 +4,8 @@ use api::ingredientes::IngredienteOpcion;
 use api::receta::RecetaCompleta;
 use dioxus::prelude::*;
 
+use crate::i18n::Texto; // Textos traducibles
+
 use super::{
     COLOR_RESERVA, CapaAgregada, FACTOR_MAXIMO, MG_AGREGADO_POR_DEFECTO, ML_AGREGADO_POR_DEFECTO,
 };
@@ -27,12 +29,12 @@ pub(super) fn AgregarIngrediente(
     rsx! {
         section { class: "seccion", "aria-labelledby": "titulo-agregados",
             div { class: "seccion-cabeza",
-                p { id: "titulo-agregados", class: "eyebrow", "Nuevos ingredientes" }
-                span { class: "mini", "Líquidos o sólidos · 1 g = 1 ml" }
+                p { id: "titulo-agregados", class: "eyebrow", "{crate::i18n::ahora(Texto::NuevosIngredientes)}" }
+                span { class: "mini", "{crate::i18n::ahora(Texto::LiquidosOSolidos)}" }
             }
 
             div { class: "ajustar-agregar",
-                label { class: "solo-lector", r#for: "ingrediente-nuevo", "Ingrediente del catálogo" }
+                label { class: "solo-lector", r#for: "ingrediente-nuevo", "{crate::i18n::ahora(Texto::IngredienteDelCatalogo)}" }
                 select {
                     id: "ingrediente-nuevo",
                     class: "ajustar-select",
@@ -53,7 +55,7 @@ pub(super) fn AgregarIngrediente(
                         };
 
                         // El catálogo lo mantiene el equipo: elegir una opción ya crea
-                        // la capa; no hay un paso extra de "añadir".
+                        // la capa; no hay un paso extra de añadir.
                         if agregados.read().iter().any(|extra| extra.ingrediente_id == id) {
                             seleccion_ingrediente.set(String::new());
                             return;
@@ -77,7 +79,7 @@ pub(super) fn AgregarIngrediente(
                         });
                         seleccion_ingrediente.set(String::new());
                     },
-                    option { value: "", "Elige un ingrediente (ml o mg)" }
+                    option { value: "", "{crate::i18n::ahora(Texto::EligeIngrediente)}" }
                     for opcion in ingredientes_disponibles.iter() {
                         if opcion.unidad == "mg" {
                             option {
@@ -97,7 +99,7 @@ pub(super) fn AgregarIngrediente(
             }
 
             if ingredientes_disponibles.is_empty() {
-                p { class: "mini", "No hay más ingredientes disponibles en el catálogo." }
+                p { class: "mini", "{crate::i18n::ahora(Texto::SinMasIngredientes)}" }
             }
         }
     }
@@ -112,9 +114,13 @@ pub(super) fn ListaCapas(
     capas: proporciones::Capas,
     factores: Signal<Vec<f64>>,
     agregados: Signal<Vec<CapaAgregada>>,
+    escala: Signal<f64>,
+    capacidad_ml: f64,
 ) -> Element {
     let mut factores = factores;
     let mut agregados = agregados;
+    let escala_valor = *escala.read();
+    let volumen_total = capas.total_ml;
     let ingredientes = receta.receta.ingredientes.clone();
     let total_ingredientes = ingredientes.len();
     let factores_actuales = factores.read().clone();
@@ -141,7 +147,18 @@ pub(super) fn ListaCapas(
                             .color
                             .clone()
                             .unwrap_or_else(|| COLOR_RESERVA.to_string());
-                        let etiqueta = format!("Cantidad de {}", ingrediente.nombre);
+                        let etiqueta = crate::i18n::con(crate::i18n::actual(), Texto::CantidadDe, &[&ingrediente.nombre]);
+
+                        // Tope del factor para que la bebida no pase de la capacidad:
+                        // lo que ocupan las demás capas deja el resto a esta.
+                        let volumen_capa = ingrediente.ml * factor * escala_valor;
+                        let volumen_otras = (volumen_total - volumen_capa).max(0.0);
+                        let tope_factor = if ingrediente.ml * escala_valor > 0.0 {
+                            ((capacidad_ml - volumen_otras) / (ingrediente.ml * escala_valor))
+                                .clamp(0.0, FACTOR_MAXIMO)
+                        } else {
+                            FACTOR_MAXIMO
+                        };
 
                         // La capa del motor siempre es volumen; la unidad original solo
                         // cambia cómo se rotula. Los mg se convierten con 1 g = 1 ml.
@@ -154,11 +171,23 @@ pub(super) fn ListaCapas(
                         let cantidad = if es_liquido { ml } else { ml * 1000.0 };
                         let cifra = format!("{cantidad:.0} {unidad} · {porcentaje:.0} %");
                         let factor_pct = factor * 100.0;
+                        let texto_receta = crate::i18n::con(crate::i18n::actual(), Texto::PorcentajeDeLaReceta, &[&format!("{factor_pct:.0}")]);
+                        let texto_total = crate::i18n::con(crate::i18n::actual(), Texto::PorcentajeDelTotal, &[&format!("{porcentaje:.0}")]);
                         let valor_lector = if es_liquido {
-                            format!("{cantidad:.0} mililitros, {factor_pct:.0} por ciento")
+                            crate::i18n::con(
+                                crate::i18n::actual(),
+                                Texto::LectorMililitros,
+                                &[&format!("{cantidad:.0}"), &format!("{factor_pct:.0}")],
+                            )
                         } else {
-                            format!(
-                                "{cantidad:.0} miligramos, suma {ml:.2} mililitros, {factor_pct:.0} por ciento"
+                            crate::i18n::con(
+                                crate::i18n::actual(),
+                                Texto::LectorMiligramos,
+                                &[
+                                    &format!("{cantidad:.0}"),
+                                    &format!("{ml:.2}"),
+                                    &format!("{:.0}", factor * 100.0),
+                                ],
                             )
                         };
 
@@ -172,6 +201,21 @@ pub(super) fn ListaCapas(
                                     }
                                     span { class: "ajustar-capa-nombre", "{ingrediente.nombre}" }
                                     span { class: "ajustar-capa-cifra", "{cifra}" }
+                                    button {
+                                        class: "ajustar-capa-quitar",
+                                        r#type: "button",
+                                        aria_label: "Quitar {ingrediente.nombre}",
+                                        disabled: factor <= 0.0,
+                                        onclick: move |_| {
+                                            // Un factor cero quita la capa al guardar
+                                            let mut nuevos = factores.read().clone();
+                                            if let Some(slot) = nuevos.get_mut(indice) {
+                                                *slot = 0.0;
+                                            }
+                                            factores.set(nuevos);
+                                        },
+                                        {crate::i18n::ahora(Texto::Quitar)}
+                                    }
                                 }
                                 input {
                                     class: "ajustar-rango",
@@ -183,18 +227,20 @@ pub(super) fn ListaCapas(
                                     aria_label: etiqueta,
                                     "aria-valuetext": "{valor_lector}",
                                     oninput: move |evento| {
-                                        let porcentaje = evento.value().parse::<f64>().unwrap_or(100.0);
+                                        let pedido = evento.value().parse::<f64>().unwrap_or(100.0);
                                         let mut nuevos = factores.read().clone();
                                         if let Some(slot) = nuevos.get_mut(indice) {
-                                            *slot = (porcentaje / 100.0).clamp(0.0, FACTOR_MAXIMO);
+                                            // Se recorta al tope: la bebida no desborda el vaso
+                                            *slot = (pedido / 100.0)
+                                                .clamp(0.0, tope_factor.max(0.0));
                                         }
                                         factores.set(nuevos);
                                     },
                                 }
                                 div { class: "ajustar-capa-pie",
-                                    span { "{factor * 100.0:.0} % de la receta" }
+                                    span { "{texto_receta}" }
                                     if es_liquido {
-                                        span { "{porcentaje:.0} % del total" }
+                                        span { "{texto_total}" }
                                     } else {
                                         span { "Suma {ml:.2} ml" }
                                     }
@@ -223,21 +269,37 @@ pub(super) fn ListaCapas(
                             .color
                             .clone()
                             .unwrap_or_else(|| COLOR_RESERVA.to_string());
-                        let etiqueta = format!("Cantidad de {}", extra.nombre);
+                        let etiqueta = crate::i18n::con(crate::i18n::actual(), Texto::CantidadDe, &[&extra.nombre]);
                         let nombre = extra.nombre.clone();
                         let unidad = if es_liquido { "ml" } else { "mg" };
                         let cifra = format!("{cantidad:.0} {unidad} · {porcentaje:.0} %");
                         let valor_lector = if es_liquido {
-                            format!(
-                                "{cantidad:.0} mililitros, {:.0} por ciento",
-                                factor * 100.0
+                            crate::i18n::con(
+                                crate::i18n::actual(),
+                                Texto::LectorMililitros,
+                                &[&format!("{cantidad:.0}"), &format!("{:.0}", factor * 100.0)],
                             )
                         } else {
-                            format!(
-                                "{cantidad:.0} miligramos, suma {volumen:.2} mililitros, {:.0} por ciento",
-                                factor * 100.0
+                            crate::i18n::con(
+                                crate::i18n::actual(),
+                                Texto::LectorMiligramos,
+                                &[
+                                    &format!("{cantidad:.0}"),
+                                    &format!("{volumen:.2}"),
+                                    &format!("{:.0}", factor * 100.0),
+                                ],
                             )
                         };
+                        let texto_agregado = crate::i18n::con(
+                            crate::i18n::actual(),
+                            Texto::PorcentajeDelAgregado,
+                            &[&format!("{:.0}", factor * 100.0)],
+                        );
+                        let texto_total_extra = crate::i18n::con(
+                            crate::i18n::actual(),
+                            Texto::PorcentajeDelTotal,
+                            &[&format!("{porcentaje:.0}")],
+                        );
 
                         rsx! {
                             li { class: "ajustar-capa",
@@ -256,7 +318,7 @@ pub(super) fn ListaCapas(
                                         onclick: move |_| {
                                             agregados.write().remove(indice_extra);
                                         },
-                                        "Quitar"
+                                        {crate::i18n::ahora(Texto::Quitar)}
                                     }
                                 }
                                 input {
@@ -269,19 +331,19 @@ pub(super) fn ListaCapas(
                                     aria_label: etiqueta,
                                     "aria-valuetext": "{valor_lector}",
                                     oninput: move |evento| {
-                                        let porcentaje = evento.value().parse::<f64>().unwrap_or(100.0);
+                                        let pedido = evento.value().parse::<f64>().unwrap_or(100.0);
                                         let mut nuevos = agregados.read().clone();
                                         if let Some(slot) = nuevos.get_mut(indice_extra) {
-                                            slot.factor =
-                                                (porcentaje / 100.0).clamp(0.0, FACTOR_MAXIMO);
+                                            slot.factor = (pedido / 100.0)
+                                                .clamp(0.0, FACTOR_MAXIMO);
                                         }
                                         agregados.set(nuevos);
                                     },
                                 }
                                 div { class: "ajustar-capa-pie",
-                                    span { "{factor * 100.0:.0} % del agregado" }
+                                    span { "{texto_agregado}" }
                                     if es_liquido {
-                                        span { "{porcentaje:.0} % del total" }
+                                        span { "{texto_total_extra}" }
                                     } else {
                                         span { "Suma {volumen:.2} ml" }
                                     }

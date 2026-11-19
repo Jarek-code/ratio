@@ -17,7 +17,8 @@ use crate::rutas::Rutas;
 
 mod calculo;
 
-use calculo::{agregar, agrupar, clave_compra, filtrar_recetas};
+use crate::i18n::Texto;
+use calculo::{agregar, agrupar, clave_compra, filtrar_recetas}; // Textos traducibles
 
 /// Hoja de estilos propia de la lista de compra.
 const CSS_LISTA_COMPRA: Asset = asset!("/assets/lista_compra.css");
@@ -119,7 +120,6 @@ impl Unidad {
     }
 }
 
-
 /// Pantalla C7: carga el catalogo, deja elegir recetas y arma la lista.
 #[component]
 pub fn PantallaListaCompra() -> Element {
@@ -138,14 +138,14 @@ pub fn PantallaListaCompra() -> Element {
             BarraSuperior {}
 
             header { class: "lista-compra-cabeza",
-                p { class: "eyebrow", "Preparación" }
-                h1 { "Lista de compra" }
-                p { class: "lista-compra-sub", "Todo lo que necesitas para tus recetas, sumado en una sola lista." }
+                p { class: "eyebrow", "{crate::i18n::ahora(Texto::PreparacionSeccion)}" }
+                h1 { "{crate::i18n::ahora(Texto::ListaDeCompra)}" }
+                p { class: "lista-compra-sub", "{crate::i18n::ahora(Texto::ListaSubtitulo)}" }
             }
 
             match &*recurso.read() {
                 None => rsx! {
-                    p { class: "estado", role: "status", "Cargando el recetario…" }
+                    p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoRecetarioCorto)}" }
                 },
                 Some(Err(causa)) => rsx! {
                     AvisoRed {
@@ -171,7 +171,7 @@ fn BarraSuperior() -> Element {
             Link {
                 to: Rutas::biblioteca(),
                 class: "lista-compra-volver",
-                aria_label: "Volver a la biblioteca",
+                aria_label: "{crate::i18n::ahora(Texto::VolverALaBiblioteca)}",
                 "‹ Biblioteca"
             }
             span { class: "lista-compra-marca", "Ratio" }
@@ -242,7 +242,7 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
                         class: "enlace",
                         r#type: "button",
                         onclick: move |_| marcados.write().clear(),
-                        "Desmarcar todo"
+                        {crate::i18n::ahora(Texto::DesmarcarTodo)}
                     }
                 }
             }
@@ -257,18 +257,18 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
                     dd { "{compras.len()}" }
                 }
                 div { class: "compra-metrica",
-                    dt { "Total" }
+                    dt { "{crate::i18n::ahora(Texto::Total)}" }
                     dd { "{unidad_actual.total(total_ml)}" }
                 }
             }
 
             div { class: "compra-controles",
                 div { class: "compra-comensales",
-                    span { class: "compra-control-etiqueta", "Comensales" }
+                    span { class: "compra-control-etiqueta", "{crate::i18n::ahora(Texto::Comensales)}" }
                     div { class: "compra-stepper",
                         button {
                             r#type: "button",
-                            aria_label: "Quitar un comensal",
+                            aria_label: crate::i18n::ahora(Texto::QuitarComensal),
                             disabled: comidas <= 1,
                             onclick: move |_| comensales.set(comidas.saturating_sub(1).max(1)),
                             "−"
@@ -276,7 +276,7 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
                         strong { "{comidas}" }
                         button {
                             r#type: "button",
-                            aria_label: "Agregar un comensal",
+                            aria_label: crate::i18n::ahora(Texto::AgregarComensal),
                             disabled: comidas >= COMENSALES_MAXIMOS,
                             onclick: move |_| comensales.set((comidas + 1).min(COMENSALES_MAXIMOS)),
                             "+"
@@ -284,7 +284,7 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
                     }
                 }
 
-                div { class: "compra-unidades", role: "group", "aria-label": "Unidad de la lista",
+                div { class: "compra-unidades", role: "group", "aria-label": "{crate::i18n::ahora(Texto::UnidadDeLaLista)}",
                     for opcion in Unidad::TODAS {
                         button {
                             key: "{opcion.etiqueta()}",
@@ -301,7 +301,7 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
 
         section { class: "compra-recetas", "aria-labelledby": "compra-recetas-titulo",
             div { class: "compra-seccion-cabeza",
-                h2 { id: "compra-recetas-titulo", "Recetas en la lista" }
+                h2 { id: "compra-recetas-titulo", "{crate::i18n::ahora(Texto::RecetasEnLaLista)}" }
                 if !seleccionadas.is_empty() {
                     button {
                         class: "enlace",
@@ -310,13 +310,13 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
                             seleccion.write().clear();
                             marcados.write().clear();
                         },
-                        "Vaciar"
+                        {crate::i18n::ahora(Texto::Vaciar)}
                     }
                 }
             }
 
             if seleccionadas.is_empty() {
-                p { class: "compra-nota", "Elige una o más recetas para empezar." }
+                p { class: "compra-nota", "{crate::i18n::ahora(Texto::EligeRecetasParaLista)}" }
             } else {
                 div { class: "compra-chips",
                     for receta in seleccionadas.iter().cloned() {
@@ -339,17 +339,17 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
             }
 
             details { class: "compra-picker",
-                summary { "Agregar receta" }
+                summary { {crate::i18n::ahora(Texto::AgregarReceta)} }
 
                 form {
                     class: "compra-buscador",
                     role: "search",
                     onsubmit: move |evento| evento.prevent_default(),
-                    label { class: "solo-lector", r#for: "buscar-compra", "Buscar recetas para la lista" }
+                    label { class: "solo-lector", r#for: "buscar-compra", "{crate::i18n::ahora(Texto::BuscarRecetasParaLista)}" }
                     input {
                         id: "buscar-compra",
                         r#type: "search",
-                        placeholder: "Buscar por nombre",
+                        placeholder: "{crate::i18n::ahora(Texto::BuscarPorNombreCorto)}",
                         autocomplete: "off",
                         value: "{busqueda}",
                         oninput: move |evento| busqueda.set(evento.value()),
@@ -357,7 +357,7 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
                 }
 
                 if filtradas.is_empty() {
-                    p { class: "compra-nota", "No hay recetas que coincidan." }
+                    p { class: "compra-nota", "{crate::i18n::ahora(Texto::SinCoincidenciasCorto)}" }
                 } else {
                     ul { class: "compra-picker-lista",
                         for receta in filtradas {
@@ -393,18 +393,18 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
 
         section { class: "compra-lista", "aria-labelledby": "compra-lista-titulo",
             div { class: "compra-seccion-cabeza",
-                h2 { id: "compra-lista-titulo", "Tu lista" }
+                h2 { id: "compra-lista-titulo", "{crate::i18n::ahora(Texto::TuLista)}" }
                 if !compras.is_empty() {
-                    span { class: "compra-cuenta", "{terminados} de {compras.len()} listos" }
+                    span { class: "compra-cuenta", "{crate::i18n::con(crate::i18n::actual(), Texto::ListosDeTotal, &[&terminados.to_string(), &compras.len().to_string()])}" }
                 }
             }
 
             if seleccionadas.is_empty() {
                 div { class: "estado compra-vacio",
-                    p { "La lista aparecerá aquí en cuanto elijas una receta." }
+                    p { "{crate::i18n::ahora(Texto::ListaApareceraAqui)}" }
                 }
             } else if compras.is_empty() {
-                p { class: "compra-nota", "Estas recetas no tienen ingredientes que comprar." }
+                p { class: "compra-nota", "{crate::i18n::ahora(Texto::RecetasSinIngredientes)}" }
             } else {
                 for grupo in agrupar(&compras) {
                     section { class: "compra-grupo",
@@ -444,4 +444,3 @@ fn Contenido(lista: Vec<RecetaResumen>) -> Element {
         }
     }
 }
-

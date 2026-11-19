@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use super::{CapaAgregada, FACTOR_MAXIMO, VOLUMEN_MAXIMO_ML};
+use crate::i18n::Texto; // Textos traducibles
 
 /// Atajo de proporción que se aplica a todas las capas a la vez.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,8 +24,8 @@ impl Preset {
     fn etiqueta(self) -> &'static str {
         match self {
             Preset::Original => "Original",
-            Preset::Fuerte => "Más fuerte",
-            Preset::Debil => "Más débil",
+            Preset::Fuerte => crate::i18n::ahora(Texto::MasFuerte),
+            Preset::Debil => crate::i18n::ahora(Texto::MasDebil),
         }
     }
 }
@@ -38,17 +39,20 @@ pub(super) fn Atajos(
     ingredientes: Vec<proporciones::Componente>,
     factores: Signal<Vec<f64>>,
     agregados: Signal<Vec<CapaAgregada>>,
-    total_base: f64,
+    escala: Signal<f64>,
+    volumen_sin_escala: f64,
     volumen_escala: f64,
+    capacidad_ml: f64,
 ) -> Element {
     let mut factores = factores;
     let mut agregados = agregados;
+    let mut escala = escala;
 
     rsx! {
         section { class: "seccion", "aria-labelledby": "titulo-atajos",
             div { class: "seccion-cabeza",
-                p { id: "titulo-atajos", class: "eyebrow", "Atajos de proporción" }
-                span { class: "mini", "Se aplican a todas las capas" }
+                p { id: "titulo-atajos", class: "eyebrow", "{crate::i18n::ahora(Texto::AtajosDeProporcion)}" }
+                span { class: "mini", "{crate::i18n::ahora(Texto::SeAplicanATodas)}" }
             }
 
             div { class: "ajustar-presets",
@@ -63,6 +67,11 @@ pub(super) fn Atajos(
                                 onclick: move |_| {
                                     let actuales = factores.read().clone();
                                     factores.set(factores_preset(preset, &ingredientes, &actuales));
+
+                                    // «Original» devuelve la bebida a su volumen publicado
+                                    if preset == Preset::Original {
+                                        escala.set(1.0);
+                                    }
 
                                     // Los ingredientes agregados siguen la misma regla que
                                     // las capas del origen para que el atajo sea coherente.
@@ -88,7 +97,7 @@ pub(super) fn Atajos(
                 label {
                     class: "ajustar-etiqueta",
                     r#for: "escala-ml",
-                    "Escala"
+                    {crate::i18n::ahora(Texto::Escala)}
                 }
                 input {
                     id: "escala-ml",
@@ -98,36 +107,28 @@ pub(super) fn Atajos(
                     max: "{VOLUMEN_MAXIMO_ML:.0}",
                     step: "5",
                     value: "{volumen_escala:.0}",
-                    disabled: total_base <= 0.0,
-                    aria_label: "Volumen de la bebida en mililitros",
+                    disabled: volumen_sin_escala <= 0.0,
+                    aria_label: crate::i18n::ahora(Texto::VolumenDeLaBebida),
                     "aria-valuetext": "{volumen_escala:.0} mililitros",
                     oninput: move |evento| {
                         let objetivo = evento
                             .value()
                             .parse::<f64>()
                             .unwrap_or(0.0)
-                            .clamp(0.0, VOLUMEN_MAXIMO_ML);
+                            .clamp(0.0, VOLUMEN_MAXIMO_ML)
+                            .min(capacidad_ml); // La bebida no pasa de la capacidad del vaso
 
-                        // Un solo factor para todas las capas conserva la proporción de
-                        // la receta mientras el volumen de la bebida se mueve en mililitros.
-                        if total_base > 0.0 {
-                            let factor = (objetivo / total_base).clamp(0.0, FACTOR_MAXIMO);
-                            let mut nuevos = factores.read().clone();
-                            nuevos.fill(factor);
-                            factores.set(nuevos);
-
-                            let mut extras = agregados.read().clone();
-                            for extra in &mut extras {
-                                extra.factor = factor;
-                            }
-                            agregados.set(extras);
+                        // La escala es un factor aparte: las capas conservan sus
+                        // proporciones y mover una capa después no la reinicia.
+                        if volumen_sin_escala > 0.0 {
+                            escala.set((objetivo / volumen_sin_escala).clamp(0.0, FACTOR_MAXIMO));
                         }
                     },
                 }
                 span { class: "ajustar-escala-valor", "{volumen_escala:.0} ml" }
             }
 
-            p { class: "mini", "La escala termina en 500 ml y mueve todas las capas." }
+            p { class: "mini", "{crate::i18n::ahora(Texto::EscalaNota)}" }
         }
     }
 }

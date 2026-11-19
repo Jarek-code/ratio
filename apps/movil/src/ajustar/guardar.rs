@@ -6,7 +6,8 @@ use api::vasos::VasoOpcion;
 use dioxus::prelude::*;
 
 use super::CapaAgregada;
-use crate::rutas::Rutas;
+use crate::i18n::Texto;
+use crate::rutas::Rutas; // Textos traducibles
 
 /// Botones de restablecer y guardar, con el aviso del resultado.
 ///
@@ -18,10 +19,22 @@ pub(super) fn Acciones(
     vaso: VasoOpcion,
     factores: Signal<Vec<f64>>,
     agregados: Signal<Vec<CapaAgregada>>,
+    escala: Signal<f64>,
     seleccion_ingrediente: Signal<String>,
     indice_vaso: Signal<usize>,
     indice_inicial: usize,
 ) -> Element {
+    // Nombre de la versión: se propone uno y se puede cambiar antes de guardar
+    let nombre_propuesto = crate::i18n::con(
+        crate::i18n::actual(),
+        Texto::NombreVersionPropuesto,
+        &[&receta.receta.nombre],
+    )
+    .chars()
+    .take(120)
+    .collect::<String>();
+    let mut nombre = use_signal(|| nombre_propuesto.clone()); // Editable antes de guardar
+    let nombre_para_reset = nombre_propuesto.clone(); // Copia para el botón de restablecer
     let mut factores = factores;
     let mut agregados = agregados;
     let mut seleccion_ingrediente = seleccion_ingrediente;
@@ -37,6 +50,20 @@ pub(super) fn Acciones(
 
     rsx! {
         div { class: "ajustar-acciones",
+            // Nombre de la versión: se propone uno y se cambia tocándolo
+            label { class: "ajustar-nombre", r#for: "nombre-version",
+                span { "{crate::i18n::ahora(Texto::NombreDeLaVersion)}" }
+                input {
+                    id: "nombre-version",
+                    class: "ajustar-select",
+                    r#type: "text",
+                    maxlength: "120",
+                    placeholder: "{nombre_propuesto}",
+                    value: "{nombre}",
+                    oninput: move |evento| nombre.set(evento.value()),
+                }
+            }
+
             button {
                 class: "chip",
                 r#type: "button",
@@ -45,8 +72,10 @@ pub(super) fn Acciones(
                     agregados.set(Vec::new());
                     seleccion_ingrediente.set(String::new());
                     indice_vaso.set(indice_inicial);
+                    escala.set(1.0);
+                    nombre.set(nombre_para_reset.clone());
                 },
-                "Restablecer"
+                {crate::i18n::ahora(Texto::Restablecer)}
             }
 
             button {
@@ -59,11 +88,12 @@ pub(super) fn Acciones(
                     }
 
                     let Some(token) = crate::sesion::token(&sesion) else {
-                        aviso.set(Some("Inicia sesión para guardar una versión.".to_string()));
+                        aviso.set(Some({crate::i18n::ahora(Texto::IniciaSesionGuardarVersion)}.to_string()));
                         return;
                     };
 
                     let factores_guardar = factores.read().clone();
+                    let escala_guardar = *escala.read();
                     let mut componentes = Vec::new();
 
                     // C1 muestra todas las capas del motor, también las mg (1 g = 1 ml),
@@ -84,7 +114,9 @@ pub(super) fn Acciones(
                         componentes.push(ComponenteNuevo {
                             ingrediente_id: capa.ingrediente_id.clone(),
                             posicion: capa.posicion,
-                            cantidad: capa.cantidad * factor,
+                            // La escala global también se guarda, para que la versión
+                            // quede con el volumen que se ve en el vaso.
+                            cantidad: capa.cantidad * factor * escala_guardar,
                         });
                     }
 
@@ -98,17 +130,17 @@ pub(super) fn Acciones(
 
                         agregados_guardar.push(ComponenteAgregado {
                             ingrediente_id: extra.ingrediente_id.clone(),
-                            cantidad: extra.cantidad * extra.factor,
+                            cantidad: extra.cantidad * extra.factor * escala_guardar,
                         });
                     }
 
-                    let nombre_version = format!(
-                        "{} · versión",
-                        receta_para_guardar.receta.nombre
-                    )
-                    .chars()
-                    .take(120)
-                    .collect::<String>();
+                    // El nombre lo escribe la persona; si lo dejó vacío se usa el propuesto
+                    let escrito = nombre.read().trim().to_string();
+                    let nombre_version = if escrito.is_empty() {
+                        nombre_propuesto.clone()
+                    } else {
+                        escrito.chars().take(120).collect::<String>()
+                    };
 
                     let datos = RecetaNueva {
                         origen_id: receta_para_guardar.id.clone(),
@@ -128,11 +160,19 @@ pub(super) fn Acciones(
                         match crate::red::con_plazo(guardar_receta(token, datos.clone())).await {
                             Ok(resultado) => {
                                 let mensaje = if resultado.advertencias.is_empty() {
-                                    "Versión guardada. Ya aparece en Mi recetario.".to_string()
+                                    crate::i18n::ahora(Texto::VersionGuardada).to_string()
                                 } else {
-                                    format!(
-                                        "Versión guardada. {}",
-                                        resultado.advertencias.join(" ")
+                                    let avisos = resultado
+                                        .advertencias
+                                        .iter()
+                                        .map(|aviso| crate::api_textos::aviso(*aviso))
+                                        .collect::<Vec<_>>()
+                                        .join(" ");
+
+                                    crate::i18n::con(
+                                        crate::i18n::actual(),
+                                        Texto::VersionGuardadaConAviso,
+                                        &[&avisos],
                                     )
                                 };
                                 aviso.set(Some(mensaje));
@@ -140,7 +180,7 @@ pub(super) fn Acciones(
                             }
                             // Sin red: la versión queda en la cola con su mismo id
                             Err(causa)
-                                if crate::local::es_sin_conexion(&causa)
+                                if crate::red::sin_conexion(&causa)
                                     && crate::local::encolar(
                                         &sesion,
                                         &mut pendientes,
@@ -148,14 +188,14 @@ pub(super) fn Acciones(
                                     ) =>
                             {
                                 aviso.set(Some(
-                                    "Sin conexión: la versión se enviará cuando vuelva la red y aparecerá en Mi recetario."
-                                        .to_string(),
+                                    crate::i18n::ahora(Texto::VersionSinConexion).to_string(),
                                 ));
                             }
                             Err(causa) => {
-                                aviso.set(Some(format!(
-                                    "No pudimos guardar la versión: {}",
-                                    crate::red::mensaje(&causa)
+                                aviso.set(Some(crate::i18n::con(
+                                    crate::i18n::actual(),
+                                    Texto::NoSeGuardoVersion,
+                                    &[&crate::red::mensaje(&causa)],
                                 )));
                             }
                         }
@@ -164,9 +204,9 @@ pub(super) fn Acciones(
                     });
                 },
                 if *guardando.read() {
-                    "Guardando…"
+                    {crate::i18n::ahora(Texto::Guardando)}
                 } else {
-                    "Guardar versión privada"
+                    {crate::i18n::ahora(Texto::GuardarVersionPrivada)}
                 }
             }
 
@@ -174,7 +214,7 @@ pub(super) fn Acciones(
                 Link {
                     to: Rutas::Ficha { id: id.clone() },
                     class: "mini",
-                    "Abrir versión"
+                    {crate::i18n::ahora(Texto::AbrirVersion)}
                 }
             }
         }

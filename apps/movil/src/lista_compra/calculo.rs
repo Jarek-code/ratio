@@ -4,7 +4,8 @@
 
 use std::collections::HashMap;
 
-use api::biblioteca::RecetaResumen;
+use crate::i18n::Texto;
+use api::biblioteca::RecetaResumen; // Textos traducibles
 
 /// Grupo de compra al que pertenece un ingrediente.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -25,8 +26,8 @@ impl Categoria {
     /// Titulo visible del grupo.
     pub(super) fn etiqueta(self) -> &'static str {
         match self {
-            Categoria::Cafe => "Café y especias",
-            Categoria::Lacteos => "Lácteos",
+            Categoria::Cafe => crate::i18n::ahora(Texto::CafeYEspecias),
+            Categoria::Lacteos => crate::i18n::ahora(Texto::Lacteos),
             Categoria::Alcohol => "Alcohol",
             Categoria::Endulzantes => "Endulzantes",
             Categoria::Otros => "Otros",
@@ -102,12 +103,12 @@ fn categoria(nombre: &str) -> Categoria {
     let nombre = nombre.to_lowercase();
 
     if [
-        "café",
+        crate::i18n::ahora(Texto::IngredienteCafe),
         "cafe",
         "espresso",
         "expreso",
         "cold brew",
-        "té",
+        crate::i18n::ahora(Texto::IngredienteTe),
         "te ",
         "matcha",
         "canela",
@@ -124,15 +125,28 @@ fn categoria(nombre: &str) -> Categoria {
     {
         Categoria::Lacteos
     } else if [
-        "ron", "gin", "ginebra", "vodka", "whisky", "tequila", "mezcal", "vermut", "campari",
-        "aperol", "licor", "brandy", "coñac", "vino", "cerveza",
+        "ron",
+        "gin",
+        "ginebra",
+        "vodka",
+        "whisky",
+        "tequila",
+        "mezcal",
+        "vermut",
+        "campari",
+        "aperol",
+        "licor",
+        "brandy",
+        crate::i18n::ahora(Texto::IngredienteConac),
+        "vino",
+        "cerveza",
     ]
     .iter()
     .any(|clave| nombre.contains(clave))
     {
         Categoria::Alcohol
     } else if [
-        "azúcar",
+        crate::i18n::ahora(Texto::IngredienteAzucar),
         "azucar",
         "jarabe",
         "miel",
@@ -149,7 +163,11 @@ fn categoria(nombre: &str) -> Categoria {
 }
 
 /// Filtra el catalogo del selector por nombre y conserva las recetas ya elegidas.
-pub(super) fn filtrar_recetas(lista: &[RecetaResumen], busqueda: &str, ids: &[String]) -> Vec<RecetaResumen> {
+pub(super) fn filtrar_recetas(
+    lista: &[RecetaResumen],
+    busqueda: &str,
+    ids: &[String],
+) -> Vec<RecetaResumen> {
     let texto = busqueda.trim().to_lowercase();
 
     lista

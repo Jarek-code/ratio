@@ -1,10 +1,15 @@
 use dioxus::prelude::*;
 
+use crate::i18n::Texto; // Texto traducible
+use crate::i18n::t; // Texto en el idioma elegido
 use crate::marca::Marca; // Logo compartido, dibujado inline
 use crate::red::mensaje; // Texto de un fallo del servidor o de la red
 
-/// Hoja de estilos del acceso; también define la paleta que reutiliza el historial.
+/// Hoja de estilos del acceso.
 const CSS_LOGIN: Asset = asset!("/assets/login.css");
+
+/// Hoja del sistema visual que comparten las pantallas: trae la paleta y el tema oscuro.
+const CSS_BASE: Asset = asset!("/assets/descubrir.css");
 
 /// Qué hace el formulario: entrar con una cuenta o crear una nueva.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,18 +28,18 @@ const ALIAS_MAXIMO: usize = 24;
 ///
 /// Devuelve el aviso que se le muestra a la persona, o `None` si el correo tiene forma de
 /// correo. La comprobación no sustituye a la de Supabase: solo evita un viaje inútil.
-fn revisar_correo(correo: &str) -> Option<&'static str> {
+fn revisar_correo(correo: &str) -> Option<Texto> {
     let correo = correo.trim();
 
     if correo.is_empty() {
-        return Some("Escribe tu correo.");
+        return Some(Texto::FaltaCorreo);
     }
     if correo.contains(char::is_whitespace) {
-        return Some("El correo no lleva espacios.");
+        return Some(Texto::CorreoConEspacios);
     }
 
     let Some((usuario, dominio)) = correo.split_once('@') else {
-        return Some("Escribe un correo válido, con arroba y dominio.");
+        return Some(Texto::CorreoInvalido);
     };
 
     let dominio_valido = dominio.contains('.')
@@ -42,39 +47,39 @@ fn revisar_correo(correo: &str) -> Option<&'static str> {
         && !dominio.ends_with('.')
         && !dominio.contains('@');
     if usuario.is_empty() || !dominio_valido {
-        return Some("Escribe un correo válido, con arroba y dominio.");
+        return Some(Texto::CorreoInvalido);
     }
 
     None
 }
 
 /// Revisa la contraseña antes de mandarla.
-fn revisar_contrasena(contrasena: &str) -> Option<&'static str> {
+fn revisar_contrasena(contrasena: &str) -> Option<Texto> {
     if contrasena.is_empty() {
-        return Some("Escribe tu contraseña.");
+        return Some(Texto::FaltaContrasena);
     }
     if contrasena.chars().count() < 6 {
-        return Some("La contraseña necesita al menos 6 caracteres.");
+        return Some(Texto::ContrasenaCorta);
     }
 
     None
 }
 
 /// Revisa el alias del alta: obligatorio, con largo acotado y sin espacios al inicio ni al final.
-fn revisar_alias(alias: &str) -> Option<&'static str> {
+fn revisar_alias(alias: &str) -> Option<Texto> {
     let largo = alias.chars().count();
 
     if largo == 0 {
-        return Some("Escribe un alias.");
+        return Some(Texto::FaltaAlias);
     }
     if largo < ALIAS_MINIMO {
-        return Some("El alias necesita 3 caracteres o más.");
+        return Some(Texto::AliasCorto);
     }
     if largo > ALIAS_MAXIMO {
-        return Some("El alias no puede pasar de 24 caracteres.");
+        return Some(Texto::AliasLargo);
     }
     if alias.contains('@') {
-        return Some("El alias no lleva arroba: es el nombre que verán los demás.");
+        return Some(Texto::AliasConArroba);
     }
 
     None
@@ -91,14 +96,21 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
     let mut adulto = use_signal(|| false);
     let mut ver_contrasena = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
+    let mut aviso = use_signal(|| None::<String>);
     let mut enviando = use_signal(|| false);
+    let mut recuperando = use_signal(|| false);
 
+    let idioma = use_context::<crate::ajustes::SenalAjustes>()().idioma;
     let crear = modo() == Modo::Crear;
-    let titulo = if crear { "Crear cuenta" } else { "Entrar" };
-    let bajada = if crear {
-        "Tu alias y tu edad quedan en el perfil; la contraseña la guarda Supabase cifrada."
+    let titulo = if crear {
+        t(idioma, Texto::CrearCuenta)
     } else {
-        "Usa tu correo para volver a tu recetario."
+        t(idioma, Texto::Entrar)
+    };
+    let bajada = if crear {
+        t(idioma, Texto::BajadaCrear)
+    } else {
+        t(idioma, Texto::BajadaEntrar)
     };
 
     let enviar = move |evento: FormEvent| {
@@ -114,22 +126,31 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
         let nombre = alias().trim().to_string();
         let es_adulto = adulto();
 
-        if let Some(aviso) = revisar_correo(&email) {
-            error.set(Some(aviso.to_string()));
+        // Los avisos se traducen aquí: las revisiones solo dicen cuál es el problema
+        let aviso_texto = |texto: Texto, datos: &[&str]| crate::i18n::con(idioma, texto, datos);
+
+        if let Some(texto) = revisar_correo(&email) {
+            error.set(Some(aviso_texto(texto, &[])));
             return;
         }
-        if let Some(aviso) = revisar_contrasena(&clave) {
-            error.set(Some(aviso.to_string()));
+        if let Some(texto) = revisar_contrasena(&clave) {
+            error.set(Some(aviso_texto(
+                texto,
+                &[&api::auth::CONTRASENA_MINIMA.to_string()],
+            )));
             return;
         }
-        if es_alta && let Some(aviso) = revisar_alias(&nombre) {
-            error.set(Some(aviso.to_string()));
+        if es_alta && let Some(texto) = revisar_alias(&nombre) {
+            let datos = if texto == Texto::AliasLargo {
+                [api::auth::ALIAS_MAXIMO.to_string()]
+            } else {
+                [api::auth::ALIAS_MINIMO.to_string()]
+            };
+            error.set(Some(aviso_texto(texto, &[&datos[0]])));
             return;
         }
         if es_alta && !es_adulto {
-            error.set(Some(
-                "Necesitamos que declares que eres mayor de edad.".into(),
-            ));
+            error.set(Some(t(idioma, Texto::FaltaEdad).to_string()));
             return;
         }
 
@@ -169,6 +190,7 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
     };
 
     rsx! {
+        document::Stylesheet { href: CSS_BASE }
         document::Stylesheet { href: CSS_LOGIN }
 
         main { class: "login-page",
@@ -177,11 +199,11 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
                     div { class: "brand-row",
                         Marca {}
                         div {
-                            p { class: "eyebrow", "Café · Coctelería" }
+                            p { class: "eyebrow", "{t(idioma, Texto::MarcaRubro)}" }
                             h1 { "Ratio" }
                         }
                     }
-                    p { class: "tagline", "La proporción se ve en el vaso." }
+                    p { class: "tagline", "{t(idioma, Texto::MarcaLema)}" }
                 }
 
                 form { class: "login-card", onsubmit: enviar,
@@ -194,8 +216,12 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
                         div { class: "alerta", role: "alert", "{mensaje}" }
                     }
 
+                    if let Some(mensaje) = aviso() {
+                        p { class: "aviso-login", role: "status", "{mensaje}" }
+                    }
+
                     label { class: "field", r#for: "correo",
-                        span { "Correo" }
+                        span { "{t(idioma, Texto::Correo)}" }
                         input {
                             id: "correo",
                             r#type: "email",
@@ -204,7 +230,7 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
                             autocapitalize: "none",
                             inputmode: "email",
                             spellcheck: "false",
-                            placeholder: "tu@correo.com",
+                            placeholder: "{t(idioma, Texto::PlaceholderCorreo)}",
                             value: "{correo}",
                             aria_invalid: if error().is_some() { "true" } else { "false" },
                             oninput: move |evento| correo.set(evento.value()),
@@ -212,36 +238,36 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
                     }
 
                     label { class: "field", r#for: "contrasena",
-                        span { "Contraseña" }
+                        span { "{t(idioma, Texto::Contrasena)}" }
                         div { class: "password",
                             input {
                                 id: "contrasena",
                                 r#type: if ver_contrasena() { "text" } else { "password" },
                                 name: "password",
                                 autocomplete: if crear { "new-password" } else { "current-password" },
-                                placeholder: if crear { "Al menos 6 caracteres" } else { "Tu contraseña" },
+                                placeholder: if crear { t(idioma, Texto::PlaceholderContrasenaCrear) } else { t(idioma, Texto::PlaceholderContrasenaEntrar) },
                                 value: "{contrasena}",
                                 oninput: move |evento| contrasena.set(evento.value()),
                             }
                             button {
                                 r#type: "button",
                                 class: "password__toggle",
-                                aria_label: if ver_contrasena() { "Ocultar contraseña" } else { "Mostrar contraseña" },
+                                aria_label: if ver_contrasena() { t(idioma, Texto::OcultarContrasena) } else { t(idioma, Texto::MostrarContrasena) },
                                 onclick: move |_| ver_contrasena.toggle(),
-                                if ver_contrasena() { "Ocultar" } else { "Ver" }
+                                if ver_contrasena() { "{t(idioma, Texto::OcultarContrasena)}" } else { "{t(idioma, Texto::MostrarContrasena)}" }
                             }
                         }
                     }
 
                     if crear {
                         label { class: "field", r#for: "alias",
-                            span { "Alias" }
+                            span { "{t(idioma, Texto::Alias)}" }
                             input {
                                 id: "alias",
                                 r#type: "text",
                                 name: "alias",
                                 autocomplete: "nickname",
-                                placeholder: "Como te verán en La Barra",
+                                placeholder: "{t(idioma, Texto::PlaceholderAlias)}",
                                 value: "{alias}",
                                 oninput: move |evento| alias.set(evento.value()),
                             }
@@ -253,7 +279,43 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
                                 checked: adulto(),
                                 onchange: move |evento| adulto.set(evento.checked()),
                             }
-                            span { "Tengo 18 años o más y quiero ver recetas con alcohol." }
+                            span { "{t(idioma, Texto::DeclaracionEdad)}" }
+                        }
+                    }
+
+                    if !crear {
+                        button {
+                            class: "link recuperar",
+                            r#type: "button",
+                            disabled: recuperando(),
+                            onclick: move |_| {
+                                if recuperando() {
+                                    return;
+                                }
+
+                                let email = correo().trim().to_string();
+                                // El correo se revisa aquí: sin él no hay a dónde mandar el enlace
+                                if let Some(motivo) = revisar_correo(&email) {
+                                    error.set(Some(t(idioma, motivo).to_string()));
+                                    return;
+                                }
+
+                                error.set(None);
+                                aviso.set(None);
+                                recuperando.set(true);
+                                spawn(async move {
+                                    let resultado = crate::red::con_plazo(api::auth::recuperar(email)).await;
+                                    recuperando.set(false);
+
+                                    match resultado {
+                                        Ok(()) => aviso.set(Some(
+                                            t(idioma, Texto::CorreoEnviado).to_string(),
+                                        )),
+                                        Err(causa) => error.set(Some(mensaje(&causa))),
+                                    }
+                                });
+                            },
+                            if recuperando() { "{t(idioma, Texto::MandandoCorreo)}" } else { "{t(idioma, Texto::OlvidasteContrasena)}" }
                         }
                     }
 
@@ -261,39 +323,41 @@ pub fn Login(on_entrar: EventHandler<()>) -> Element {
                         class: "submit",
                         r#type: "submit",
                         disabled: enviando(),
-                        if enviando() { "Un momento…" } else { "{titulo}" }
+                        if enviando() { "{t(idioma, Texto::UnMomento)}" } else { "{titulo}" }
                     }
 
                     p { class: "switch-modo",
                         if crear {
-                            "¿Ya tienes cuenta? "
+                            "{t(idioma, Texto::YaTienesCuenta)}"
                             button {
                                 r#type: "button",
                                 class: "link",
                                 onclick: move |_| {
                                     error.set(None);
+                                    aviso.set(None);
                                     modo.set(Modo::Entrar);
                                 },
-                                "Entrar"
+                                "{t(idioma, Texto::Entrar)}"
                             }
                         } else {
-                            "¿No tienes cuenta? "
+                            "{t(idioma, Texto::NoTienesCuenta)}"
                             button {
                                 r#type: "button",
                                 class: "link",
                                 onclick: move |_| {
                                     error.set(None);
+                                    aviso.set(None);
                                     modo.set(Modo::Crear);
                                 },
-                                "Crear cuenta"
+                                "{t(idioma, Texto::CrearCuenta)}"
                             }
                         }
                     }
 
-                    p { class: "legal", "Contenido con alcohol solo para personas mayores de edad." }
+                    p { class: "legal", "{t(idioma, Texto::AvisoLegal)}" }
                 }
             }
-            p { class: "footnote", "Ratio · Proporción visible, recetas reproducibles." }
+            p { class: "footnote", "{t(idioma, Texto::PieAcceso)}" }
         }
     }
 }

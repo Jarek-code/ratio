@@ -8,8 +8,9 @@
 //!
 //! Los comentarios de este modulo van sin acentos por pedido del equipo.
 
+use crate::i18n::Texto;
 use api::foro::{Motivo, ReporteNuevo, reportar};
-use dioxus::prelude::*;
+use dioxus::prelude::*; // Textos traducibles
 
 /// Hoja de estilos propia del modal.
 const CSS_REPORTAR: Asset = asset!("/assets/reportar.css");
@@ -47,18 +48,18 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                 button {
                     class: "reportar-cerrar",
                     r#type: "button",
-                    "aria-label": "Cerrar",
+                    "aria-label": crate::i18n::ahora(Texto::Cerrar),
                     onclick: move |_| on_cerrar.call(()),
                     "×"
                 }
 
-                h2 { id: "titulo-reportar", class: "reportar-titulo", "Reportar receta" }
+                h2 { id: "titulo-reportar", class: "reportar-titulo", "{crate::i18n::ahora(Texto::ReportarReceta)}" }
                 p { class: "reportar-intro",
-                    "Cuéntanos qué pasa con esta receta. Tu reporte es privado y lo revisa el equipo de moderación."
+                    {crate::i18n::ahora(Texto::ReportarExplicacion)}
                 }
 
                 fieldset { class: "reportar-grupo",
-                    legend { class: "eyebrow", "Motivo" }
+                    legend { class: "eyebrow", {crate::i18n::ahora(Texto::Motivo)} }
                     div { class: "reportar-motivos",
                         for valor in Motivo::TODOS {
                             button {
@@ -67,19 +68,19 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                                 "aria-pressed": if motivo() == valor { "true" } else { "false" },
                                 disabled: *enviando.read() || *enviado.read(),
                                 onclick: move |_| motivo.set(valor),
-                                "{valor.etiqueta()}"
+                                "{crate::api_textos::motivo(valor)}"
                             }
                         }
                     }
                 }
 
                 label { class: "reportar-grupo",
-                    span { class: "eyebrow", "Detalle (opcional)" }
+                    span { class: "eyebrow", "{crate::i18n::ahora(Texto::DetalleOpcional)}" }
                     textarea {
                         class: "reportar-detalle",
                         rows: "4",
                         maxlength: "1000",
-                        placeholder: "Agrega contexto para el equipo de moderación.",
+                        placeholder: crate::i18n::ahora(Texto::AgregaContexto),
                         value: "{detalle}",
                         disabled: *enviando.read() || *enviado.read(),
                         oninput: move |evento| detalle.set(evento.value()),
@@ -88,7 +89,7 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
 
                 div { class: "reportar-pie",
                     span { class: "reportar-cuenta", "{detalle().chars().count()} / 1000" }
-                    span { class: "reportar-privado", "Solo lo ve moderación" }
+                    span { class: "reportar-privado", "{crate::i18n::ahora(Texto::SoloModeracion)}" }
                 }
 
                 if let Some(texto) = aviso() {
@@ -97,7 +98,7 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
 
                 if *enviado.read() {
                     p { class: "reportar-gracias", role: "status",
-                        "Gracias. Revisaremos el contenido y tomaremos una decisión."
+                        {crate::i18n::ahora(Texto::GraciasRevisaremos)}
                     }
                 }
 
@@ -107,7 +108,7 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                         r#type: "button",
                         disabled: *enviando.read(),
                         onclick: move |_| on_cerrar.call(()),
-                        "Cancelar"
+                        {crate::i18n::ahora(Texto::Cancelar)}
                     }
 
                     button {
@@ -121,7 +122,7 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
 
                             let Some(token) = crate::sesion::token(&sesion) else {
                                 aviso.set(Some(
-                                    "Inicia sesión para reportar este contenido.".to_string(),
+                                    {crate::i18n::ahora(Texto::IniciaSesionParaReportar)}.to_string(),
                                 ));
                                 return;
                             };
@@ -145,7 +146,7 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                                 match crate::red::con_plazo(reportar(token, datos.clone())).await {
                                     // La cuenta ya lo había reportado: no se creó otro
                                     Ok(false) => {
-                                        aviso.set(Some("Ya habías reportado esto: el equipo de moderación lo está revisando.".to_string()));
+                                        aviso.set(Some({crate::i18n::ahora(Texto::YaHabiasReportado)}.to_string()));
                                         enviando.set(false);
                                     }
                                     Ok(true) => {
@@ -154,7 +155,7 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                                     }
                                     // Sin red: el reporte queda en la cola
                                     Err(causa)
-                                        if crate::local::es_sin_conexion(&causa)
+                                        if crate::red::sin_conexion(&causa)
                                             && crate::local::encolar(
                                                 &sesion,
                                                 &mut pendientes,
@@ -165,21 +166,18 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                                         enviando.set(false);
                                     }
                                     Err(causa) => {
-                                        aviso.set(Some(format!(
-                                            "No se pudo enviar el reporte: {}",
-                                            crate::red::mensaje(&causa)
-                                        )));
+                                        aviso.set(Some(crate::i18n::con(crate::i18n::actual(), Texto::NoSePudoReportar, &[&crate::red::mensaje(&causa)])));
                                         enviando.set(false);
                                     }
                                 }
                             });
                         },
                         if *enviado.read() {
-                            "Reporte enviado"
+                            {crate::i18n::ahora(Texto::ReporteEnviado)}
                         } else if *enviando.read() {
-                            "Enviando…"
+                            {crate::i18n::ahora(Texto::Enviando)}
                         } else {
-                            "Enviar reporte"
+                            {crate::i18n::ahora(Texto::EnviarReporte)}
                         }
                     }
                 }

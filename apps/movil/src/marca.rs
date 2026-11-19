@@ -1,4 +1,5 @@
-use dioxus::prelude::*;
+use crate::i18n::Texto;
+use dioxus::prelude::*; // Textos traducibles
 
 /// Logo del vaso con capas, compartido por las pantallas de Ratio.
 ///
@@ -11,7 +12,7 @@ pub fn Marca() -> Element {
             class: "brand-mark",
             view_box: "0 0 64 64",
             role: "img",
-            "aria-label": "Vaso con capas de bebida",
+            "aria-label": "{crate::i18n::ahora(Texto::VasoConCapas)}",
             path {
                 d: "M18 9 H46 L43.4 50.5 Q43 56 37.5 56 H26.5 Q21 56 20.6 50.5 Z",
                 fill: "none",

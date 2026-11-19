@@ -9,8 +9,9 @@ use dioxus::prelude::*;
 
 use crate::barra::{BarraInferior, Destino};
 use crate::biblioteca::familia_legible;
+use crate::i18n::Texto;
 use crate::red::AvisoRed;
-use crate::rutas::Rutas;
+use crate::rutas::Rutas; // Textos traducibles
 
 /// Hoja de estilos propia del recetario.
 const CSS_MIS_RECETAS: Asset = asset!("/assets/mis_recetas.css");
@@ -42,10 +43,10 @@ impl Filtro {
     /// Texto de la pestana.
     fn etiqueta(self) -> &'static str {
         match self {
-            Filtro::Todo => "Todo",
-            Filtro::Versiones => "Versiones",
-            Filtro::Publicadas => "Publicadas",
-            Filtro::Borradores => "Borradores",
+            Filtro::Todo => crate::i18n::ahora(Texto::TodoFiltro),
+            Filtro::Versiones => crate::i18n::ahora(Texto::VersionesFiltro),
+            Filtro::Publicadas => crate::i18n::ahora(Texto::Publicadas),
+            Filtro::Borradores => crate::i18n::ahora(Texto::Borradores),
         }
     }
 
@@ -62,12 +63,10 @@ impl Filtro {
     /// Mensaje cuando la pestana no tiene recetas.
     fn vacio(self) -> &'static str {
         match self {
-            Filtro::Todo => {
-                "Todavía no tienes recetas propias. Empieza por ajustar una de la biblioteca."
-            }
-            Filtro::Versiones => "Todavía no has guardado ninguna versión propia.",
-            Filtro::Publicadas => "Todavía no has publicado una receta.",
-            Filtro::Borradores => "No tienes borradores pendientes.",
+            Filtro::Todo => crate::i18n::ahora(Texto::SinRecetasPropias),
+            Filtro::Versiones => crate::i18n::ahora(Texto::SinVersionesPropias),
+            Filtro::Publicadas => crate::i18n::ahora(Texto::SinPublicaciones),
+            Filtro::Borradores => crate::i18n::ahora(Texto::SinBorradores),
         }
     }
 }
@@ -75,10 +74,10 @@ impl Filtro {
 /// Texto visible del estado.
 fn estado_etiqueta(estado: EstadoReceta) -> &'static str {
     match estado {
-        EstadoReceta::Borrador => "Borrador",
-        EstadoReceta::Privada => "Privada",
-        EstadoReceta::Publicada => "Publicada",
-        EstadoReceta::Oculta => "Oculta",
+        EstadoReceta::Borrador => crate::i18n::ahora(Texto::Borrador),
+        EstadoReceta::Privada => crate::i18n::ahora(Texto::Privada),
+        EstadoReceta::Publicada => crate::i18n::ahora(Texto::Publicada),
+        EstadoReceta::Oculta => crate::i18n::ahora(Texto::Oculta),
     }
 }
 
@@ -102,7 +101,9 @@ pub fn PantallaMisRecetas() -> Element {
         let token = crate::sesion::token(&sesion);
         async move {
             match token {
-                Some(token) => crate::red::con_reintentos(move || mis_recetas(token.clone())).await.map(Some),
+                Some(token) => crate::red::con_reintentos(move || mis_recetas(token.clone()))
+                    .await
+                    .map(Some),
                 None => Ok(None),
             }
         }
@@ -116,16 +117,22 @@ pub fn PantallaMisRecetas() -> Element {
             BarraSuperior {}
 
             header { class: "mi-recetario-cabeza",
-                p { class: "eyebrow", "Recetario" }
-                h1 { "Mi recetario" }
-                p { class: "mi-recetario-sub", "Tus versiones, tus publicaciones y lo que aún no sale de casa." }
+                p { class: "eyebrow", "{crate::i18n::ahora(Texto::Recetario)}" }
+                h1 { "{crate::i18n::ahora(Texto::MiRecetario)}" }
+                p { class: "mi-recetario-sub", "{crate::i18n::ahora(Texto::RecetarioSubtitulo)}" }
+            }
+
+            Link {
+                to: Rutas::CrearReceta,
+                class: "primario",
+                "{crate::i18n::ahora(Texto::CrearRecetaBoton)}"
             }
 
             crate::local::AvisoPendientes {}
 
             match &*recurso.read() {
                 None => rsx! {
-                    p { class: "estado", role: "status", "Cargando tu recetario…" }
+                    p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoRecetario)}" }
                 },
                 Some(Err(causa)) => rsx! {
                     AvisoRed {
@@ -142,7 +149,7 @@ pub fn PantallaMisRecetas() -> Element {
             }
         }
 
-        BarraInferior { activo: Destino::Perfil }
+        BarraInferior { activo: Destino::Recetario }
     }
 }
 
@@ -153,9 +160,9 @@ fn BarraSuperior() -> Element {
         header { class: "mi-recetario-barra",
             Link {
                 to: Rutas::Descubrir,
-                class: "mi-recetario-volver",
-                aria_label: "Volver a Descubrir",
-                "‹ Descubrir"
+                class: "volver",
+                aria_label: crate::i18n::ahora(Texto::VolverADescubrir),
+                "{crate::i18n::ahora(Texto::VolverDescubrirBoton)}"
             }
             span { class: "mi-recetario-marca", "Ratio" }
         }
@@ -167,8 +174,8 @@ fn BarraSuperior() -> Element {
 fn SinSesion() -> Element {
     rsx! {
         div { class: "estado",
-            p { "Inicia sesión para ver tus versiones, tus publicaciones y tus borradores." }
-            Link { to: Rutas::Entrar, class: "mi-recetario-accion", "Entrar" }
+            p { "{crate::i18n::ahora(Texto::RecetarioSinSesion)}" }
+            Link { to: Rutas::Entrar, class: "mi-recetario-accion", "{crate::i18n::ahora(Texto::Entrar)}" }
         }
     }
 }
@@ -191,7 +198,7 @@ fn ListaPropia(
     let total = lista.len();
 
     rsx! {
-        nav { class: "mi-recetario-tabs", role: "tablist", "aria-label": "Filtrar mi recetario",
+        nav { class: "mi-recetario-tabs", role: "tablist", "aria-label": "{crate::i18n::ahora(Texto::FiltrarRecetario)}",
             for opcion in Filtro::TODOS {
                 button {
                     key: "{opcion.etiqueta()}",
@@ -206,12 +213,12 @@ fn ListaPropia(
             }
         }
 
-        p { class: "mi-recetario-resumen", role: "status", "{visibles.len()} de {total} recetas" }
+        p { class: "mi-recetario-resumen", role: "status", "{crate::i18n::con(crate::i18n::actual(), Texto::DeTotalRecetas, &[&visibles.len().to_string(), &total.to_string()])}" }
 
         if visibles.is_empty() {
             div { class: "estado",
                 p { "{activo.vacio()}" }
-                Link { to: Rutas::biblioteca(), class: "mi-recetario-accion", "Ir a la biblioteca" }
+                Link { to: Rutas::biblioteca(), class: "mi-recetario-accion", "{crate::i18n::ahora(Texto::IrALaBiblioteca)}" }
             }
         } else {
             ul { class: "mi-recetario-lista",
@@ -239,18 +246,30 @@ fn TarjetaPropia(receta: RecetaPropia, al_cambiar: EventHandler<()>) -> Element 
         },
     );
 
-    let mut datos = vec![format!("{:.0} ml", capas.total_ml)];
+    let mut datos = vec![crate::i18n::con(
+        crate::i18n::actual(),
+        Texto::MililitrosCorto,
+        &[&format!("{:.0}", capas.total_ml)],
+    )];
 
     if graduacion.abv > 0.0 {
         datos.push(format!("{:.1} % ABV", graduacion.abv));
     }
 
     if let Some(minutos) = resumen.minutos {
-        datos.push(format!("{minutos} min"));
+        datos.push(crate::i18n::con(
+            crate::i18n::actual(),
+            Texto::MinutosCorto,
+            &[&minutos.to_string()],
+        ));
     }
 
     if let Some(dificultad) = resumen.dificultad {
-        datos.push(format!("Dificultad {dificultad}"));
+        datos.push(crate::i18n::con(
+            crate::i18n::actual(),
+            Texto::DificultadNivel,
+            &[&dificultad.to_string()],
+        ));
     }
 
     let actualizada =
@@ -270,13 +289,13 @@ fn TarjetaPropia(receta: RecetaPropia, al_cambiar: EventHandler<()>) -> Element 
                     p { class: "propia-meta", "{familia_legible(&resumen.familia)} · {datos.join(\" · \")}" }
 
                     if let Some(origen) = receta.origen_nombre.clone() {
-                        p { class: "propia-origen", "Versión de {origen}" }
+                        p { class: "propia-origen", "{crate::i18n::con(crate::i18n::actual(), Texto::VersionDeOrigen, &[&origen])}" }
                     }
 
                     div { class: "propia-fechas",
-                        span { "Creada {receta.creada_en}" }
+                        span { "{crate::i18n::con(crate::i18n::actual(), Texto::CreadaEl, &[&crate::i18n::fecha_iso(&receta.creada_en)])}" }
                         if let Some(actualizada) = actualizada {
-                            span { "Actualizada {actualizada}" }
+                            span { "{crate::i18n::con(crate::i18n::actual(), Texto::ActualizadaEl, &[&actualizada])}" }
                         }
                     }
                 }

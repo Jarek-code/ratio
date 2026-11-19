@@ -13,16 +13,12 @@ use api::notificaciones::Evento; // Novedad que pinta la lista
 use api::notificaciones::TipoEvento; // Clase de novedad
 use dioxus::prelude::*; // Componentes, señales y recursos
 
-use crate::barra::BarraInferior; // Barra inferior compartida
-use crate::barra::Destino; // Destino activo de la barra inferior
+use crate::i18n::Texto;
 use crate::red::AvisoRed; // Aviso de fallo con su botón de reintentar
 use crate::rutas::Rutas; // Rutas para abrir la receta y volver
-use crate::sesion::SenalSesion; // Sesión con cuenta y token
+use crate::sesion::SenalSesion; // Sesión con cuenta y token // Textos traducibles
 
 // CONSTANTES Y VARIABLES GLOBALES
-
-/// Hoja del sistema visual que comparten las pantallas.
-const CSS_BASE: Asset = asset!("/assets/descubrir.css");
 
 /// Segundos entre dos consultas de novedades sin leer.
 const REVISAR_CADA: u64 = 60;
@@ -39,17 +35,14 @@ pub struct NoLeidas(pub Signal<u32>);
 ///
 /// Sin sesión el contador queda en cero. Un fallo de red no cambia el contador: se vuelve a
 /// preguntar en la siguiente vuelta.
-pub async fn vigilar(sesion: SenalSesion, no_leidas: NoLeidas)
-{
+pub async fn vigilar(sesion: SenalSesion, no_leidas: NoLeidas) {
     let mut contador = no_leidas.0;
 
-    loop
-    {
-        match crate::sesion::token(&sesion)
-        {
-            Some(token) =>
-            {
-                if let Ok(total) = crate::red::con_plazo(api::notificaciones::no_leidas(token)).await
+    loop {
+        match crate::sesion::token(&sesion) {
+            Some(token) => {
+                if let Ok(total) =
+                    crate::red::con_plazo(api::notificaciones::no_leidas(token)).await
                 {
                     contador.set(total);
                 }
@@ -62,31 +55,28 @@ pub async fn vigilar(sesion: SenalSesion, no_leidas: NoLeidas)
 }
 
 /// Frase que une a quien hizo la novedad con la receta, por ejemplo «comentó tu receta».
-fn frase(tipo: TipoEvento) -> &'static str
-{
-    match tipo
-    {
-        TipoEvento::Comentario => "comentó tu receta",
-        TipoEvento::Respuesta => "respondió tu comentario en",
-        TipoEvento::Valoracion => "preparó tu receta",
-        TipoEvento::Derivada => "publicó una versión:",
-        TipoEvento::Moderacion => "revisó un reporte sobre",
+fn frase(tipo: TipoEvento) -> &'static str {
+    match tipo {
+        TipoEvento::Comentario => crate::i18n::ahora(Texto::ComentoTuReceta),
+        TipoEvento::Respuesta => crate::i18n::ahora(Texto::RespondioTuComentario),
+        TipoEvento::Valoracion => crate::i18n::ahora(Texto::PreparoTuReceta),
+        TipoEvento::Derivada => crate::i18n::ahora(Texto::PublicoUnaVersion),
+        TipoEvento::Moderacion => crate::i18n::ahora(Texto::RevisoUnReporte),
     }
 }
 
 /// Tarjeta de una novedad: quién, qué y sobre qué receta; abre el hilo o la ficha.
 #[component]
-fn TarjetaEvento(evento: Evento) -> Element
-{
+fn TarjetaEvento(evento: Evento) -> Element {
     // Una novedad sobre un comentario abre el hilo; las demás, la ficha
-    let destino = evento.receta_id.clone().map(|id| match evento.tipo
-    {
+    let destino = evento.receta_id.clone().map(|id| match evento.tipo {
         TipoEvento::Comentario | TipoEvento::Respuesta => Rutas::Hilo { id },
-        TipoEvento::Valoracion | TipoEvento::Derivada | TipoEvento::Moderacion => Rutas::Ficha { id },
+        TipoEvento::Valoracion | TipoEvento::Derivada | TipoEvento::Moderacion => {
+            Rutas::Ficha { id }
+        }
     });
 
-    rsx!
-    {
+    rsx! {
         li
         {
             class: if evento.nueva { "barra-comentario barra-comentario--nueva" } else { "barra-comentario" },
@@ -96,7 +86,7 @@ fn TarjetaEvento(evento: Evento) -> Element
                 class: "barra-meta",
                 if evento.nueva
                 {
-                    span { class: "muro-insignia muro-insignia--version", "Nueva" }
+                    span { class: "muro-insignia muro-insignia--version", "{crate::i18n::ahora(Texto::Nueva)}" }
                     " "
                 }
                 // Moderación no tiene perfil; las demás novedades llevan al de quien las hizo
@@ -110,8 +100,8 @@ fn TarjetaEvento(evento: Evento) -> Element
                     {
                         to: Rutas::PerfilPublico { alias: evento.actor.clone() },
                         class: "barra-autor",
-                        "aria-label": "Ver el perfil de {evento.actor}",
-                        "{evento.actor}"
+                        "aria-label": "{crate::i18n::con(crate::i18n::actual(), Texto::VerPerfilDe, &[&evento.actor])}",
+                        "{crate::api_textos::actor(&evento)}"
                     }
                 }
                 " {frase(evento.tipo)} "
@@ -127,14 +117,14 @@ fn TarjetaEvento(evento: Evento) -> Element
                     class: "barra-evento",
                     "aria-label": "Abrir {evento.receta_nombre}",
 
-                    p { "{evento.detalle}" }
-                    p { class: "barra-meta", "{evento.fecha}" }
+                    p { "{crate::api_textos::detalle(&evento)}" }
+                    p { class: "barra-meta", "{crate::i18n::fecha_iso(&evento.fecha)}" }
                 }
             }
             else
             {
-                p { "{evento.detalle}" }
-                p { class: "barra-meta", "{evento.fecha}" }
+                p { "{crate::api_textos::detalle(&evento)}" }
+                p { class: "barra-meta", "{crate::i18n::fecha_iso(&evento.fecha)}" }
             }
         }
     }
@@ -144,35 +134,36 @@ fn TarjetaEvento(evento: Evento) -> Element
 ///
 /// La usan la pantalla Actividad y la sección Actividad de La Barra.
 #[component]
-pub fn ContenidoActividad() -> Element
-{
+pub fn ContenidoActividad() -> Element {
     let sesion = use_context::<SenalSesion>(); // Token para pedir la actividad
     let mut no_leidas = use_context::<NoLeidas>().0; // Punto de la barra inferior
     let mut marcada = use_signal(|| false); // Si ya se avisó al servidor de que se vio
-    let mut recurso = use_resource(move ||
-    {
+    let mut recurso = use_resource(move || {
         let token = crate::sesion::token(&sesion);
-        async move
-        {
-            match token
-            {
-                Some(token) => crate::red::con_reintentos(move || api::notificaciones::actividad(token.clone())).await.map(Some), // Con sesión: pedir la actividad
+        async move {
+            match token {
+                Some(token) => crate::red::con_reintentos(move || {
+                    api::notificaciones::actividad(token.clone())
+                })
+                .await
+                .map(Some), // Con sesión: pedir la actividad
                 None => Ok(None), // Sin sesión: invitar a entrar
             }
         }
     }); // Actividad del servidor
 
     // Con la lista en pantalla, marcar las novedades como vistas una sola vez
-    use_effect(move ||
-    {
+    use_effect(move || {
         let cargada = matches!(&*recurso.read(), Some(Ok(Some(_))));
-        if cargada && !*marcada.peek()
+        if cargada
+            && !*marcada.peek()
             && let Some(token) = crate::sesion::token(&sesion)
         {
             marcada.set(true);
-            spawn(async move
-            {
-                if crate::red::con_plazo(api::notificaciones::marcar_leidas(token)).await.is_ok()
+            spawn(async move {
+                if crate::red::con_plazo(api::notificaciones::marcar_leidas(token))
+                    .await
+                    .is_ok()
                 {
                     no_leidas.set(0);
                 }
@@ -180,14 +171,13 @@ pub fn ContenidoActividad() -> Element
         }
     });
 
-    rsx!
-    {
+    rsx! {
         // Elegir contenido según el estado de la petición
         match &*recurso.read()
         {
             None => rsx!
             {
-                p { class: "estado", role: "status", "Cargando tu actividad…" }
+                p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoActividad)}" }
             },
             Some(Err(causa)) => rsx!
             {
@@ -203,13 +193,13 @@ pub fn ContenidoActividad() -> Element
                 div
                 {
                     class: "estado",
-                    p { "Entra para ver quién comenta y prepara tus recetas." }
-                    Link { to: Rutas::Entrar, class: "enlace", "Entrar" }
+                    p { "{crate::i18n::ahora(Texto::ActividadSinSesion)}" }
+                    Link { to: Rutas::Entrar, class: "enlace", "{crate::i18n::ahora(Texto::Entrar)}" }
                 }
             },
             Some(Ok(Some(eventos_vec))) if eventos_vec.is_empty() => rsx!
             {
-                p { class: "estado", "Todavía no hay novedades. Publica una receta en La Barra para empezar." }
+                p { class: "estado", "{crate::i18n::ahora(Texto::ActividadVacia)}" }
             },
             Some(Ok(Some(eventos_vec))) => rsx!
             {
@@ -223,33 +213,5 @@ pub fn ContenidoActividad() -> Element
                 }
             },
         }
-    }
-}
-
-/// Pantalla D6: las últimas novedades sobre las recetas y los comentarios de la cuenta.
-#[component]
-pub fn PantallaActividad() -> Element
-{
-    rsx!
-    {
-        document::Stylesheet { href: CSS_BASE }
-
-        main
-        {
-            class: "descubrir",
-
-            header
-            {
-                class: "seccion-cabeza",
-                Link { to: Rutas::la_barra(), class: "enlace", aria_label: "Volver a La Barra", "‹ La Barra" }
-            }
-
-            p { class: "eyebrow", "La Barra" }
-            h1 { "Actividad" }
-
-            ContenidoActividad {}
-        }
-
-        BarraInferior { activo: Destino::LaBarra }
     }
 }

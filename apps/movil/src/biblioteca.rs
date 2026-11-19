@@ -4,8 +4,9 @@ use api::biblioteca::{RecetaResumen, catalogo};
 use dioxus::prelude::*;
 
 use crate::barra::{BarraInferior, Destino};
+use crate::i18n::Texto;
 use crate::red::AvisoRed;
-use crate::rutas::Rutas;
+use crate::rutas::Rutas; // Textos traducibles
 
 /// Hoja de estilos propia de la biblioteca.
 const CSS_BIBLIOTECA: Asset = asset!("/assets/biblioteca.css");
@@ -27,15 +28,20 @@ enum Orden {
 
 impl Orden {
     /// Los cuatro órdenes, en el orden en que se ofrecen.
-    const TODOS: [Orden; 4] = [Orden::Nombre, Orden::Intensidad, Orden::Dificultad, Orden::Tiempo];
+    const TODOS: [Orden; 4] = [
+        Orden::Nombre,
+        Orden::Intensidad,
+        Orden::Dificultad,
+        Orden::Tiempo,
+    ];
 
     /// Texto del botón de orden.
     fn etiqueta(self) -> &'static str {
         match self {
-            Orden::Nombre => "Nombre",
-            Orden::Intensidad => "Intensidad",
-            Orden::Dificultad => "Dificultad",
-            Orden::Tiempo => "Tiempo",
+            Orden::Nombre => crate::i18n::ahora(Texto::OrdenNombre),
+            Orden::Intensidad => crate::i18n::ahora(Texto::OrdenIntensidad),
+            Orden::Dificultad => crate::i18n::ahora(Texto::OrdenDificultad),
+            Orden::Tiempo => crate::i18n::ahora(Texto::OrdenTiempo),
         }
     }
 
@@ -43,7 +49,10 @@ impl Orden {
     fn clave(self, receta: &RecetaResumen) -> i32 {
         match self {
             Orden::Nombre => 0,
-            Orden::Intensidad => receta.intensidad.map_or(i32::MAX, i32::from).saturating_neg(),
+            Orden::Intensidad => receta
+                .intensidad
+                .map_or(i32::MAX, i32::from)
+                .saturating_neg(),
             Orden::Dificultad => receta.dificultad.map_or(i32::MAX, i32::from),
             Orden::Tiempo => receta.minutos.map_or(i32::MAX, i32::from),
         }
@@ -73,13 +82,13 @@ pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> El
 
         main { class: "biblioteca",
             header { class: "biblioteca-cabeza",
-                p { class: "eyebrow", "Recetario" }
-                h1 { "Biblioteca" }
-                p { class: "biblioteca-sub", "Todas las recetas publicadas, con su proporción a la vista." }
+                p { class: "eyebrow", "{crate::i18n::ahora(Texto::RecetarioSeccion)}" }
+                h1 { "{crate::i18n::ahora(Texto::BibliotecaTitulo)}" }
+                p { class: "biblioteca-sub", "{crate::i18n::ahora(Texto::ProporcionEnLaFicha)}" }
                 Link {
                     to: Rutas::ListaCompra,
                     class: "chip biblioteca-compra",
-                    "Lista de compra"
+                    {crate::i18n::ahora(Texto::ListaDeCompra)}
                 }
             }
 
@@ -87,7 +96,7 @@ pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> El
 
             match &*catalogo_res.read() {
                 None => rsx! {
-                    p { class: "estado", role: "status", "Cargando el catálogo…" }
+                    p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoCatalogo)}" }
                 },
                 Some(Err(causa)) => rsx! {
                     AvisoRed {
@@ -104,9 +113,9 @@ pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> El
 
                         rsx! {
                             if filtradas.is_empty() {
-                                p { class: "estado", "No hay recetas que coincidan. Prueba con otra palabra o quita el filtro." }
+                                p { class: "estado", "{crate::i18n::ahora(Texto::SinCoincidencias)}" }
                             } else {
-                                p { class: "biblioteca-cuenta", role: "status", "{filtradas.len()} recetas" }
+                                p { class: "biblioteca-cuenta", role: "status", "{crate::i18n::con(crate::i18n::actual(), Texto::CuentaRecetas, &[&filtradas.len().to_string()])}" }
                                 ul { class: "lista-recetas",
                                     for receta in filtradas {
                                         RecetaEnLista { key: "{receta.id}", receta }
@@ -138,7 +147,7 @@ fn Buscador(busqueda: Signal<String>) -> Element {
             input {
                 id: "buscar-biblioteca",
                 r#type: "search",
-                placeholder: "Buscar por nombre",
+                placeholder: crate::i18n::ahora(Texto::BuscarPorNombreCorto),
                 autocomplete: "off",
                 value: "{busqueda}",
                 oninput: move |evento| busqueda.set(evento.value()),
@@ -162,7 +171,7 @@ fn ChipsFamilia(
     let activa = familia.read().clone();
 
     rsx! {
-        div { class: "chips", role: "group", "aria-label": "Filtrar por familia",
+        div { class: "chips", role: "group", "aria-label": "{crate::i18n::ahora(Texto::FiltrarPorFamilia)}",
             button {
                 class: if activa.is_none() && tipo.read().is_none() { "chip activo" } else { "chip" },
                 r#type: "button",
@@ -170,7 +179,7 @@ fn ChipsFamilia(
                     familia.set(None);
                     tipo.set(None);
                 },
-                "Todas"
+                {crate::i18n::ahora(Texto::TodasLasFamilias)}
             }
             if tipo.read().as_deref() == Some("cocteleria") {
                 button {
@@ -178,7 +187,7 @@ fn ChipsFamilia(
                     r#type: "button",
                     "aria-pressed": "true",
                     onclick: move |_| tipo.set(None),
-                    "Cócteles"
+                    {crate::i18n::ahora(Texto::Cocteles)}
                 }
             }
             for nombre in familias {
@@ -204,8 +213,8 @@ fn Ordenes(orden: Signal<Orden>) -> Element {
     let activo = *orden.read();
 
     rsx! {
-        div { class: "chips", role: "group", "aria-label": "Ordenar la lista",
-            span { class: "chips-titulo", "Ordenar" }
+        div { class: "chips", role: "group", "aria-label": "{crate::i18n::ahora(Texto::OrdenarLaLista)}",
+            span { class: "chips-titulo", "{crate::i18n::ahora(Texto::OrdenarTitulo)}" }
             for valor in Orden::TODOS {
                 button {
                     key: "{valor.etiqueta()}",
@@ -226,22 +235,37 @@ fn RecetaEnLista(receta: RecetaResumen) -> Element {
     let graduacion = proporciones::graduacion(&receta.receta);
     let svg = proporciones::svg(
         &receta.receta,
-        &proporciones::Opciones { escalas: false, mini: true },
+        &proporciones::Opciones {
+            escalas: false,
+            mini: true,
+        },
     );
     let mut datos: Vec<String> = Vec::new();
 
-    datos.push(format!("{:.0} ml", capas.total_ml));
+    datos.push(crate::i18n::con(
+        crate::i18n::actual(),
+        Texto::MililitrosCorto,
+        &[&format!("{:.0}", capas.total_ml)],
+    ));
 
     if graduacion.abv > 0.0 {
         datos.push(format!("{:.1} % ABV", graduacion.abv));
     }
 
     if let Some(minutos) = receta.minutos {
-        datos.push(format!("{minutos} min"));
+        datos.push(crate::i18n::con(
+            crate::i18n::actual(),
+            Texto::MinutosCorto,
+            &[&minutos.to_string()],
+        ));
     }
 
     if let Some(dificultad) = receta.dificultad {
-        datos.push(format!("Dificultad {dificultad}"));
+        datos.push(crate::i18n::con(
+            crate::i18n::actual(),
+            Texto::DificultadNivel,
+            &[&dificultad.to_string()],
+        ));
     }
 
     rsx! {
@@ -274,10 +298,20 @@ fn RecetaEnLista(receta: RecetaResumen) -> Element {
 /// Nombre visible de una familia del catálogo (`con_leche` → «Con leche»).
 pub(crate) fn familia_legible(clave: &str) -> String {
     let texto = match clave {
-        "cafe_coctel" => "Café coctel".to_string(),
-        "con_leche" => "Con leche".to_string(),
-        "sin_alcohol" => "Sin alcohol".to_string(),
-        otra => otra.replace('_', " "),
+        "cafe_coctel" => crate::i18n::ahora(Texto::Cocteles).to_string(),
+        "con_leche" => crate::i18n::ahora(Texto::ConLeche).to_string(),
+        "sin_alcohol" => crate::i18n::ahora(Texto::SinAlcoholTexto).to_string(),
+        "directo" => crate::i18n::ahora(Texto::FamiliaDirecto).to_string(),
+        "largo" => crate::i18n::ahora(Texto::FamiliaLargo).to_string(),
+        "corto" => crate::i18n::ahora(Texto::FamiliaCorto).to_string(),
+        "clasico" => crate::i18n::ahora(Texto::FamiliaClasico).to_string(),
+        "frio" => crate::i18n::ahora(Texto::FamiliaFrio).to_string(),
+        "caliente" => crate::i18n::ahora(Texto::FamiliaCaliente).to_string(),
+        "cremoso" => crate::i18n::ahora(Texto::FamiliaCremoso).to_string(),
+        "citrico" => crate::i18n::ahora(Texto::FamiliaCitrico).to_string(),
+        "tropical" => crate::i18n::ahora(Texto::FamiliaTropical).to_string(),
+        "con_hielo" => crate::i18n::ahora(Texto::FamiliaConHielo).to_string(),
+        otra => otra.replace('_', " "), // Clave que la app no conoce: se muestra tal cual
     };
 
     let mut letras = texto.chars();
@@ -301,9 +335,7 @@ fn filtrar(
         .iter()
         .filter(|receta| familia.as_deref().is_none_or(|f| receta.familia == f))
         .filter(|receta| tipo.as_deref().is_none_or(|t| receta.tipo == t))
-        .filter(|receta| {
-            texto.is_empty() || receta.receta.nombre.to_lowercase().contains(&texto)
-        })
+        .filter(|receta| texto.is_empty() || receta.receta.nombre.to_lowercase().contains(&texto))
         .cloned()
         .collect();
 

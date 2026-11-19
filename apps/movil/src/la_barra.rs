@@ -17,9 +17,10 @@ use dioxus::prelude::*; // Componentes, señales y recursos
 use crate::actividad::NoLeidas; // Novedades sin leer, para el punto de la pestaña
 use crate::barra::BarraInferior; // Barra inferior compartida
 use crate::barra::Destino; // Destino activo de la barra inferior
+use crate::i18n::Texto;
 use crate::red::AvisoRed; // Aviso de fallo con su botón de reintentar
 use crate::rutas::Rutas; // Rutas de la ficha, el hilo y los perfiles
-use crate::sesion::SenalSesion; // Sesión con cuenta y token
+use crate::sesion::SenalSesion; // Sesión con cuenta y token // Textos traducibles
 
 // CONSTANTES Y VARIABLES GLOBALES
 
@@ -33,8 +34,7 @@ const COLOR_RESERVA: &str = "#B9A48C";
 
 /// Sección visible de La Barra.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Seccion
-{
+enum Seccion {
     /// Recetas publicadas, de la más nueva a la más vieja.
     Recientes,
     /// Recetas de las cuentas que sigo.
@@ -47,8 +47,7 @@ enum Seccion
     Actividad,
 }
 
-impl Seccion
-{
+impl Seccion {
     /// Las secciones en el orden en que se pintan.
     const TODAS: [Seccion; 5] = [
         Seccion::Recientes,
@@ -59,10 +58,8 @@ impl Seccion
     ];
 
     /// Clave de la sección en la dirección de la pantalla.
-    fn clave(self) -> &'static str
-    {
-        match self
-        {
+    fn clave(self) -> &'static str {
+        match self {
             Seccion::Recientes => "recientes",
             Seccion::Siguiendo => "siguiendo",
             Seccion::Populares => "populares",
@@ -72,34 +69,32 @@ impl Seccion
     }
 
     /// Nombre visible de la sección.
-    fn etiqueta(self) -> &'static str
-    {
-        match self
-        {
-            Seccion::Recientes => "Recientes",
-            Seccion::Siguiendo => "Siguiendo",
-            Seccion::Populares => "Populares",
-            Seccion::Conversacion => "Conversación",
+    fn etiqueta(self) -> &'static str {
+        match self {
+            Seccion::Recientes => crate::i18n::ahora(Texto::Recientes),
+            Seccion::Siguiendo => crate::i18n::ahora(Texto::Siguiendo),
+            Seccion::Populares => crate::i18n::ahora(Texto::Populares),
+            Seccion::Conversacion => crate::i18n::ahora(Texto::Conversacion),
             Seccion::Actividad => "Actividad",
         }
     }
 
     /// Sección de una clave; una clave vacía o desconocida abre Recientes.
-    fn de_clave(clave: &str) -> Seccion
-    {
-        Seccion::TODAS.into_iter().find(|seccion| seccion.clave() == clave).unwrap_or(Seccion::Recientes)
+    fn de_clave(clave: &str) -> Seccion {
+        Seccion::TODAS
+            .into_iter()
+            .find(|seccion| seccion.clave() == clave)
+            .unwrap_or(Seccion::Recientes)
     }
 }
 
 /// Momento de una lista paginada.
 #[derive(Clone, PartialEq)]
-enum Estado
-{
+enum Estado {
     /// Hay una página en camino.
     Cargando,
     /// La última página llegó; `hay_mas` dice si queda otra.
-    Listo
-    {
+    Listo {
         /// Si queda otra página por pedir.
         hay_mas: bool,
     },
@@ -108,31 +103,25 @@ enum Estado
 }
 
 /// Elemento de una lista paginada: se reconoce por su identificador.
-trait ConId
-{
+trait ConId {
     /// Identificador único del elemento.
     fn id(&self) -> &str;
 }
 
-impl ConId for TarjetaBarra
-{
-    fn id(&self) -> &str
-    {
+impl ConId for TarjetaBarra {
+    fn id(&self) -> &str {
         &self.receta.id
     }
 }
 
-impl ConId for ComentarioMuro
-{
-    fn id(&self) -> &str
-    {
+impl ConId for ComentarioMuro {
+    fn id(&self) -> &str {
         &self.id
     }
 }
 
 /// Lista que se va llenando página a página.
-struct Lista<T: 'static>
-{
+struct Lista<T: 'static> {
     /// Elementos ya recibidos, en orden.
     elementos: Signal<Vec<T>>,
     /// Momento de la última petición.
@@ -157,28 +146,24 @@ where
     let mut estado = use_signal(|| Estado::Cargando); // Momento de la lista
     let mut pagina = use_signal(|| 0_u32); // Siguiente página por pedir
 
-    let cargar = use_callback(move |_: ()|
-    {
+    let cargar = use_callback(move |_: ()| {
         estado.set(Estado::Cargando);
-        spawn(async move
-        {
+        spawn(async move {
             let numero = *pagina.peek();
-            match pedir(numero).await
-            {
-                Ok(nueva) =>
-                {
+            match pedir(numero).await {
+                Ok(nueva) => {
                     // Agregar solo lo que todavía no estaba
                     let mut lista = elementos.write();
-                    for elemento in nueva.elementos
-                    {
-                        if !lista.iter().any(|otro| otro.id() == elemento.id())
-                        {
+                    for elemento in nueva.elementos {
+                        if !lista.iter().any(|otro| otro.id() == elemento.id()) {
                             lista.push(elemento);
                         }
                     }
                     drop(lista);
                     pagina.set(numero + 1);
-                    estado.set(Estado::Listo { hay_mas: nueva.hay_mas });
+                    estado.set(Estado::Listo {
+                        hay_mas: nueva.hay_mas,
+                    });
                 }
                 Err(causa) => estado.set(Estado::Fallo(causa)),
             }
@@ -188,36 +173,39 @@ where
     // Pedir la primera página una sola vez
     use_hook(|| cargar.call(()));
 
-    Lista { elementos, estado, cargar }
+    Lista {
+        elementos,
+        estado,
+        cargar,
+    }
 }
 
 /// Nombre visible del tipo de bebida.
-fn tipo_legible(tipo: &str) -> &'static str
-{
-    match tipo
-    {
-        "cocteleria" => "Coctelería",
-        _ => "Café",
+fn tipo_legible(tipo: &str) -> &'static str {
+    match tipo {
+        "cocteleria" => crate::i18n::ahora(Texto::CocteleriaSeccion),
+        _ => crate::i18n::ahora(Texto::CafeSeccion),
     }
 }
 
 /// Texto de un contador con su singular: «1 comentario», «3 comentarios».
-fn contar(cuantos: i64, singular: &str, plural: &str) -> String
-{
-    if cuantos == 1 { format!("1 {singular}") } else { format!("{cuantos} {plural}") }
+fn contar(cuantos: i64, singular: &str, plural: &str) -> String {
+    if cuantos == 1 {
+        format!("1 {singular}")
+    } else {
+        format!("{cuantos} {plural}")
+    }
 }
 
 /// Pie de una lista paginada: carga en curso, fallo con reintento o botón «Cargar más».
 #[component]
-fn PieLista(estado: Estado, vacia: bool, cargando: String, al_cargar: EventHandler<()>) -> Element
-{
-    rsx!
-    {
+fn PieLista(estado: Estado, vacia: bool, cargando: String, al_cargar: EventHandler<()>) -> Element {
+    rsx! {
         match estado
         {
             Estado::Cargando => rsx!
             {
-                p { class: "estado", role: "status", if vacia { "{cargando}" } else { "Cargando más…" } }
+                p { class: "estado", role: "status", if vacia { "{cargando}" } else { "{crate::i18n::ahora(Texto::CargandoMas)}" } }
             },
             Estado::Fallo(causa) => rsx!
             {
@@ -230,7 +218,7 @@ fn PieLista(estado: Estado, vacia: bool, cargando: String, al_cargar: EventHandl
             },
             Estado::Listo { hay_mas: true } => rsx!
             {
-                button { class: "chip muro-mas", r#type: "button", onclick: move |_| al_cargar.call(()), "Cargar más" }
+                button { class: "chip muro-mas", r#type: "button", onclick: move |_| al_cargar.call(()), "{crate::i18n::ahora(Texto::CargarMas)}" }
             },
             Estado::Listo { hay_mas: false } => rsx! {},
         }
@@ -242,10 +230,15 @@ fn PieLista(estado: Estado, vacia: bool, cargando: String, al_cargar: EventHandl
 /// La usan el muro y los perfiles. El autor lleva a su perfil, el cuerpo a la ficha, los
 /// comentarios al hilo y las versiones al historial.
 #[component]
-pub fn TarjetaMuro(tarjeta: TarjetaBarra) -> Element
-{
+pub fn TarjetaMuro(tarjeta: TarjetaBarra) -> Element {
     let resumen = &tarjeta.receta;
-    let svg_val = proporciones::svg(&resumen.receta, &proporciones::Opciones { escalas: false, mini: true }); // Vaso en miniatura
+    let svg_val = proporciones::svg(
+        &resumen.receta,
+        &proporciones::Opciones {
+            escalas: false,
+            mini: true,
+        },
+    ); // Vaso en miniatura
     let capas_res = proporciones::capas(&resumen.receta); // Capas y total servido
     let graduacion = proporciones::graduacion(&resumen.receta); // Alcohol de la bebida
     let descripcion = capas_res
@@ -255,25 +248,35 @@ pub fn TarjetaMuro(tarjeta: TarjetaBarra) -> Element
         .collect::<Vec<_>>()
         .join(", "); // Texto accesible del vaso
     let foto_url = tarjeta.foto.as_deref().and_then(crate::fotos::url_publica); // Primera foto, si se puede mostrar
-    let inicial = resumen.autor.chars().next().map(|letra| letra.to_uppercase().to_string()).unwrap_or_default();
+    let inicial = resumen
+        .autor
+        .chars()
+        .next()
+        .map(|letra| letra.to_uppercase().to_string())
+        .unwrap_or_default();
 
     let mut datos_vec = vec![
         crate::biblioteca::familia_legible(&resumen.familia),
-        format!("{:.0} ml", capas_res.total_ml),
+        crate::i18n::con(
+            crate::i18n::actual(),
+            Texto::MililitrosCorto,
+            &[&format!("{:.0}", capas_res.total_ml)],
+        ),
     ]; // Datos breves de la bebida
-    if graduacion.abv > 0.0
-    {
+    if graduacion.abv > 0.0 {
         datos_vec.push(format!("{:.1} % ABV", graduacion.abv));
     }
 
-    let valoracion = match tarjeta.porcentaje_me_salio()
-    {
-        Some(porcentaje) => format!("{porcentaje} % me salió ({})", tarjeta.valoraciones),
-        None => "Sin valoraciones".to_string(),
+    let valoracion = match tarjeta.porcentaje_me_salio() {
+        Some(porcentaje) => crate::i18n::con(
+            crate::i18n::actual(),
+            Texto::PorcentajeMeSalio,
+            &[&porcentaje.to_string(), &tarjeta.valoraciones.to_string()],
+        ),
+        None => crate::i18n::ahora(Texto::SinValoraciones).to_string(),
     }; // Reproducibilidad de la receta
 
-    rsx!
-    {
+    rsx! {
         li
         {
             class: "muro-tarjeta",
@@ -289,15 +292,15 @@ pub fn TarjetaMuro(tarjeta: TarjetaBarra) -> Element
                     {
                         to: Rutas::PerfilPublico { alias: resumen.autor.clone() },
                         class: "barra-autor",
-                        "aria-label": "Ver el perfil de {resumen.autor}",
+                        "aria-label": "{crate::i18n::con(crate::i18n::actual(), Texto::VerPerfilDe, &[&resumen.autor])}",
                         "{resumen.autor}"
                     }
-                    span { class: "barra-meta", "{api::barra::hace(tarjeta.hace_s)} · {tipo_legible(&resumen.tipo)}" }
+                    span { class: "barra-meta", "{crate::i18n::hace(tarjeta.hace_s)} · {tipo_legible(&resumen.tipo)}" }
                 }
                 span
                 {
                     class: if tarjeta.derivada { "muro-insignia muro-insignia--version" } else { "muro-insignia" },
-                    if tarjeta.derivada { "Versión" } else { "Original" }
+                    if tarjeta.derivada { "{crate::i18n::ahora(Texto::VersionUna)}" } else { "{crate::i18n::ahora(Texto::Original)}" }
                 }
             }
 
@@ -308,7 +311,7 @@ pub fn TarjetaMuro(tarjeta: TarjetaBarra) -> Element
 
                 if let Some(url) = foto_url
                 {
-                    img { class: "muro-foto", src: "{url}", alt: "Foto de {resumen.receta.nombre}", loading: "lazy" }
+                    img { class: "muro-foto", src: "{url}", alt: "{crate::i18n::con(crate::i18n::actual(), Texto::FotoDe, &[&resumen.receta.nombre])}", loading: "lazy" }
                 }
                 div
                 {
@@ -325,7 +328,7 @@ pub fn TarjetaMuro(tarjeta: TarjetaBarra) -> Element
                         h2 { "{resumen.receta.nombre}" }
                         if let Some(origen) = tarjeta.origen.clone()
                         {
-                            p { class: "barra-meta", "Versión de {origen}" }
+                            p { class: "barra-meta", "{crate::i18n::con(crate::i18n::actual(), Texto::VersionDeOrigen, &[&origen])}" }
                         }
                         p { class: "barra-meta", "{datos_vec.join(\" · \")}" }
                     }
@@ -353,7 +356,11 @@ pub fn TarjetaMuro(tarjeta: TarjetaBarra) -> Element
                 {
                     to: Rutas::Hilo { id: resumen.id.clone() },
                     class: "muro-dato muro-dato--enlace",
-                    "{contar(tarjeta.comentarios, \"comentario\", \"comentarios\")}"
+                    "{contar(
+                        tarjeta.comentarios,
+                        crate::i18n::ahora(Texto::ComentarioUno),
+                        crate::i18n::ahora(Texto::ComentarioVarios),
+                    )}"
                 }
                 if tarjeta.versiones > 0
                 {
@@ -361,7 +368,11 @@ pub fn TarjetaMuro(tarjeta: TarjetaBarra) -> Element
                     {
                         to: Rutas::Historial { id: resumen.id.clone() },
                         class: "muro-dato muro-dato--enlace",
-                        "{contar(tarjeta.versiones, \"versión\", \"versiones\")}"
+                        "{contar(
+                        tarjeta.versiones,
+                        crate::i18n::ahora(Texto::VersionUna),
+                        crate::i18n::ahora(Texto::VersionVarias),
+                    )}"
                     }
                 }
             }
@@ -371,34 +382,32 @@ pub fn TarjetaMuro(tarjeta: TarjetaBarra) -> Element
 
 /// Lista paginada de recetas de una pestaña del muro.
 #[component]
-fn Muro(pestana: Pestana) -> Element
-{
+fn Muro(pestana: Pestana) -> Element {
     let sesion = use_context::<SenalSesion>(); // Token para la regla de edad y para «Siguiendo»
-    let lista = usar_paginas(move |pagina|
-    {
+    let lista = usar_paginas(move |pagina| {
         let token = crate::sesion::token(&sesion);
-        async move { crate::red::con_reintentos(move || api::barra::muro(token.clone(), pestana, pagina)).await }
+        async move {
+            crate::red::con_reintentos(move || api::barra::muro(token.clone(), pestana, pagina))
+                .await
+        }
     });
     let tarjetas_vec = (lista.elementos)();
     let estado = (lista.estado)();
     let cargar = lista.cargar;
 
     // «Siguiendo» necesita saber quién pregunta
-    if pestana == Pestana::Siguiendo && sesion.read().is_none()
-    {
-        return rsx!
-        {
+    if pestana == Pestana::Siguiendo && sesion.read().is_none() {
+        return rsx! {
             div
             {
                 class: "estado",
-                p { "Entra para ver lo que publican las cuentas que sigues." }
-                Link { to: Rutas::Entrar, class: "enlace", "Entrar" }
+                p { "{crate::i18n::ahora(Texto::BarraSinSesion)}" }
+                Link { to: Rutas::Entrar, class: "enlace", "{crate::i18n::ahora(Texto::Entrar)}" }
             }
         };
     }
 
-    rsx!
-    {
+    rsx! {
         // Lista vacía y ya cargada: explicar por qué
         if tarjetas_vec.is_empty() && estado == (Estado::Listo { hay_mas: false })
         {
@@ -407,9 +416,9 @@ fn Muro(pestana: Pestana) -> Element
                 class: "estado",
                 match pestana
                 {
-                    Pestana::Siguiendo => "Sigue a alguien desde su perfil para ver aquí lo que publica.",
-                    Pestana::Populares => "Todavía no hay recetas con actividad reciente.",
-                    Pestana::Recientes => "Todavía no hay recetas publicadas. Publica la tuya desde Mi recetario.",
+                    Pestana::Siguiendo => crate::i18n::ahora(Texto::SigueAAlguien),
+                    Pestana::Populares => crate::i18n::ahora(Texto::SinActividadReciente),
+                    Pestana::Recientes => crate::i18n::ahora(Texto::BarraSinRecetas),
                 }
             }
         }
@@ -427,7 +436,7 @@ fn Muro(pestana: Pestana) -> Element
         {
             estado,
             vacia: tarjetas_vec.is_empty(),
-            cargando: "Cargando La Barra…",
+            cargando: crate::i18n::ahora(Texto::CargandoLaBarra),
             al_cargar: move |_| cargar.call(()),
         }
     }
@@ -435,24 +444,24 @@ fn Muro(pestana: Pestana) -> Element
 
 /// Lista paginada con los últimos comentarios de toda la comunidad.
 #[component]
-fn Conversacion() -> Element
-{
+fn Conversacion() -> Element {
     let sesion = use_context::<SenalSesion>(); // Token para la regla de edad
-    let lista = usar_paginas(move |pagina|
-    {
+    let lista = usar_paginas(move |pagina| {
         let token = crate::sesion::token(&sesion);
-        async move { crate::red::con_reintentos(move || api::barra::conversacion(token.clone(), pagina)).await }
+        async move {
+            crate::red::con_reintentos(move || api::barra::conversacion(token.clone(), pagina))
+                .await
+        }
     });
     let comentarios_vec = (lista.elementos)();
     let estado = (lista.estado)();
     let cargar = lista.cargar;
 
-    rsx!
-    {
+    rsx! {
         // Lista vacía y ya cargada: invitar a abrir la conversación
         if comentarios_vec.is_empty() && estado == (Estado::Listo { hay_mas: false })
         {
-            p { class: "estado", "Nadie ha comentado todavía. Abre una receta y cuenta cómo te salió." }
+            p { class: "estado", "{crate::i18n::ahora(Texto::BarraSinComentarios)}" }
         }
 
         ul
@@ -472,20 +481,20 @@ fn Conversacion() -> Element
                         {
                             to: Rutas::PerfilPublico { alias: comentario.autor.clone() },
                             class: "barra-autor",
-                            "aria-label": "Ver el perfil de {comentario.autor}",
+                            "aria-label": "{crate::i18n::con(crate::i18n::actual(), Texto::VerPerfilDe, &[&comentario.autor])}",
                             "{comentario.autor}"
                         }
-                        if comentario.es_respuesta { " respondió · " } else { " comentó · " }
-                        "{api::barra::hace(comentario.hace_s)}"
+                        if comentario.es_respuesta { "{crate::i18n::ahora(Texto::RespondioEn)}" } else { "{crate::i18n::ahora(Texto::ComentoEn)}" }
+                        "{crate::i18n::hace(comentario.hace_s)}"
                     }
                     Link
                     {
                         to: Rutas::Hilo { id: comentario.receta_id.clone() },
                         class: "barra-evento",
-                        "aria-label": "Abrir el hilo de {comentario.receta_nombre}",
+                        "aria-label": "{crate::i18n::con(crate::i18n::actual(), Texto::AbrirHiloDe, &[&comentario.receta_nombre])}",
 
                         p { strong { "{comentario.receta_nombre}" } }
-                        if let Some(ancla) = comentario.ancla.clone()
+                        if let Some(ancla) = crate::api_textos::ancla(&comentario.capa, comentario.paso, &comentario.paso_titulo)
                         {
                             p { class: "barra-ancla-texto", "{ancla}" }
                         }
@@ -499,7 +508,7 @@ fn Conversacion() -> Element
         {
             estado,
             vacia: comentarios_vec.is_empty(),
-            cargando: "Cargando la conversación…",
+            cargando: crate::i18n::ahora(Texto::CargandoConversacion),
             al_cargar: move |_| cargar.call(()),
         }
     }
@@ -509,13 +518,11 @@ fn Conversacion() -> Element
 ///
 /// `pestana` es la clave de la sección abierta; vacía abre Recientes.
 #[component]
-pub fn PantallaLaBarra(pestana: String) -> Element
-{
+pub fn PantallaLaBarra(pestana: String) -> Element {
     let no_leidas = use_context::<NoLeidas>().0; // Novedades sin leer
     let activa = Seccion::de_clave(&pestana);
 
-    rsx!
-    {
+    rsx! {
         document::Stylesheet { href: CSS_BASE }
 
         main
@@ -524,14 +531,14 @@ pub fn PantallaLaBarra(pestana: String) -> Element
 
             header
             {
-                p { class: "eyebrow", "Comunidad" }
-                h1 { "La Barra" }
+                p { class: "eyebrow", "{crate::i18n::ahora(Texto::Comunidad)}" }
+                h1 { "{crate::i18n::ahora(Texto::LaBarra)}" }
             }
 
             nav
             {
                 class: "chips",
-                "aria-label": "Secciones de La Barra",
+                "aria-label": "{crate::i18n::ahora(Texto::SeccionesDeLaBarra)}",
 
                 for seccion in Seccion::TODAS
                 {
@@ -545,7 +552,7 @@ pub fn PantallaLaBarra(pestana: String) -> Element
                         "{seccion.etiqueta()}"
                         if seccion == Seccion::Actividad && no_leidas() > 0
                         {
-                            span { class: "destino-punto", role: "img", "aria-label": "{no_leidas()} sin leer" }
+                            span { class: "destino-punto", role: "img", "aria-label": "{crate::i18n::con(crate::i18n::actual(), Texto::SinLeer, &[&no_leidas().to_string()])}" }
                         }
                     }
                 }
@@ -570,19 +577,18 @@ pub fn PantallaLaBarra(pestana: String) -> Element
 
 /// Pantalla del hilo de una receta (D2 y D3): su vaso y toda la conversación.
 #[component]
-pub fn PantallaHilo(id: String) -> Element
-{
+pub fn PantallaHilo(id: String) -> Element {
     let sesion = use_context::<SenalSesion>(); // Cuenta y token
     let id_recurso = id.clone();
-    let mut recurso = use_resource(use_reactive!(|(id_recurso,)|
-    {
+    let mut recurso = use_resource(use_reactive!(|(id_recurso,)| {
         let token = crate::sesion::token(&sesion);
         let cuenta = crate::sesion::cuenta(&sesion);
-        crate::red::con_reintentos(move || crate::local::receta(id_recurso.clone(), token.clone(), cuenta.clone()))
+        crate::red::con_reintentos(move || {
+            crate::local::receta(id_recurso.clone(), token.clone(), cuenta.clone())
+        })
     })); // Receta del hilo
 
-    rsx!
-    {
+    rsx! {
         document::Stylesheet { href: CSS_BASE }
 
         main
@@ -592,8 +598,8 @@ pub fn PantallaHilo(id: String) -> Element
             header
             {
                 class: "seccion-cabeza",
-                Link { to: Rutas::la_barra(), class: "enlace", aria_label: "Volver a La Barra", "‹ La Barra" }
-                Link { to: Rutas::Ficha { id: id.clone() }, class: "enlace", "Ver la receta" }
+                Link { to: Rutas::la_barra(), class: "volver", aria_label: "{crate::i18n::ahora(Texto::VolverALaBarra)}", "{crate::i18n::ahora(Texto::VolverALaBarraBoton)}" }
+                Link { to: Rutas::Ficha { id: id.clone() }, class: "chip", "{crate::i18n::ahora(Texto::VerLaReceta)}" }
             }
 
             // Elegir contenido según el estado de la petición
@@ -601,7 +607,7 @@ pub fn PantallaHilo(id: String) -> Element
             {
                 None => rsx!
                 {
-                    p { class: "estado", role: "status", "Cargando el hilo…" }
+                    p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::CargandoHilo)}" }
                 },
                 Some(Err(causa)) => rsx!
                 {
@@ -614,7 +620,7 @@ pub fn PantallaHilo(id: String) -> Element
                 },
                 Some(Ok(None)) => rsx!
                 {
-                    p { class: "estado", "Esta receta no existe o ya no está disponible." }
+                    p { class: "estado", "{crate::i18n::ahora(Texto::RecetaNoDisponibleBarra)}" }
                 },
                 Some(Ok(Some(receta))) =>
                 {
@@ -628,7 +634,7 @@ pub fn PantallaHilo(id: String) -> Element
 
                     rsx!
                     {
-                        p { class: "eyebrow", "Hilo" }
+                        p { class: "eyebrow", "{crate::i18n::ahora(Texto::Hilo)}" }
                         div
                         {
                             class: "perfil-receta",
@@ -645,7 +651,7 @@ pub fn PantallaHilo(id: String) -> Element
                                 p
                                 {
                                     class: "barra-meta",
-                                    "por "
+                                    "{crate::i18n::ahora(Texto::PorTexto)}"
                                     Link
                                     {
                                         to: Rutas::PerfilPublico { alias: receta.autor.clone() },
@@ -656,7 +662,7 @@ pub fn PantallaHilo(id: String) -> Element
                             }
                         }
 
-                        crate::foro::LaBarra { receta: receta.clone() }
+                        crate::foro::HiloReceta { receta: receta.clone() }
                     }
                 },
             }
@@ -669,21 +675,18 @@ pub fn PantallaHilo(id: String) -> Element
 // PUNTO DE PARTIDA
 
 #[cfg(test)]
-mod pruebas
-{
+mod pruebas {
     // LIBRERÍAS
 
-    use super::contar; // Contador con singular y plural
-    use super::Seccion; // Secciones de La Barra
+    use super::Seccion;
+    use super::contar; // Contador con singular y plural // Secciones de La Barra
 
     // FUNCIONES
 
     /// Comprueba que cada sección vuelve de su clave y que lo desconocido abre Recientes.
     #[test]
-    fn seccion_desde_la_direccion()
-    {
-        for seccion in Seccion::TODAS
-        {
+    fn seccion_desde_la_direccion() {
+        for seccion in Seccion::TODAS {
             assert_eq!(Seccion::de_clave(seccion.clave()), seccion);
         }
         assert_eq!(Seccion::de_clave(""), Seccion::Recientes);
@@ -692,8 +695,7 @@ mod pruebas
 
     /// Comprueba el singular y el plural de los contadores.
     #[test]
-    fn contador_con_singular()
-    {
+    fn contador_con_singular() {
         assert_eq!(contar(0, "comentario", "comentarios"), "0 comentarios");
         assert_eq!(contar(1, "comentario", "comentarios"), "1 comentario");
         assert_eq!(contar(4, "versión", "versiones"), "4 versiones");

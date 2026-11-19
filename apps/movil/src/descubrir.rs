@@ -3,12 +3,13 @@
 //! Muestra el buscador, los accesos por familia, la sugerencia del día y las últimas recetas vistas
 
 // LIBRERÍAS
-use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (única importación con comodín permitida)
-use api::descubrir; // Tipo RecetaSugerida y server function sugerencias_dia
 use crate::barra::{BarraInferior, Destino}; // Barra inferior compartida
+use crate::i18n::Texto;
 use crate::marca::Marca; // Logo compartido, dibujado inline
 use crate::red::AvisoRed;
-use crate::rutas::Rutas; // Rutas de la app, para abrir la ficha de una receta
+use crate::rutas::Rutas;
+use api::descubrir; // Tipo RecetaSugerida y server function sugerencias_dia
+use dioxus::prelude::*; // Macros rsx! y component, hooks y elementos HTML (única importación con comodín permitida) // Rutas de la app, para abrir la ficha de una receta // Textos traducibles
 
 // CONSTANTES Y VARIABLES GLOBALES
 /// Hoja de estilos de la pantalla Descubrir
@@ -16,8 +17,7 @@ const CSS_DESCUBRIR: Asset = asset!("/assets/descubrir.css");
 
 // FUNCIONES
 /// Resume los porcentajes de las capas de abajo hacia arriba (ej. «27 · 60 · 13 %»)
-fn porcentajes_texto(receta: &proporciones::Receta) -> String
-{
+fn porcentajes_texto(receta: &proporciones::Receta) -> String {
     // Redondear el porcentaje de cada capa y unirlos con un punto medio
     let porcentajes_vec: Vec<String> = proporciones::capas(receta)
         .capas
@@ -29,13 +29,18 @@ fn porcentajes_texto(receta: &proporciones::Receta) -> String
 }
 
 /// Describe en texto la receta y sus capas para lectores de pantalla (ej. «Flat White: espresso 27 %, leche 60 %»)
-fn descripcion_capas(receta: &proporciones::Receta) -> String
-{
+fn descripcion_capas(receta: &proporciones::Receta) -> String {
     // Nombrar cada capa con su porcentaje redondeado
     let capas_vec: Vec<String> = proporciones::capas(receta)
         .capas
         .iter()
-        .map(|capa_iter| format!("{} {:.0} %", capa_iter.nombre.to_lowercase(), capa_iter.porcentaje))
+        .map(|capa_iter| {
+            format!(
+                "{} {:.0} %",
+                capa_iter.nombre.to_lowercase(),
+                capa_iter.porcentaje
+            )
+        })
         .collect();
 
     format!("{}: {}", receta.nombre, capas_vec.join(", ")) // Retornar descripción completa
@@ -46,17 +51,17 @@ fn descripcion_capas(receta: &proporciones::Receta) -> String
 /// `receta` es la receta a dibujar. El SVG lo genera `proporciones::svg()`, que escapa los nombres;
 /// el contenedor lleva el texto accesible con el porcentaje de cada capa.
 #[component]
-fn VasoCapas(receta: proporciones::Receta) -> Element
-{
+fn VasoCapas(receta: proporciones::Receta) -> Element {
     // Generar el SVG del vaso sin etiquetas ni escalas
-    let svg_val = proporciones::svg(&receta, &proporciones::Opciones
-    {
-        escalas: false,
-        mini: false,
-    });
+    let svg_val = proporciones::svg(
+        &receta,
+        &proporciones::Opciones {
+            escalas: false,
+            mini: false,
+        },
+    );
 
-    rsx!
-    {
+    rsx! {
         // Mostrar el vaso con su descripción accesible
         div
         {
@@ -70,16 +75,17 @@ fn VasoCapas(receta: proporciones::Receta) -> Element
 
 /// Encabezado con la marca y el avatar: si hay sesión, muestra el alias y deja salir.
 #[component]
-fn Encabezado() -> Element
-{
+fn Encabezado() -> Element {
     let mut sesion = use_context::<crate::sesion::SenalSesion>(); // Sesión iniciada, si la hay
     let mut abierto = use_signal(|| false); // Si el menú del perfil está desplegado
     let navegador = navigator(); // Para volver al acceso al salir
 
-    let perfil = sesion.read().as_ref().map(|guardada| guardada.perfil.alias.clone());
+    let perfil = sesion
+        .read()
+        .as_ref()
+        .map(|guardada| guardada.perfil.alias.clone());
 
-    rsx!
-    {
+    rsx! {
         header
         {
             class: "encabezado",
@@ -102,7 +108,7 @@ fn Encabezado() -> Element
                     {
                         class: "avatar avatar-con-sesion",
                         r#type: "button",
-                        "aria-label": "Perfil de {alias}",
+                        "aria-label": crate::i18n::con(crate::i18n::actual(), Texto::PerfilDe, &[&alias]),
                         "aria-expanded": if abierto() { "true" } else { "false" },
                         onclick: move |_| abierto.toggle(),
 
@@ -122,35 +128,35 @@ fn Encabezado() -> Element
                             {
                                 to: crate::rutas::Rutas::Perfil,
                                 class: "perfil-enlace",
-                                "Mi perfil"
+                                {crate::i18n::ahora(Texto::MiPerfil)}
                             }
 
                             Link
                             {
                                 to: crate::rutas::Rutas::MisRecetas,
                                 class: "perfil-enlace",
-                                "Mi recetario"
+                                {crate::i18n::ahora(Texto::MiRecetario)}
                             }
 
                             Link
                             {
                                 to: crate::rutas::Rutas::Guardados,
                                 class: "perfil-enlace",
-                                "Guardados"
+                                {crate::i18n::ahora(Texto::Guardados)}
                             }
 
                             Link
                             {
                                 to: crate::rutas::Rutas::Actividad,
                                 class: "perfil-enlace",
-                                "Actividad"
+                                {crate::i18n::ahora(Texto::Actividad)}
                             }
 
                             Link
                             {
                                 to: crate::rutas::Rutas::Ajustes,
                                 class: "perfil-enlace",
-                                "Ajustes"
+                                {crate::i18n::ahora(Texto::Ajustes)}
                             }
 
                             button
@@ -163,7 +169,7 @@ fn Encabezado() -> Element
                                     abierto.set(false);
                                     navegador.push(crate::rutas::Rutas::Entrar);
                                 },
-                                "Salir"
+                                {crate::i18n::ahora(Texto::Salir)}
                             }
                         }
                     }
@@ -175,7 +181,7 @@ fn Encabezado() -> Element
                     {
                         to: crate::rutas::Rutas::Entrar,
                         class: "avatar",
-                        "aria-label": "Entrar a tu cuenta",
+                        "aria-label": crate::i18n::ahora(Texto::EntrarACuenta),
 
                         svg
                         {
@@ -194,13 +200,11 @@ fn Encabezado() -> Element
 
 /// Busca por nombre de bebida y abre Biblioteca con la búsqueda ya escrita
 #[component]
-fn Buscador() -> Element
-{
+fn Buscador() -> Element {
     let mut texto_sel = use_signal(String::new); // Texto escrito en el buscador
     let navegador = navigator(); // Para abrir Biblioteca al buscar
 
-    rsx!
-    {
+    rsx! {
         // Formulario de búsqueda que abre Biblioteca sin recargar la vista
         form
         {
@@ -217,12 +221,12 @@ fn Buscador() -> Element
                 });
             },
 
-            label { class: "solo-lector", r#for: "buscar", "Buscar recetas" }
+            label { class: "solo-lector", r#for: "buscar", "{crate::i18n::ahora(Texto::BuscarRecetas)}" }
             input
             {
                 id: "buscar",
                 r#type: "search",
-                placeholder: "Buscar por nombre de bebida",
+                placeholder: crate::i18n::ahora(Texto::BuscarPorNombre),
                 autocomplete: "off",
                 value: "{texto_sel}",
                 oninput: move |evento_val| texto_sel.set(evento_val.value()),
@@ -233,7 +237,7 @@ fn Buscador() -> Element
             {
                 class: "buscador-boton",
                 r#type: "submit",
-                "aria-label": "Buscar",
+                "aria-label": crate::i18n::ahora(Texto::Buscar),
 
                 svg
                     {
@@ -249,10 +253,8 @@ fn Buscador() -> Element
 }
 
 /// Arma la ruta de Biblioteca filtrada por familia o por tipo de bebida
-fn biblioteca_filtrada(familia: &str, tipo: &str) -> Rutas
-{
-    Rutas::Biblioteca
-    {
+fn biblioteca_filtrada(familia: &str, tipo: &str) -> Rutas {
+    Rutas::Biblioteca {
         busqueda: String::new(),
         familia: familia.to_string(),
         tipo: tipo.to_string(),
@@ -263,26 +265,27 @@ fn biblioteca_filtrada(familia: &str, tipo: &str) -> Rutas
 ///
 /// «Cócteles» solo aparece si la sesión declaró mayoría de edad.
 #[component]
-fn ChipsFamilia() -> Element
-{
+fn ChipsFamilia() -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>(); // Sesión con la declaración de edad
-    let adulto_val = sesion.read().as_ref().is_some_and(|guardada| guardada.perfil.mayor_de_edad); // Mayoría de edad declarada
+    let adulto_val = sesion
+        .read()
+        .as_ref()
+        .is_some_and(|guardada| guardada.perfil.mayor_de_edad); // Mayoría de edad declarada
 
-    rsx!
-    {
+    rsx! {
         // Lista de familias en forma de píldora
         nav
         {
             class: "chips",
-            "aria-label": "Familias de bebida",
+            "aria-label": crate::i18n::ahora(Texto::FamiliasDeBebida),
 
-            Link { to: biblioteca_filtrada("espresso", ""), class: "chip", "Espresso" }
-            Link { to: biblioteca_filtrada("con_leche", ""), class: "chip", "Con leche" }
+            Link { to: biblioteca_filtrada("espresso", ""), class: "chip", "{crate::i18n::ahora(Texto::Espresso)}" }
+            Link { to: biblioteca_filtrada("con_leche", ""), class: "chip", "{crate::i18n::ahora(Texto::ConLeche)}" }
 
             // Mayor de edad: mostrar el acceso a coctelería
             if adulto_val
             {
-                Link { to: biblioteca_filtrada("", "cocteleria"), class: "chip", "Cócteles" }
+                Link { to: biblioteca_filtrada("", "cocteleria"), class: "chip", "{crate::i18n::ahora(Texto::Cocteles)}" }
             }
         }
     }
@@ -292,10 +295,8 @@ fn ChipsFamilia() -> Element
 ///
 /// `sugerencia` es la receta del día que llegó del servidor.
 #[component]
-fn TarjetaSugerencia(sugerencia: descubrir::RecetaSugerida) -> Element
-{
-    rsx!
-    {
+fn TarjetaSugerencia(sugerencia: descubrir::RecetaSugerida) -> Element {
+    rsx! {
         // Tarjeta con el vaso a la izquierda y los datos a la derecha
         article
         {
@@ -311,7 +312,7 @@ fn TarjetaSugerencia(sugerencia: descubrir::RecetaSugerida) -> Element
                 p { class: "porcentajes", {porcentajes_texto(&sugerencia.receta)} }
 
                 // Acceso a la ficha de la receta
-                Link { to: Rutas::Ficha { id: sugerencia.id.clone() }, class: "primario", "Ver receta" }
+                Link { to: Rutas::Ficha { id: sugerencia.id.clone() }, class: "primario", "{crate::i18n::ahora(Texto::VerReceta)}" }
             }
         }
     }
@@ -319,8 +320,7 @@ fn TarjetaSugerencia(sugerencia: descubrir::RecetaSugerida) -> Element
 
 /// Muestra la sugerencia del día en un carrusel de café y coctelería con sus estados de carga
 #[component]
-fn SeccionSugerencias() -> Element
-{
+fn SeccionSugerencias() -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>(); // Sesión con la que se pide el catálogo
     let mut sugerencias_res = use_resource(move || {
         let token = crate::sesion::token(&sesion);
@@ -328,8 +328,7 @@ fn SeccionSugerencias() -> Element
     }); // Sugerencias del día pedidas al servidor
     let mut indice_sel = use_signal(|| 0_usize); // Sugerencia visible en el carrusel
 
-    rsx!
-    {
+    rsx! {
         section
         {
             class: "seccion",
@@ -341,20 +340,26 @@ fn SeccionSugerencias() -> Element
                 None => rsx!
                 {
                     // Petición en curso: mostrar aviso de carga
-                    p { id: "titulo-sugerencia", class: "eyebrow", "Sugerencia del día" }
-                    p { class: "estado", role: "status", "Buscando la sugerencia de hoy…" }
+                    p { id: "titulo-sugerencia", class: "eyebrow", "{crate::i18n::ahora(Texto::SugerenciaDelDia)}" }
+                    p { class: "estado", role: "status", "{crate::i18n::ahora(Texto::BuscandoSugerencia)}" }
                 },
                 Some(Ok(sugerencias_vec)) if sugerencias_vec.is_empty() => rsx!
                 {
                     // Sin recetas publicadas: invitar a volver después
-                    p { id: "titulo-sugerencia", class: "eyebrow", "Sugerencia del día" }
-                    p { class: "estado", "Todavía no hay recetas publicadas. Vuelve pronto." }
+                    p { id: "titulo-sugerencia", class: "eyebrow", "{crate::i18n::ahora(Texto::SugerenciaDelDia)}" }
+                    p { class: "estado", "{crate::i18n::ahora(Texto::SinRecetasPublicadas)}" }
                 },
                 Some(Ok(sugerencias_vec)) =>
                 {
                     // Recetas recibidas: mostrar la elegida en el carrusel
                     let total_val = sugerencias_vec.len(); // Cantidad de sugerencias del día
                     let indice_val = *indice_sel.read() % total_val; // Posición visible dentro del rango
+                    // «3 de 5» en el idioma elegido
+                    let contador_carrusel = crate::i18n::con(
+                        crate::i18n::actual(),
+                        Texto::DeTotalCorto,
+                        &[&(indice_val + 1).to_string(), &total_val.to_string()],
+                    );
 
                     rsx!
                     {
@@ -363,7 +368,7 @@ fn SeccionSugerencias() -> Element
                         {
                             class: "seccion-cabeza",
 
-                            p { id: "titulo-sugerencia", class: "eyebrow", "Sugerencia del día" }
+                            p { id: "titulo-sugerencia", class: "eyebrow", "{crate::i18n::ahora(Texto::SugerenciaDelDia)}" }
                             div
                             {
                                 class: "contador",
@@ -371,16 +376,16 @@ fn SeccionSugerencias() -> Element
                                 button
                                 {
                                     r#type: "button",
-                                    "aria-label": "Sugerencia anterior",
+                                    "aria-label": {crate::i18n::ahora(Texto::SugerenciaAnterior)},
                                     disabled: total_val < 2,
                                     onclick: move |_| indice_sel.set((indice_val + total_val - 1) % total_val),
                                     "‹"
                                 }
-                                span { "aria-live": "polite", "{indice_val + 1} de {total_val}" }
+                                span { "aria-live": "polite", "{contador_carrusel}" }
                                 button
                                 {
                                     r#type: "button",
-                                    "aria-label": "Sugerencia siguiente",
+                                    "aria-label": {crate::i18n::ahora(Texto::SugerenciaSiguiente)},
                                     disabled: total_val < 2,
                                     onclick: move |_| indice_sel.set((indice_val + 1) % total_val),
                                     "›"
@@ -394,7 +399,7 @@ fn SeccionSugerencias() -> Element
                 Some(Err(causa)) => rsx!
                 {
                     // Fallo de red o del servidor: explicar qué pasó y ofrecer reintentar
-                    p { id: "titulo-sugerencia", class: "eyebrow", "Sugerencia del día" }
+                    p { id: "titulo-sugerencia", class: "eyebrow", "{crate::i18n::ahora(Texto::SugerenciaDelDia)}" }
                     AvisoRed
                     {
                         causa: causa.clone(),
@@ -410,13 +415,11 @@ fn SeccionSugerencias() -> Element
 ///
 /// Funciona sin conexión: solo lee el archivo local de la cuenta actual.
 #[component]
-fn SeccionUltimasVistas() -> Element
-{
+fn SeccionUltimasVistas() -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>(); // Cuenta cuyas recetas se muestran
     let vistas_vec = crate::local::recientes(&crate::sesion::cuenta(&sesion), 3); // Últimas tres vistas
 
-    rsx!
-    {
+    rsx! {
         section
         {
             class: "seccion",
@@ -427,14 +430,14 @@ fn SeccionUltimasVistas() -> Element
             {
                 class: "seccion-cabeza",
 
-                p { id: "titulo-ultimas", class: "eyebrow", "Sigue donde lo dejaste" }
-                Link { to: Rutas::biblioteca(), class: "enlace", "Biblioteca" }
+                p { id: "titulo-ultimas", class: "eyebrow", "{crate::i18n::ahora(Texto::SigueDondeLoDejaste)}" }
+                Link { to: Rutas::biblioteca(), class: "chip", "{crate::i18n::ahora(Texto::DestinoBiblioteca)}" }
             }
 
             // Sin recetas vistas: invitar a empezar por la sugerencia
             if vistas_vec.is_empty()
             {
-                p { class: "estado", "Aún no has abierto ninguna receta. Empieza por la sugerencia de hoy." }
+                p { class: "estado", "{crate::i18n::ahora(Texto::AunNoHayVistas)}" }
             }
 
             for vista in vistas_vec
@@ -456,10 +459,8 @@ fn SeccionUltimasVistas() -> Element
 
 /// Muestra la pantalla Descubrir completa: encabezado, buscador, familias, sugerencia y últimas vistas
 #[component]
-pub fn PantallaDescubrir() -> Element
-{
-    rsx!
-    {
+pub fn PantallaDescubrir() -> Element {
+    rsx! {
         document::Stylesheet { href: CSS_DESCUBRIR }
 
         // Contenido desplazable de la pantalla
@@ -468,7 +469,7 @@ pub fn PantallaDescubrir() -> Element
             class: "descubrir",
 
             Encabezado {}
-            h1 { "¿Qué vas a preparar hoy?" }
+            h1 { "{crate::i18n::ahora(Texto::QuePreparasHoy)}" }
             Buscador {}
             ChipsFamilia {}
             SeccionSugerencias {}
