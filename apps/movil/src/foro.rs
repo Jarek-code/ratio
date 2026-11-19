@@ -397,7 +397,7 @@ fn FormularioComentario(
     let con_ancla = !ancla_sel().is_empty();
 
     // Elegir una foto y subirla a la carpeta de este comentario
-    let adjuntar = use_callback(move |archivo: Option<dioxus::html::FileData>| {
+    let adjuntar = use_callback(move |elegida: Result<Option<(Vec<u8>, String)>, String>| {
         let (Some(token), Some(cuenta)) = (
             crate::sesion::token(&sesion),
             crate::sesion::cuenta(&sesion),
@@ -416,7 +416,7 @@ fn FormularioComentario(
         aviso.set(None);
 
         spawn(async move {
-            match crate::fotos::subir_foto_comentario(token, cuenta, id, archivo).await {
+            match crate::fotos::subir_foto_comentario(token, cuenta, id, elegida).await {
                 Ok(Some(ruta)) => foto_sel.set(Some(ruta)),
                 Ok(None) => {} // Selección cancelada
                 Err(mensaje) => aviso.set(Some(mensaje)),
@@ -596,7 +596,7 @@ fn FormularioComentario(
                         id: "comentario-foto",
                         ocupado: subiendo(),
                         etiqueta: crate::i18n::ahora(Texto::AdjuntarFoto),
-                        al_elegir: move |archivo| adjuntar.call(archivo),
+                        al_elegir: move |elegida| adjuntar.call(elegida),
                     }
                 }
             }

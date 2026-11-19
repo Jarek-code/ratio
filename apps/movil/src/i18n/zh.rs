@@ -596,5 +596,7 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::PasoSinTitulo => "步骤",
         Texto::NoCabeEnElVaso => "饮品装不进杯子：减少用量或换更大的杯子。",
         Texto::AnadirBoton => "添加",
+        Texto::FotoNoSeAbrioElSelector => "无法打开照片选择器，请重试。",
+        Texto::AbriendoElSelector => "正在打开选择器…",
     }
 }

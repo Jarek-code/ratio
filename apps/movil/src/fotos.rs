@@ -30,15 +30,15 @@ const BYTES_MAXIMOS: u64 = 5 * 1024 * 1024;
 /// Segundos que se espera a que la foto termine de subir antes de cortar el envío.
 const SUBE_SEGUNDOS: u64 = 45;
 
+/// Si se elige con la galería del sistema en vez de la entrada de archivos.
+const GALERIA_NATIVA: bool = cfg!(target_os = "ios");
+
 /// Si la plataforma tiene con qué elegir una foto.
 ///
-/// Dioxus 0.7 intercepta `<input type="file">` y en móvil no abre nada, así que iOS usa su
-/// galería nativa (`selector_ios`) y Android una actividad auxiliar propia
-/// (`selector_android`). En escritorio se usa el selector de archivos.
+/// Android y escritorio usan el `<input type="file">`, que en Android abre vía wry (el
+/// WebView de dioxus-desktop, que implementa `onShowFileChooser`). iOS usa su galería
+/// nativa (`selector_ios`), porque el WebView de iOS necesita más permisos.
 const HAY_SELECTOR: bool = true;
-
-/// Si se elige con una pantalla del sistema en vez de un `<input type="file">`.
-const GALERIA_NATIVA: bool = cfg!(any(target_os = "ios", target_os = "android"));
 
 // ESTADO
 
@@ -204,9 +204,9 @@ pub async fn subir_foto_comentario(
     token: String,
     cuenta: String,
     comentario_id: String,
-    archivo: Option<dioxus::html::FileData>,
+    elegida: Result<Option<(Vec<u8>, String)>, String>,
 ) -> Result<Option<String>, String> {
-    match elegir(archivo).await? {
+    match elegida? {
         Some((bytes, tipo)) => subir_bytes(
             &token,
             &format!("{cuenta}/comentarios/{comentario_id}"),
@@ -241,91 +241,231 @@ async fn subir_a_receta(
         })
 }
 
-/// Obtiene la foto que elige la persona: la galería nativa en iOS, la actividad auxiliar en
-/// Android y el selector de archivos en escritorio. Devuelve los bytes y su tipo MIME, o
-/// `None` si canceló.
-#[cfg(target_os = "ios")]
-async fn elegir(
-    _archivo: Option<dioxus::html::FileData>,
-) -> Result<Option<(Vec<u8>, String)>, String> {
-    let foto = crate::selector_ios::elegir_de_galeria().await?;
-    Ok(foto.map(|bytes| (bytes, "image/jpeg".to_string()))) // La galería entrega JPEG
+/// Abre la galería del sistema, que solo existe en iOS. Devuelve los bytes y el tipo, o
+/// `None` si la persona canceló.
+async fn galeria_del_sistema() -> Result<Option<(Vec<u8>, String)>, String> {
+    #[cfg(target_os = "ios")]
+    {
+        let foto = crate::selector_ios::elegir_de_galeria().await?;
+        Ok(foto.map(|bytes| (bytes, "image/jpeg".to_string()))) // La galería entrega JPEG
+    }
+
+    #[cfg(not(target_os = "ios"))]
+    {
+        Err({ crate::i18n::ahora(Texto::FotoNoSeAbrioElSelector) }.to_string())
+    }
 }
 
-/// Obtiene la foto que elige la persona con la actividad auxiliar de Android.
-#[cfg(target_os = "android")]
-async fn elegir(
-    _archivo: Option<dioxus::html::FileData>,
-) -> Result<Option<(Vec<u8>, String)>, String> {
-    crate::selector_android::elegir_de_galeria().await
+/// Lo que manda el navegador cuando la persona elige (o cancela) una foto.
+#[derive(serde::Deserialize)]
+struct FotoElegida {
+    /// Contenido del archivo en base64, sin la cabecera del `data URL`.
+    datos: String,
+    /// Tipo MIME que informa el sistema; `"error"` si el navegador no pudo leer el archivo.
+    #[serde(default)]
+    tipo: Option<String>,
 }
 
-/// Obtiene la foto que elige la persona con el selector de archivos del escritorio.
-#[cfg(not(any(target_os = "ios", target_os = "android")))]
-async fn elegir(
-    archivo: Option<dioxus::html::FileData>,
-) -> Result<Option<(Vec<u8>, String)>, String> {
-    let Some(archivo) = archivo else {
+/// Guion que escucha la entrada de archivos y manda la foto en base64.
+///
+/// No se usa el evento de formulario de Dioxus: en Android, `dioxus-desktop` devuelve la
+/// lista de archivos vacía, así que el archivo nunca llega a Rust. El navegador sí puede
+/// leerlo con `FileReader`, y los bytes viajan como texto base64.
+fn guion(id: &str) -> String {
+    format!(
+        r#"
+        const boton = document.getElementById("{id}");
+        if (boton) {{
+            // La entrada vive en un iframe aparte: Dioxus intercepta los clics de los
+            // `<input type="file">` de su propio documento y en Android no abre nada.
+            const marco = document.createElement('iframe');
+            marco.style.display = 'none';
+            document.body.appendChild(marco);
+            const documento = marco.contentDocument;
+            documento.open();
+            documento.write('<input type="file" accept="image/jpeg,image/png,image/webp">');
+            documento.close();
+            const entrada = documento.querySelector('input');
+
+            entrada.addEventListener('change', () => {{
+                const archivo = entrada.files && entrada.files[0];
+                if (!archivo) {{
+                    dioxus.send({{ datos: '', tipo: null }});
+                    return;
+                }}
+                const lector = new FileReader();
+                lector.onload = () => {{
+                    const texto = String(lector.result || '');
+                    const coma = texto.indexOf(',');
+                    entrada.value = ''; // Permite elegir la misma foto otra vez
+                    dioxus.send({{
+                        datos: coma >= 0 ? texto.slice(coma + 1) : '',
+                        tipo: archivo.type || 'image/jpeg',
+                    }});
+                }};
+                lector.onerror = () => {{
+                    entrada.value = '';
+                    dioxus.send({{ datos: '', tipo: 'error' }});
+                }};
+                lector.readAsDataURL(archivo);
+            }});
+
+            boton.addEventListener('click', () => {{
+                // Se abre dentro del gesto de la persona, así el sistema lo permite
+                if (typeof entrada.showPicker === 'function') {{
+                    try {{
+                        entrada.showPicker();
+                        return;
+                    }} catch (error) {{
+                        // Sin permiso para `showPicker` se prueba el clic normal
+                    }}
+                }}
+                entrada.click();
+            }});
+        }}
+        await new Promise(() => {{}}); // Queda escuchando hasta que se cierre la pantalla
+        "#,
+        id = id
+    )
+}
+
+/// Convierte lo que manda el navegador en bytes y tipo MIME, revisando el tamaño.
+fn procesar(elegida: FotoElegida) -> Result<Option<(Vec<u8>, String)>, String> {
+    if elegida.datos.is_empty() {
+        if elegida.tipo.as_deref() == Some("error") {
+            return Err({ crate::i18n::ahora(Texto::FotoNoLeida) }.to_string());
+        }
         return Ok(None); // Selección cancelada
-    };
-    if archivo.size() > BYTES_MAXIMOS {
+    }
+
+    let bytes = decodificar_base64(&elegida.datos)?;
+    if bytes.len() as u64 > BYTES_MAXIMOS {
         return Err({ crate::i18n::ahora(Texto::FotoPesaDemasiado) }.to_string());
     }
-    let tipo = archivo.content_type().unwrap_or_default();
-    let bytes = archivo
-        .read_bytes()
-        .await
-        .map_err(|_| { crate::i18n::ahora(Texto::FotoNoLeida) }.to_string())?;
 
-    Ok(Some((bytes.to_vec(), tipo))) // Bytes y tipo del archivo elegido
+    let tipo = elegida
+        .tipo
+        .filter(|tipo| !tipo.is_empty())
+        .unwrap_or_else(|| "image/jpeg".to_string());
+
+    Ok(Some((bytes, tipo)))
 }
 
-/// Control para elegir una foto: la galería nativa en iOS, el selector de archivos en escritorio.
+/// Decodifica el base64 que manda el navegador (`btoa`, sin saltos de línea).
+fn decodificar_base64(texto: &str) -> Result<Vec<u8>, String> {
+    fn valor(caracter: u8) -> Option<u8> {
+        match caracter {
+            b'A'..=b'Z' => Some(caracter - b'A'),
+            b'a'..=b'z' => Some(caracter - b'a' + 26),
+            b'0'..=b'9' => Some(caracter - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None, // El relleno y los saltos de línea se ignoran
+        }
+    }
+
+    let mut bytes = Vec::with_capacity(texto.len() * 3 / 4);
+    let mut acumulado = 0u32;
+    let mut bits = 0u32;
+
+    for caracter in texto.bytes() {
+        let Some(valor) = valor(caracter) else {
+            continue;
+        };
+        acumulado = (acumulado << 6) | u32::from(valor);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            bytes.push((acumulado >> bits) as u8);
+        }
+    }
+
+    if bytes.is_empty() {
+        return Err({ crate::i18n::ahora(Texto::FotoNoLeida) }.to_string());
+    }
+
+    Ok(bytes)
+}
+
+/// Control para elegir una foto: la galería nativa en iOS, el selector del sistema en el resto.
 ///
-/// `id` distingue el control dentro de la página, `ocupado` lo desactiva mientras se sube y
-/// `al_elegir` recibe el archivo elegido (`None` en iOS, donde la galería se abre después).
+/// `id` distingue el botón dentro de la página, `ocupado` lo desactiva mientras se sube y
+/// `al_elegir` recibe el resultado: la foto, la cancelación o el motivo del fallo.
 #[component]
 pub fn BotonFoto(
     id: String,
     ocupado: bool,
     etiqueta: String,
-    al_elegir: EventHandler<Option<dioxus::html::FileData>>,
+    al_elegir: EventHandler<Result<Option<(Vec<u8>, String)>, String>>,
 ) -> Element {
+    let mut esperando = use_signal(|| false); // El selector se abrió y no llegó nada aún
+
+    // El navegador avisa cuando la persona elige una foto
+    use_future({
+        let id = id.clone();
+        move || {
+            let id = id.clone();
+            async move {
+                if GALERIA_NATIVA {
+                    return; // En iOS se abre la galería del sistema
+                }
+
+                let mut escucha = dioxus::document::eval(&guion(&id));
+                while let Ok(elegida) = escucha.recv::<FotoElegida>().await {
+                    esperando.set(false);
+                    al_elegir.call(procesar(elegida));
+                }
+            }
+        }
+    });
+
     rsx! {
-        // iOS: botón que abre la galería nativa; escritorio: selector de archivos
         if GALERIA_NATIVA
         {
             button
             {
-                class: "chip foto-subir",
+                class: "chip chip--enlace foto-subir",
                 r#type: "button",
                 disabled: ocupado,
-                onclick: move |_| al_elegir.call(None),
-                if ocupado { "{crate::i18n::ahora(Texto::UnMomento)}" } else { "{etiqueta}" }
+                onclick: move |_| {
+                    spawn(async move { al_elegir.call(galeria_del_sistema().await) });
+                },
+                if ocupado { "{crate::i18n::ahora(Texto::SubiendoFoto)}" } else { "{etiqueta}" }
             }
         }
         else
         {
-            label
-            {
-                class: "chip chip--enlace foto-subir",
-                r#for: "{id}",
-                if ocupado { {crate::i18n::ahora(Texto::SubiendoFoto)} } else { "{etiqueta}" }
-            }
-            input
+            button
             {
                 id: "{id}",
-                class: "solo-lector",
-                r#type: "file",
-                accept: "image/jpeg,image/png,image/webp",
-                disabled: ocupado,
-                onchange: move |evento: FormEvent|
-                {
-                    if let Some(archivo) = evento.files().into_iter().next()
-                    {
-                        al_elegir.call(Some(archivo));
-                    }
+                class: "chip chip--enlace foto-subir",
+                r#type: "button",
+                disabled: ocupado || esperando(),
+                onclick: move |_| {
+                    esperando.set(true);
+                    // Sin foto en un minuto, se avisa: el selector no llegó a abrirse
+                    spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        if esperando() {
+                            esperando.set(false);
+                            al_elegir.call(Err(
+                                crate::i18n::ahora(Texto::FotoNoSeAbrioElSelector).to_string(),
+                            ));
+                        }
+                    });
                 },
+                if ocupado
+                {
+                    {crate::i18n::ahora(Texto::SubiendoFoto)}
+                }
+                else if esperando()
+                {
+                    {crate::i18n::ahora(Texto::AbriendoElSelector)}
+                }
+                else
+                {
+                    "{etiqueta}"
+                }
             }
         }
     }
@@ -346,7 +486,7 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element {
     let nombre = receta.receta.nombre.clone();
 
     // Elegir la foto y subirla; en iOS el archivo llega vacío y se abre la galería nativa
-    let subir_foto = use_callback(move |archivo: Option<dioxus::html::FileData>| {
+    let subir_foto = use_callback(move |elegida: Result<Option<(Vec<u8>, String)>, String>| {
         let (Some(token), Some(cuenta)) = (
             crate::sesion::token(&sesion),
             crate::sesion::cuenta(&sesion),
@@ -361,7 +501,7 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element {
         aviso.set(None);
 
         spawn(async move {
-            let resultado = match elegir(archivo).await {
+            let resultado = match elegida {
                 Ok(Some((bytes, tipo))) => subir_a_receta(token, cuenta, id, bytes, &tipo)
                     .await
                     .map(Some), // Foto elegida: subirla
@@ -414,7 +554,7 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element {
                     id: "foto-nueva",
                     ocupado: subiendo(),
                     etiqueta: crate::i18n::ahora(Texto::AgregarFoto),
-                    al_elegir: move |archivo| subir_foto.call(archivo),
+                    al_elegir: move |elegida| subir_foto.call(elegida),
                 }
                 p { class: "nota", "{crate::i18n::con(crate::i18n::actual(), Texto::FotosMaximo, &[&api::foro::FOTOS_MAXIMAS.to_string()])}" }
             }
@@ -433,7 +573,7 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element {
 mod pruebas {
     // LIBRERÍAS
 
-    use super::extension; // Extensión según el tipo de imagen
+    use super::{decodificar_base64, extension}; // Extensión y decodificación de la foto
 
     // FUNCIONES
 
@@ -445,5 +585,15 @@ mod pruebas {
         assert_eq!(extension("image/webp"), Some("webp"));
         assert_eq!(extension("image/gif"), None);
         assert_eq!(extension(""), None);
+    }
+
+    /// El base64 que manda el navegador se decodifica tal cual, con relleno y sin él.
+    #[test]
+    fn base64_como_lo_manda_el_navegador() {
+        assert_eq!(decodificar_base64("aG9sYQ==").unwrap(), b"hola");
+        assert_eq!(decodificar_base64("aG9sYQ").unwrap(), b"hola");
+        assert_eq!(decodificar_base64("AAECAw==").unwrap(), vec![0, 1, 2, 3]);
+        assert_eq!(decodificar_base64("+/8=").unwrap(), vec![0xfb, 0xff]);
+        assert!(decodificar_base64("").is_err());
     }
 }

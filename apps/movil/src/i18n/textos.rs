@@ -1148,4 +1148,8 @@ pub enum Texto {
     NoCabeEnElVaso,
     /// Añadir
     AnadirBoton,
+    /// No se pudo abrir el selector de fotos. Prueba otra vez.
+    FotoNoSeAbrioElSelector,
+    /// Abriendo el selector…
+    AbriendoElSelector,
 }

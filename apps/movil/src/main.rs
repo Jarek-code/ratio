@@ -28,8 +28,6 @@ mod red;
 mod reportar;
 mod rutas;
 mod salud;
-#[cfg(target_os = "android")]
-mod selector_android;
 #[cfg(target_os = "ios")]
 mod selector_ios;
 mod sesion;

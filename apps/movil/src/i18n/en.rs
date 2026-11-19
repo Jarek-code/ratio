@@ -660,5 +660,7 @@ pub(super) fn texto(texto: Texto) -> &'static str {
             "The drink does not fit in the glass: remove some or pick a bigger one."
         }
         Texto::AnadirBoton => "Add",
+        Texto::FotoNoSeAbrioElSelector => "The photo picker could not open. Please try again.",
+        Texto::AbriendoElSelector => "Opening the picker…",
     }
 }
