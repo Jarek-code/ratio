@@ -2,11 +2,11 @@
 
 use dioxus::prelude::*;
 
-use crate::actividad;
 use crate::ajustar;
 use crate::ajustes;
-use crate::comparar;
 use crate::biblioteca;
+use crate::comparar;
+use crate::crear;
 use crate::descubrir;
 use crate::ficha;
 use crate::guardados;
@@ -48,6 +48,9 @@ pub enum Rutas {
     /// Ajuste de proporciones de una receta (C1).
     #[route("/receta/:id/ajustar")]
     Ajustar { id: String },
+    /// Crear una receta desde cero (D1).
+    #[route("/crear")]
+    CrearReceta,
     /// Recetas guardadas por la cuenta (C5).
     #[route("/guardados")]
     Guardados,
@@ -183,6 +186,14 @@ fn Ajustar(id: String) -> Element {
     }
 }
 
+/// Crear una receta desde cero (D1).
+#[component]
+fn CrearReceta() -> Element {
+    rsx! {
+        crear::PantallaCrear {}
+    }
+}
+
 /// Guardados (C5).
 #[component]
 fn Guardados() -> Element {
@@ -232,10 +243,13 @@ fn Moderacion() -> Element {
 }
 
 /// Actividad de La Barra (D6).
+///
+/// Se pinta con la pestaña de La Barra: la lista de novedades se escribe una sola vez y esta
+/// dirección se queda para los enlaces que ya existen.
 #[component]
 fn Actividad() -> Element {
     rsx! {
-        actividad::PantallaActividad {}
+        la_barra::PantallaLaBarra { pestana: "actividad".to_string() }
     }
 }
 
