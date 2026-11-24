@@ -24,6 +24,7 @@ pub mod ingredientes; // Catálogo de ingredientes para añadir capas desde C1
 pub mod moderacion; // Cola de reportes, decisiones e historial (D8)
 pub mod notificaciones; // Actividad y avisos sin leer (D6)
 pub mod perfil; // Perfil público y seguimiento (E2, E3)
+pub mod push; // Tokens push por dispositivo y envío por FCM (fase posterior)
 pub mod receta; // Ficha completa de una receta (B3)
 pub mod recetario; // Recetario propio de la cuenta (C4)
 pub mod vasos; // Catálogo de vasos para el editor de proporciones (C1)

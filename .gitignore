@@ -12,6 +12,11 @@ dist/
 .env.*
 !.env.example
 
+# Claves de cuenta de servicio (FCM/Google): nunca al repositorio
+*-firebase-adminsdk-*.json
+*service-account*.json
+fcm-service-account.json
+
 # Base de datos local
 *.db
 *.db-shm

@@ -321,6 +321,7 @@ pub async fn publicar(
     .await?;
 
     // Una versión recién publicada avisa a quien creó la receta original
+    let mut push_para: Option<String> = None;
     if publica
         && !estaba_publicada
         && let Some(dueno) = autor_origen
@@ -338,9 +339,15 @@ pub async fn publicar(
             },
         )
         .await?;
+        push_para = Some(dueno.to_string());
     }
 
     tx.commit().con_plazo("la publicación").await?;
+
+    // El push va después del commit: si la escritura se deshace, no se avisa de nada
+    if let Some(para) = push_para {
+        crate::push::avisar(para, "version_derivada", receta_id.clone());
+    }
 
     Ok(publica) // Estado final de la receta
 }
@@ -582,6 +589,7 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
     .await?;
 
     // Comentario nuevo de otra persona: avisar al dueño de la receta o del comentario respondido
+    let mut push_para: Option<String> = None;
     if let Some((id, dueno)) = &creado
         && let Some(para) = dueno
             .as_deref()
@@ -598,9 +606,15 @@ pub async fn comentar(token: String, nuevo: ComentarioNuevo) -> Result<String, S
             },
         )
         .await?;
+        push_para = Some(para.to_string());
     }
 
     tx.commit().con_plazo("el comentario").await?;
+
+    // El push va después del commit: si el comentario no se guardó, no se avisa
+    if let Some(para) = push_para {
+        crate::push::avisar(para, "respuesta", nuevo.receta_id.clone());
+    }
 
     creado.map(|(id, _)| id).or(nuevo.id).ok_or_else(|| {
         crate::fallos::reintento("No se pudo guardar el comentario. Vuelve a intentarlo.")
@@ -706,6 +720,9 @@ pub async fn valorar(
     .await?;
 
     tx.commit().con_plazo("tu valoración").await?;
+
+    // El push va después del commit: si la valoración se deshace, no se avisa
+    crate::push::avisar(para.to_string(), "valoracion", receta_id.clone());
 
     recuento(pool, &receta_id, &Some(cuenta)).await
 }

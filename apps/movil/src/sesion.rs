@@ -136,6 +136,9 @@ pub fn iniciar(sesion: &mut SenalSesion, iniciada: SesionApp) {
 
 /// Cierra la sesión y borra lo guardado.
 pub fn salir(sesion: &mut SenalSesion) {
+    // Avisar al servidor de que este aparato ya no recibe push (lee el token antes de borrar)
+    crate::push::olvidar(sesion);
+
     if let Some(ruta) = archivo() {
         let _ = fs::remove_file(ruta);
     }

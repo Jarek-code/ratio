@@ -23,6 +23,8 @@ use crate::salud::PruebaSalud;
 /// Pantallas que ya existen.
 #[derive(Debug, Clone, PartialEq, Routable)]
 pub enum Rutas {
+    /// Atajos comunes a todas las pantallas (por ejemplo, abrir Actividad desde un push).
+    #[layout(Atajos)]
     /// Acceso con correo y contraseña (E1).
     #[route("/")]
     Entrar,
@@ -110,16 +112,45 @@ impl Rutas {
     }
 }
 
+/// Atajos que valen en cualquier pantalla.
+///
+/// Vigila el archivo que deja una notificación tocada. Con sesión abierta navega a Actividad
+/// una sola vez por aviso; sin sesión no lo consume, para que espere a que la persona entre.
+#[component]
+fn Atajos() -> Element {
+    let navegador = navigator();
+    let sesion = use_context::<crate::sesion::SenalSesion>();
+
+    // Sondeo corto: la notificación puede llegar con la app ya abierta o recién despertada
+    use_future(move || async move {
+        loop {
+            if crate::push::tomar_atajo(&sesion) {
+                navegador.push(Rutas::Actividad);
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    });
+
+    rsx! {
+        Outlet::<Rutas> {}
+    }
+}
+
 /// Acceso; al validar el formulario continúa a Descubrir.
 #[component]
 fn Entrar() -> Element {
     let navegador = navigator();
     let sesion = use_context::<crate::sesion::SenalSesion>();
 
-    // Con una sesión guardada no hace falta volver a entrar
+    // Con una sesión guardada no hace falta volver a entrar; si venía de una notificación,
+    // se abre Actividad en vez de Descubrir
     use_effect(move || {
         if sesion.read().is_some() {
-            navegador.replace(Rutas::Descubrir);
+            if crate::push::tomar_atajo(&sesion) {
+                navegador.replace(Rutas::Actividad);
+            } else {
+                navegador.replace(Rutas::Descubrir);
+            }
         }
     });
 

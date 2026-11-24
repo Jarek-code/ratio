@@ -73,6 +73,8 @@ fn enlazar_contratos() {
         api::notificaciones::no_leidas,
         api::perfil::perfil,
         api::perfil::seguir,
+        api::push::baja_dispositivo,
+        api::push::registrar_dispositivo,
         api::receta::completa,
         api::recetario::mis_recetas,
         api::vasos::vasos,
@@ -84,6 +86,7 @@ fn enlazar_contratos() {
 async fn arrancar(config: Option<config::Config>) -> Result<axum::Router, Error> {
     match &config {
         Some(config) => {
+            configurar_push(config);
             abrir_pool(config).await;
 
             if config.migrar {
@@ -112,6 +115,18 @@ async fn registrar_peticion(
     tracing::debug!(%metodo, %ruta, estado = respuesta.status().as_u16(), "request");
 
     respuesta
+}
+
+/// Instala las credenciales de FCM si el entorno las trae. Sin ellas el servidor arranca igual:
+/// solo deja de enviar push y lo anota.
+fn configurar_push(config: &config::Config) {
+    match &config.fcm_credenciales {
+        Some(json) => match api::push::configurar(json) {
+            Ok(()) => info!("push configured (FCM)"),
+            Err(motivo) => warn!("{motivo}: push disabled"),
+        },
+        None => warn!("no FCM credentials: push disabled"),
+    }
 }
 
 /// Abre el pool y lo publica para las server functions; si no conecta, deja uno perezoso
