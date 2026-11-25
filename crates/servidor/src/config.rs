@@ -21,6 +21,40 @@ pub struct Config {
     pub fcm_credenciales: Option<String>,
 }
 
+/// Arma el JSON de la cuenta de servicio con los campos sueltos del entorno.
+///
+/// Se usa cuando no hay `FCM_CREDENTIALS_JSON` ni `FCM_CREDENTIALS`: basta con el id del
+/// proyecto, el correo de la cuenta de servicio y la clave privada. La clave privada puede
+/// venir con `\n` literales, que es como se pega en la mayoría de los paneles.
+fn credenciales_por_campos() -> Option<String> {
+    let leer = |nombre: &str| {
+        std::env::var(nombre)
+            .ok()
+            .map(|v| v.trim().trim_matches('"').to_string())
+            .filter(|v| !v.is_empty())
+    };
+
+    let project_id = leer("FCM_PROJECT_ID")?;
+    let client_email = leer("FCM_CLIENT_EMAIL")?;
+    let private_key = leer("FCM_PRIVATE_KEY")?.replace("\\n", "\n");
+
+    let mut cuenta = serde_json::json!({
+        "type": "service_account",
+        "project_id": project_id,
+        "client_email": client_email,
+        "private_key": private_key,
+    });
+
+    if let Some(valor) = leer("FCM_PRIVATE_KEY_ID") {
+        cuenta["private_key_id"] = serde_json::Value::String(valor);
+    }
+    cuenta["token_uri"] = serde_json::Value::String(
+        leer("FCM_TOKEN_URI").unwrap_or_else(|| "https://oauth2.googleapis.com/token".to_string()),
+    );
+
+    Some(cuenta.to_string())
+}
+
 impl Config {
     /// Lee el entorno. Devuelve el motivo del fallo en lugar de adivinarlo.
     ///
@@ -51,8 +85,9 @@ impl Config {
             .ok()
             .filter(|v| !v.trim().is_empty());
 
-        // Credenciales push: el JSON inline manda; si no, se lee el archivo indicado. Un archivo
-        // ilegible no detiene el arranque: el servidor sigue sin push y lo anota el binario.
+        // Credenciales push, en orden de preferencia: el JSON inline, el archivo indicado o los
+        // campos por separado. Con los campos se arma el mismo JSON que espera `api::push`, de
+        // modo que en el servidor de despliegue bastan tres variables normales.
         let fcm_credenciales = std::env::var("FCM_CREDENTIALS_JSON")
             .ok()
             .filter(|v| !v.trim().is_empty())
@@ -61,7 +96,8 @@ impl Config {
                     .ok()
                     .filter(|v| !v.trim().is_empty())
                     .and_then(|ruta| std::fs::read_to_string(ruta).ok())
-            });
+            })
+            .or_else(credenciales_por_campos);
 
         Ok(Self {
             database_url,

@@ -5681,6 +5681,7 @@ dependencies = [
  "api",
  "dioxus",
  "dotenvy",
+ "serde_json",
  "sqlx",
  "tokio",
  "tracing",
