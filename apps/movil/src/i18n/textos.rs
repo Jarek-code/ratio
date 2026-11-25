@@ -1152,4 +1152,26 @@ pub enum Texto {
     FotoNoSeAbrioElSelector,
     /// Abriendo el selector…
     AbriendoElSelector,
+    /// Eliminar
+    EliminarReceta,
+    /// ¿Eliminar «{0}»? No se puede deshacer.
+    ConfirmarEliminar,
+    /// Sí, eliminar
+    SiEliminar,
+    /// Eliminando…
+    Eliminando,
+    /// No se pudo eliminar: {0}
+    NoSePudoEliminar,
+    /// Vuelve a entrar para eliminar la receta.
+    VuelveAEntrarEliminar,
+    /// Está publicada en La Barra y tiene comentarios o versiones derivadas: no se puede eliminar ni retirar.
+    RecetaEnUso,
+    /// Guardar y publicar en La Barra
+    GuardarYPublicar,
+    /// La versión quedó guardada, pero no se publicó: {0}
+    VersionGuardadaSinPublicar,
+    /// La versión quedó en la cola: publícala desde Mi recetario cuando vuelva la conexión.
+    VersionGuardadaSinConexionPublicar,
+    /// La versión quedó guardada y publicada en La Barra.
+    VersionGuardadaYPublicada,
 }

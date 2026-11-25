@@ -805,7 +805,14 @@ button {
 
 .barra-evento {
     display: block;
+    color: inherit;
     text-decoration: none;
+}
+
+/* El texto dentro del enlace no debe cambiar de color ni subrayarse */
+.barra-evento p,
+.barra-evento strong {
+    color: inherit;
 }
 
 /* Fotos de la receta (D1) */

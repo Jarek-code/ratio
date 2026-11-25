@@ -662,5 +662,20 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::AnadirBoton => "Add",
         Texto::FotoNoSeAbrioElSelector => "The photo picker could not open. Please try again.",
         Texto::AbriendoElSelector => "Opening the picker…",
+        Texto::EliminarReceta => "Delete",
+        Texto::ConfirmarEliminar => "Delete “{0}”? This cannot be undone.",
+        Texto::SiEliminar => "Yes, delete",
+        Texto::Eliminando => "Deleting…",
+        Texto::NoSePudoEliminar => "Could not delete: {0}",
+        Texto::VuelveAEntrarEliminar => "Sign in again to delete the recipe.",
+        Texto::RecetaEnUso => {
+            "It is published in La Barra and has comments or derived versions: it cannot be deleted or withdrawn."
+        }
+        Texto::GuardarYPublicar => "Save and publish to La Barra",
+        Texto::VersionGuardadaSinPublicar => "The version was saved but not published: {0}",
+        Texto::VersionGuardadaSinConexionPublicar => {
+            "The version is queued: publish it from My recipes once the connection returns."
+        }
+        Texto::VersionGuardadaYPublicada => "The version was saved and published to La Barra.",
     }
 }

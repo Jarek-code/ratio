@@ -171,3 +171,67 @@ pub async fn mis_recetas(token: String) -> Result<Vec<RecetaPropia>, ServerFnErr
         .map(|fila| fila.a_propia(&capas))
         .collect())
 }
+
+/// Borra una receta propia que no está en La Barra o que nadie ha usado.
+///
+/// Una receta publicada con comentarios o con versiones derivadas no se borra: la
+/// conversación y las variantes de otras personas quedarían huérfanas, así que se conserva
+/// y solo se puede retirar de la vista pública cuando no dependen de ella.
+///
+/// # Errores
+///
+/// Devuelve error si la sesión no sirve, si la receta no es de la cuenta o si está en uso.
+#[server(endpoint = "eliminar_receta")]
+pub async fn eliminar_receta(token: String, receta_id: String) -> Result<(), ServerFnError> {
+    if !crate::fallos::es_uuid(&receta_id) {
+        return Err(crate::fallos::datos(
+            "La receta pedida no es válida: vuelve a abrir el recetario.",
+        ));
+    }
+
+    let pool = crate::base::pool()?;
+    let cuenta = crate::auth::cuenta(Some(&token))
+        .await
+        .ok_or_else(|| crate::fallos::sesion("Inicia sesión para eliminar la receta."))?;
+
+    let mut tx = pool.begin().con_plazo("el borrado").await?;
+
+    let fila = sqlx::query_as::<_, (bool, i64, i64)>(
+        r#"
+        SELECT r.publicada_en IS NOT NULL,
+               (SELECT count(*) FROM comentario c WHERE c.receta_id = r.id),
+               (SELECT count(*) FROM receta d WHERE d.receta_origen_id = r.id)
+        FROM receta r
+        WHERE r.id = $1::uuid
+          AND r.autor_id = $2::uuid
+        FOR UPDATE OF r
+        "#,
+    )
+    .bind(&receta_id)
+    .bind(&cuenta)
+    .fetch_optional(&mut *tx)
+    .con_plazo("el borrado")
+    .await?;
+
+    let Some((publicada, comentarios, derivadas)) = fila else {
+        return Err(crate::fallos::no_encontrado(
+            "Esa receta no existe o no es tuya.",
+        ));
+    };
+
+    if publicada && (comentarios > 0 || derivadas > 0) {
+        return Err(crate::fallos::datos(
+            "Está publicada en La Barra y tiene comentarios o versiones derivadas: no se puede eliminar.",
+        ));
+    }
+
+    sqlx::query("DELETE FROM receta WHERE id = $1::uuid")
+        .bind(&receta_id)
+        .execute(&mut *tx)
+        .con_plazo("el borrado")
+        .await?;
+
+    tx.commit().con_plazo("el borrado").await?;
+
+    Ok(())
+}

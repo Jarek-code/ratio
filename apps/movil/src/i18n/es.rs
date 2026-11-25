@@ -674,5 +674,20 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::AnadirBoton => "Añadir",
         Texto::FotoNoSeAbrioElSelector => "No se pudo abrir el selector de fotos. Prueba otra vez.",
         Texto::AbriendoElSelector => "Abriendo el selector…",
+        Texto::EliminarReceta => "Eliminar",
+        Texto::ConfirmarEliminar => "¿Eliminar «{0}»? No se puede deshacer.",
+        Texto::SiEliminar => "Sí, eliminar",
+        Texto::Eliminando => "Eliminando…",
+        Texto::NoSePudoEliminar => "No se pudo eliminar: {0}",
+        Texto::VuelveAEntrarEliminar => "Vuelve a entrar para eliminar la receta.",
+        Texto::RecetaEnUso => {
+            "Está publicada en La Barra y tiene comentarios o versiones derivadas: no se puede eliminar ni retirar."
+        }
+        Texto::GuardarYPublicar => "Guardar y publicar en La Barra",
+        Texto::VersionGuardadaSinPublicar => "La versión quedó guardada, pero no se publicó: {0}",
+        Texto::VersionGuardadaSinConexionPublicar => {
+            "La versión quedó en la cola: publícala desde Mi recetario cuando vuelva la conexión."
+        }
+        Texto::VersionGuardadaYPublicada => "La versión quedó guardada y publicada en La Barra.",
     }
 }

@@ -47,6 +47,134 @@ pub(super) fn Acciones(
     let total_ingredientes = receta.receta.ingredientes.len();
     let receta_para_guardar = receta;
     let vaso_para_guardar = vaso;
+    let propuesto_para_guardar = nombre_propuesto.clone(); // Copia para el callback
+
+    // Guardar la versión; con `publicar` además se publica en La Barra (D1)
+    let guardar_version = use_callback(move |publicar: bool| {
+        if *guardando.read() {
+            return;
+        }
+
+        let Some(token) = crate::sesion::token(&sesion) else {
+            aviso.set(Some(
+                { crate::i18n::ahora(Texto::IniciaSesionGuardarVersion) }.to_string(),
+            ));
+            return;
+        };
+
+        let factores_guardar = factores.read().clone();
+        let escala_guardar = *escala.read();
+        let mut componentes = Vec::new();
+
+        // C1 muestra todas las capas del motor, también las mg (1 g = 1 ml),
+        // así que se envían todas con su factor y conservan su unidad original.
+        for (indice_capa, capa) in receta_para_guardar.componentes.iter().enumerate() {
+            let factor = factores_guardar.get(indice_capa).copied().unwrap_or(1.0);
+
+            // Un factor cero quita la capa; no se guarda una cantidad invalida.
+            if factor <= 0.0 {
+                continue;
+            }
+
+            componentes.push(ComponenteNuevo {
+                ingrediente_id: capa.ingrediente_id.clone(),
+                posicion: capa.posicion,
+                // La escala global también se guarda, para que la versión
+                // quede con el volumen que se ve en el vaso.
+                cantidad: capa.cantidad * factor * escala_guardar,
+            });
+        }
+
+        // Las capas nuevas viajan aparte: el servidor valida su metadata
+        // contra el catálogo y las coloca encima de las del origen.
+        let mut agregados_guardar = Vec::new();
+        for extra in agregados.read().iter() {
+            if extra.factor <= 0.0 {
+                continue;
+            }
+
+            agregados_guardar.push(ComponenteAgregado {
+                ingrediente_id: extra.ingrediente_id.clone(),
+                cantidad: extra.cantidad * extra.factor * escala_guardar,
+            });
+        }
+
+        // El nombre lo escribe la persona; si lo dejó vacío se usa el propuesto
+        let escrito = nombre.read().trim().to_string();
+        let nombre_version = if escrito.is_empty() {
+            propuesto_para_guardar.clone()
+        } else {
+            escrito.chars().take(120).collect::<String>()
+        };
+
+        let datos = RecetaNueva {
+            origen_id: receta_para_guardar.id.clone(),
+            nombre: nombre_version,
+            vaso_id: vaso_para_guardar.id.clone(),
+            capacidad_ml: vaso_para_guardar.vaso.capacidad_ml,
+            componentes,
+            agregados: agregados_guardar,
+            id: crate::local::nuevo_id(),
+        };
+
+        guardando.set(true);
+        guardada.set(None);
+        aviso.set(None);
+
+        spawn(async move {
+            match crate::red::con_plazo(guardar_receta(token.clone(), datos.clone())).await {
+                Ok(resultado) => {
+                    let mensaje = if resultado.advertencias.is_empty() {
+                        crate::i18n::ahora(Texto::VersionGuardada).to_string()
+                    } else {
+                        let avisos = resultado
+                            .advertencias
+                            .iter()
+                            .map(|aviso| crate::api_textos::aviso(*aviso))
+                            .collect::<Vec<_>>()
+                            .join(" ");
+
+                        crate::i18n::con(
+                            crate::i18n::actual(),
+                            Texto::VersionGuardadaConAviso,
+                            &[&avisos],
+                        )
+                    };
+                    aviso.set(Some(mensaje));
+                    guardada.set(Some(resultado.receta_id.clone()));
+
+                    // Publicar en La Barra solo si se pidió y la versión se guardó
+                    if publicar {
+                        aviso.set(Some(publicar_version(&token, &resultado.receta_id).await));
+                    }
+                }
+                // Sin red: la versión queda en la cola con su mismo id
+                Err(causa)
+                    if crate::red::sin_conexion(&causa)
+                        && crate::local::encolar(
+                            &sesion,
+                            &mut pendientes,
+                            crate::local::Cambio::Version(datos),
+                        ) =>
+                {
+                    aviso.set(Some(if publicar {
+                        crate::i18n::ahora(Texto::VersionGuardadaSinConexionPublicar).to_string()
+                    } else {
+                        crate::i18n::ahora(Texto::VersionSinConexion).to_string()
+                    }));
+                }
+                Err(causa) => {
+                    aviso.set(Some(crate::i18n::con(
+                        crate::i18n::actual(),
+                        Texto::NoSeGuardoVersion,
+                        &[&crate::red::mensaje(&causa)],
+                    )));
+                }
+            }
+
+            guardando.set(false);
+        });
+    });
 
     rsx! {
         div { class: "ajustar-acciones",
@@ -82,131 +210,24 @@ pub(super) fn Acciones(
                 class: "chip",
                 r#type: "button",
                 disabled: *guardando.read(),
-                onclick: move |_| {
-                    if *guardando.read() {
-                        return;
-                    }
-
-                    let Some(token) = crate::sesion::token(&sesion) else {
-                        aviso.set(Some({crate::i18n::ahora(Texto::IniciaSesionGuardarVersion)}.to_string()));
-                        return;
-                    };
-
-                    let factores_guardar = factores.read().clone();
-                    let escala_guardar = *escala.read();
-                    let mut componentes = Vec::new();
-
-                    // C1 muestra todas las capas del motor, también las mg (1 g = 1 ml),
-                    // así que se envían todas con su factor y conservan su unidad original.
-                    for (indice_capa, capa) in
-                        receta_para_guardar.componentes.iter().enumerate()
-                    {
-                        let factor = factores_guardar
-                            .get(indice_capa)
-                            .copied()
-                            .unwrap_or(1.0);
-
-                        // Un factor cero quita la capa; no se guarda una cantidad invalida.
-                        if factor <= 0.0 {
-                            continue;
-                        }
-
-                        componentes.push(ComponenteNuevo {
-                            ingrediente_id: capa.ingrediente_id.clone(),
-                            posicion: capa.posicion,
-                            // La escala global también se guarda, para que la versión
-                            // quede con el volumen que se ve en el vaso.
-                            cantidad: capa.cantidad * factor * escala_guardar,
-                        });
-                    }
-
-                    // Las capas nuevas viajan aparte: el servidor valida su metadata
-                    // contra el catálogo y las coloca encima de las del origen.
-                    let mut agregados_guardar = Vec::new();
-                    for extra in agregados.read().iter() {
-                        if extra.factor <= 0.0 {
-                            continue;
-                        }
-
-                        agregados_guardar.push(ComponenteAgregado {
-                            ingrediente_id: extra.ingrediente_id.clone(),
-                            cantidad: extra.cantidad * extra.factor * escala_guardar,
-                        });
-                    }
-
-                    // El nombre lo escribe la persona; si lo dejó vacío se usa el propuesto
-                    let escrito = nombre.read().trim().to_string();
-                    let nombre_version = if escrito.is_empty() {
-                        nombre_propuesto.clone()
-                    } else {
-                        escrito.chars().take(120).collect::<String>()
-                    };
-
-                    let datos = RecetaNueva {
-                        origen_id: receta_para_guardar.id.clone(),
-                        nombre: nombre_version,
-                        vaso_id: vaso_para_guardar.id.clone(),
-                        capacidad_ml: vaso_para_guardar.vaso.capacidad_ml,
-                        componentes,
-                        agregados: agregados_guardar,
-                        id: crate::local::nuevo_id(),
-                    };
-
-                    guardando.set(true);
-                    guardada.set(None);
-                    aviso.set(None);
-
-                    spawn(async move {
-                        match crate::red::con_plazo(guardar_receta(token, datos.clone())).await {
-                            Ok(resultado) => {
-                                let mensaje = if resultado.advertencias.is_empty() {
-                                    crate::i18n::ahora(Texto::VersionGuardada).to_string()
-                                } else {
-                                    let avisos = resultado
-                                        .advertencias
-                                        .iter()
-                                        .map(|aviso| crate::api_textos::aviso(*aviso))
-                                        .collect::<Vec<_>>()
-                                        .join(" ");
-
-                                    crate::i18n::con(
-                                        crate::i18n::actual(),
-                                        Texto::VersionGuardadaConAviso,
-                                        &[&avisos],
-                                    )
-                                };
-                                aviso.set(Some(mensaje));
-                                guardada.set(Some(resultado.receta_id));
-                            }
-                            // Sin red: la versión queda en la cola con su mismo id
-                            Err(causa)
-                                if crate::red::sin_conexion(&causa)
-                                    && crate::local::encolar(
-                                        &sesion,
-                                        &mut pendientes,
-                                        crate::local::Cambio::Version(datos),
-                                    ) =>
-                            {
-                                aviso.set(Some(
-                                    crate::i18n::ahora(Texto::VersionSinConexion).to_string(),
-                                ));
-                            }
-                            Err(causa) => {
-                                aviso.set(Some(crate::i18n::con(
-                                    crate::i18n::actual(),
-                                    Texto::NoSeGuardoVersion,
-                                    &[&crate::red::mensaje(&causa)],
-                                )));
-                            }
-                        }
-
-                        guardando.set(false);
-                    });
-                },
+                onclick: move |_| guardar_version.call(false),
                 if *guardando.read() {
                     {crate::i18n::ahora(Texto::Guardando)}
                 } else {
                     {crate::i18n::ahora(Texto::GuardarVersionPrivada)}
+                }
+            }
+
+            // La misma versión, publicada en La Barra al terminar de guardarla
+            button {
+                class: "chip chip--activo",
+                r#type: "button",
+                disabled: *guardando.read(),
+                onclick: move |_| guardar_version.call(true),
+                if *guardando.read() {
+                    {crate::i18n::ahora(Texto::Guardando)}
+                } else {
+                    {crate::i18n::ahora(Texto::GuardarYPublicar)}
                 }
             }
 
@@ -226,5 +247,23 @@ pub(super) fn Acciones(
                 "{mensaje}"
             }
         }
+    }
+}
+
+/// Publica una versión recién guardada y devuelve el aviso que se muestra.
+async fn publicar_version(token: &str, receta_id: &str) -> String {
+    match crate::red::con_plazo(api::foro::publicar(
+        token.to_string(),
+        receta_id.to_string(),
+        true,
+    ))
+    .await
+    {
+        Ok(_) => crate::i18n::ahora(Texto::VersionGuardadaYPublicada).to_string(),
+        Err(causa) => crate::i18n::con(
+            crate::i18n::actual(),
+            Texto::VersionGuardadaSinPublicar,
+            &[&crate::red::mensaje(&causa)],
+        ),
     }
 }

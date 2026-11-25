@@ -309,6 +309,89 @@ fn TarjetaPropia(receta: RecetaPropia, al_cambiar: EventHandler<()>) -> Element 
                     al_cambiar,
                 }
             }
+
+            BotonEliminar {
+                receta_id: resumen.id.clone(),
+                nombre: resumen.receta.nombre.clone(),
+                al_cambiar,
+            }
+        }
+    }
+}
+
+/// Botón para borrar una receta propia, con confirmación en la misma tarjeta.
+///
+/// El servidor decide si se puede: una receta publicada con comentarios o con versiones
+/// derivadas se conserva, y el motivo que devuelve se muestra aquí.
+#[component]
+fn BotonEliminar(receta_id: String, nombre: String, al_cambiar: EventHandler<()>) -> Element {
+    let sesion = use_context::<crate::sesion::SenalSesion>(); // Token para borrar
+    let mut confirmando = use_signal(|| false); // Pide confirmación antes de borrar
+    let mut enviando = use_signal(|| false); // Petición en curso
+    let mut aviso = use_signal(|| None::<String>); // Resultado visible
+
+    rsx! {
+        div { class: "propia-acciones",
+            if confirmando() {
+                p { class: "propia-confirmar", "{crate::i18n::con(crate::i18n::actual(), Texto::ConfirmarEliminar, &[&nombre])}" }
+
+                button {
+                    class: "chip chip--peligro",
+                    r#type: "button",
+                    disabled: enviando(),
+                    onclick: move |_| {
+                        let Some(token) = crate::sesion::token(&sesion) else {
+                            aviso.set(Some(crate::i18n::ahora(Texto::VuelveAEntrarEliminar).to_string()));
+                            return;
+                        };
+                        if enviando() {
+                            return;
+                        }
+
+                        let id = receta_id.clone();
+                        enviando.set(true);
+                        aviso.set(None);
+
+                        spawn(async move {
+                            match crate::red::con_plazo(api::recetario::eliminar_receta(token, id)).await {
+                                Ok(()) => {
+                                    confirmando.set(false);
+                                    al_cambiar.call(()); // La lista se recarga sin la receta
+                                }
+                                Err(causa) => aviso.set(Some(crate::i18n::con(
+                                    crate::i18n::actual(),
+                                    Texto::NoSePudoEliminar,
+                                    &[&crate::red::mensaje(&causa)],
+                                ))),
+                            }
+                            enviando.set(false);
+                        });
+                    },
+                    if enviando() { "{crate::i18n::ahora(Texto::Eliminando)}" } else { "{crate::i18n::ahora(Texto::SiEliminar)}" }
+                }
+
+                button {
+                    class: "chip",
+                    r#type: "button",
+                    disabled: enviando(),
+                    onclick: move |_| {
+                        confirmando.set(false);
+                        aviso.set(None);
+                    },
+                    "{crate::i18n::ahora(Texto::Cancelar)}"
+                }
+            } else {
+                button {
+                    class: "chip chip--peligro",
+                    r#type: "button",
+                    onclick: move |_| confirmando.set(true),
+                    "{crate::i18n::ahora(Texto::EliminarReceta)}"
+                }
+            }
+
+            if let Some(texto) = aviso() {
+                p { class: "barra-aviso", role: "status", "{texto}" }
+            }
         }
     }
 }
