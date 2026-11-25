@@ -1,10 +1,19 @@
 [application]
 name = "Ratio"
 default_platform = "mobile"
+# Manifiesto y Activity propios: añaden el servicio de FCM y la inicialización de Firebase.
+# `dx` los copia en cada compilación, así que no hay que parchear el proyecto generado.
+android_manifest = "android/AndroidManifest.xml"
+android_main_activity = "android/MainActivity.kt"
 
 [bundle]
 identifier = "com.ratio.app"
 publisher = "Ratio"
+
+# Dependencia de FCM para el cliente Android. El plugin de Gradle de Google no se usa:
+# Firebase se inicializa a mano en MainActivity.kt con los valores de google-services.json.
+[android]
+gradle_dependencies = ["com.google.firebase:firebase-messaging:24.1.0"]
 
 [ios.plist.UIApplicationSceneManifest]
 UIApplicationSupportsMultipleScenes = false

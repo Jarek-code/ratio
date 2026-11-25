@@ -24,6 +24,7 @@ mod mis_recetas;
 mod moderacion;
 mod perfil;
 mod preparar;
+mod push;
 mod red;
 mod reportar;
 mod rutas;
@@ -59,6 +60,8 @@ fn App() -> Element {
     // Las novedades sin leer de La Barra se consultan cada minuto
     let no_leidas = use_context_provider(|| actividad::NoLeidas(Signal::new(0_u32)));
     use_future(move || actividad::vigilar(sesion, no_leidas));
+    // El token push del aparato se registra cuando hay sesión (Android)
+    use_future(move || push::registrar(sesion));
     // Unidad, tema y bienvenida, leídas del archivo de ajustes
     let ajustes = use_context_provider(|| Signal::new(ajustes::cargar()));
     let tema = ajustes.read().tema;

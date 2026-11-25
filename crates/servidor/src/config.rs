@@ -14,6 +14,11 @@ pub struct Config {
     pub supabase_url: Option<String>,
     /// Clave pública de Supabase (la `anon`), que viaja en la cabecera `apikey`.
     pub supabase_anon: Option<String>,
+    /// Credenciales de la cuenta de servicio de FCM, ya leídas: el JSON completo o la ruta.
+    ///
+    /// Se acepta `FCM_CREDENTIALS_JSON` (contenido) o `FCM_CREDENTIALS` (ruta al archivo). En
+    /// ningún caso se registra: solo se pasa a `api::push::configurar`.
+    pub fcm_credenciales: Option<String>,
 }
 
 impl Config {
@@ -46,10 +51,23 @@ impl Config {
             .ok()
             .filter(|v| !v.trim().is_empty());
 
+        // Credenciales push: el JSON inline manda; si no, se lee el archivo indicado. Un archivo
+        // ilegible no detiene el arranque: el servidor sigue sin push y lo anota el binario.
+        let fcm_credenciales = std::env::var("FCM_CREDENTIALS_JSON")
+            .ok()
+            .filter(|v| !v.trim().is_empty())
+            .or_else(|| {
+                std::env::var("FCM_CREDENTIALS")
+                    .ok()
+                    .filter(|v| !v.trim().is_empty())
+                    .and_then(|ruta| std::fs::read_to_string(ruta).ok())
+            });
+
         Ok(Self {
             database_url,
             supabase_url,
             supabase_anon,
+            fcm_credenciales,
             migrar: std::env::var("MIGRACIONES_AL_ARRANCAR")
                 .map(|v| {
                     matches!(

@@ -473,6 +473,7 @@ pub async fn moderar(
     }
     avisados_vec.sort_unstable();
     avisados_vec.dedup();
+    let mut push_para: Vec<String> = Vec::new();
     for para in avisados_vec
         .into_iter()
         .filter_map(|cuenta| destinatario(cuenta, &sesion.usuario_id))
@@ -488,9 +489,15 @@ pub async fn moderar(
             },
         )
         .await?;
+        push_para.push(para.to_string());
     }
 
     tx.commit().con_plazo("la decisión").await?;
+
+    // Los push van después del commit: si la decisión se deshace, no se avisa
+    for para in push_para {
+        crate::push::avisar(para, "reporte_resuelto", receta_id.clone());
+    }
 
     Ok(())
 }

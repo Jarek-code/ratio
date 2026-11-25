@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "950023410890",
+    "project_id": "ratio-820b6",
+    "storage_bucket": "ratio-820b6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:950023410890:android:29f84b2fdc81d5345b9033",
+        "android_client_info": {
+          "package_name": "com.ratio.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAs4R4HPpF0Kr03yORo2HwoTEcC89sgqBA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
