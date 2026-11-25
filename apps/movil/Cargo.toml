@@ -1,12 +1,12 @@
 [package]
-name = "movil"
+name = "ratio"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "Aplicación móvil de Ratio"
 
 [[bin]]
-name = "movil"
+name = "ratio"
 path = "src/main.rs"
 
 [dependencies]

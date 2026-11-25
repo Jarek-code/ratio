@@ -64,3 +64,28 @@ El cliente se compila desde `apps/movil` con la CLI de Dioxus:
 dx serve --platform android
 dx bundle --platform android --release
 ```
+
+### APK para un teléfono real
+
+El APK se genera para **arm64-v8a**, que cubre los teléfonos Android actuales. El guion
+`apps/movil/android-apk.sh` prepara el entorno (SDK, NDK, Gradle dentro de `target/`), compila
+y deja el archivo en `target/ratio-android.apk`:
+
+```
+./apps/movil/android-apk.sh              # genera el APK
+./apps/movil/android-apk.sh --instalar   # además lo instala con adb
+```
+
+Antes de la primera compilación hacen falta tres cosas:
+
+```
+sdkmanager "ndk;30.0.16248370"          # NDK del SDK de Android
+rustup target add aarch64-linux-android # objetivo de Rust para Android
+# JDK 17, que es el que exige Gradle
+```
+
+El APK sale firmado con la clave de depuración de Android, así que se instala en cualquier
+teléfono permitiendo «instalar aplicaciones de origen desconocido». La aplicación apunta al
+servidor desplegado en Render; para usar otro servidor se compila con
+`RATIO_SERVIDOR=https://<otro> dx build …`, o se cambia `SERVIDOR_POR_DEFECTO` en
+`apps/movil/src/main.rs`.
