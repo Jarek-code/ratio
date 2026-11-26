@@ -706,5 +706,15 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::IniciaSesionIngrediente => "Inicia sesión para agregar un ingrediente.",
         Texto::RecetaActualizada => "Cambios guardados.",
         Texto::GuardarCambios => "Guardar cambios",
+        Texto::Cuenta => "Cuenta",
+        Texto::CuentaNota => {
+            "El alias es el nombre que se ve en La Barra; la edad habilita las recetas con alcohol."
+        }
+        Texto::CuentaSinSesion => "Entra para ver y cambiar tu cuenta.",
+        Texto::Alias => "Alias",
+        Texto::MayorDeEdadCuenta => "Soy mayor de edad",
+        Texto::CuentaGuardada => "Cuenta actualizada.",
+        Texto::NoSeGuardoCuenta => "No se pudo guardar la cuenta: {0}",
+        Texto::IniciaSesionCuenta => "Vuelve a entrar para cambiar tu cuenta.",
     }
 }

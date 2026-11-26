@@ -628,5 +628,13 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::IniciaSesionIngrediente => "登录后即可添加配料。",
         Texto::RecetaActualizada => "更改已保存。",
         Texto::GuardarCambios => "保存更改",
+        Texto::Cuenta => "账户",
+        Texto::CuentaNota => "别名是在 La Barra 显示的名字；年龄用于解锁含酒精配方。",
+        Texto::CuentaSinSesion => "登录后即可查看和修改账户。",
+        Texto::Alias => "别名",
+        Texto::MayorDeEdadCuenta => "我已达到法定饮酒年龄",
+        Texto::CuentaGuardada => "账户已更新。",
+        Texto::NoSeGuardoCuenta => "无法保存账户：{0}",
+        Texto::IniciaSesionCuenta => "请重新登录后再修改账户。",
     }
 }

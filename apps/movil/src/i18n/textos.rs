@@ -650,8 +650,6 @@ pub enum Texto {
     OcultarContrasena,
     /// Ver
     MostrarContrasena,
-    /// Alias
-    Alias,
     /// Como te verán en La Barra
     PlaceholderAlias,
     /// Tengo 18 años o más y quiero ver recetas con alcohol.
@@ -1208,4 +1206,20 @@ pub enum Texto {
     RecetaActualizada,
     /// Guardar cambios
     GuardarCambios,
+    /// Cuenta
+    Cuenta,
+    /// El alias es el nombre que se ve en La Barra; la edad habilita las recetas con alcohol.
+    CuentaNota,
+    /// Entra para ver y cambiar tu cuenta.
+    CuentaSinSesion,
+    /// Alias
+    Alias,
+    /// Soy mayor de edad
+    MayorDeEdadCuenta,
+    /// Cuenta actualizada.
+    CuentaGuardada,
+    /// No se pudo guardar la cuenta: {0}
+    NoSeGuardoCuenta,
+    /// Vuelve a entrar para cambiar tu cuenta.
+    IniciaSesionCuenta,
 }

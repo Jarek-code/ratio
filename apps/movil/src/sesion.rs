@@ -31,6 +31,41 @@ pub fn token(sesion: &SenalSesion) -> Option<String> {
         .map(|guardada| guardada.token.clone())
 }
 
+/// Alias de la sesión actual, si la hay.
+pub fn alias(sesion: &SenalSesion) -> Option<String> {
+    sesion
+        .read()
+        .as_ref()
+        .map(|guardada| guardada.perfil.alias.clone())
+}
+
+/// Si la cuenta declaró mayoría de edad.
+pub fn es_adulto(sesion: &SenalSesion) -> bool {
+    sesion
+        .read()
+        .as_ref()
+        .map(|guardada| guardada.perfil.mayor_de_edad)
+        .unwrap_or(false)
+}
+
+/// Cambia el alias y la declaración de edad de la sesión guardada.
+///
+/// Se usa después de que el servidor acepte el cambio, para que la interfaz muestre el alias
+/// nuevo sin volver a entrar.
+pub fn renombrar(sesion: &mut SenalSesion, nuevo_alias: &str, mayor_de_edad: bool) {
+    let actualizada = sesion.read().as_ref().map(|guardada| {
+        let mut copia = guardada.clone();
+        copia.perfil.alias = nuevo_alias.to_string();
+        copia.perfil.mayor_de_edad = mayor_de_edad;
+        copia
+    });
+
+    if let Some(copia) = actualizada {
+        sesion.set(Some(copia.clone()));
+        guardar(&copia);
+    }
+}
+
 /// Cuenta (`usuario_id`) de la sesión actual, si la hay.
 pub fn cuenta(sesion: &SenalSesion) -> Option<String> {
     sesion

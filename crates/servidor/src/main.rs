@@ -75,6 +75,7 @@ fn enlazar_contratos() {
         api::notificaciones::marcar_leidas,
         api::notificaciones::no_leidas,
         api::perfil::perfil,
+        api::perfil::actualizar_cuenta,
         api::perfil::seguir,
         api::push::baja_dispositivo,
         api::push::registrar_dispositivo,

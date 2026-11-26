@@ -159,3 +159,77 @@ pub async fn seguir(token: String, alias: String, sigue: bool) -> Result<bool, S
 
     Ok(sigue) // Estado final del seguimiento
 }
+
+/// Datos de la cuenta que la persona puede cambiar desde Ajustes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CuentaPropia {
+    /// Alias visible en La Barra.
+    pub alias: String,
+    /// Si declaró mayoría de edad (habilita el contenido con alcohol).
+    pub mayor_de_edad: bool,
+}
+
+/// Cambia el alias y la declaración de edad de la cuenta.
+///
+/// # Errores
+///
+/// Devuelve `ServerFnError` si no hay sesión, si el alias no es válido o si ya lo usa otra
+/// cuenta.
+#[server(endpoint = "actualizar_cuenta")]
+pub async fn actualizar_cuenta(
+    token: String,
+    datos: CuentaPropia,
+) -> Result<CuentaPropia, ServerFnError> {
+    let pool = crate::base::pool()?;
+    let cuenta = crate::auth::cuenta(Some(&token))
+        .await
+        .ok_or_else(|| crate::fallos::sesion("Inicia sesión para cambiar tu cuenta."))?;
+
+    let alias = datos.alias.trim().trim_start_matches('@');
+    if alias.chars().count() < 2 || alias.chars().count() > 32 {
+        return Err(crate::fallos::datos(
+            "El alias debe tener entre 2 y 32 caracteres.",
+        ));
+    }
+
+    let ocupado = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM usuario WHERE lower(alias) = lower($1) AND id <> $2::uuid)",
+    )
+    .bind(alias)
+    .bind(&cuenta)
+    .fetch_one(pool)
+    .con_plazo("el alias")
+    .await?;
+
+    if ocupado {
+        return Err(crate::fallos::datos("Ese alias ya lo usa otra cuenta."));
+    }
+
+    let fila = sqlx::query_as::<_, (String, bool)>(
+        r#"
+        UPDATE usuario
+        SET alias = $2, mayor_de_edad = $3
+        WHERE id = $1::uuid
+        RETURNING alias, mayor_de_edad
+        "#,
+    )
+    .bind(&cuenta)
+    .bind(alias)
+    .bind(datos.mayor_de_edad)
+    .fetch_optional(pool)
+    .con_plazo("la cuenta")
+    .await
+    .map_err(|causa| {
+        dioxus::logger::tracing::error!("no se pudo actualizar la cuenta: {causa}");
+
+        crate::fallos::reintento("No se pudo guardar la cuenta. Vuelve a intentarlo.")
+    })?;
+
+    let (alias, mayor_de_edad) =
+        fila.ok_or_else(|| crate::fallos::no_encontrado("Tu cuenta ya no existe."))?;
+
+    Ok(CuentaPropia {
+        alias,
+        mayor_de_edad,
+    })
+}

@@ -7,9 +7,10 @@
 // LIBRERÍAS
 
 use crate::i18n::Idioma; // Idioma de la interfaz
-use crate::i18n::Texto; // Texto traducible
+use crate::i18n::Texto;
 use crate::i18n::con; // Texto con huecos rellenos
 use crate::i18n::t; // Texto en el idioma elegido
+use crate::rutas::Rutas; // Texto traducible
 use dioxus::prelude::*; // Componentes, señales y contexto
 use proporciones::Equivalencia; // Cantidad de una capa en todas las unidades
 use serde::Deserialize; // Lectura de los ajustes guardados
@@ -368,7 +369,119 @@ pub fn PantallaAjustes() -> Element {
             }
         }
 
+        SeccionCuenta {}
+
         BarraInferior { activo: Destino::Perfil }
+    }
+}
+
+/// Cuenta: alias, declaración de edad y cierre de sesión.
+#[component]
+fn SeccionCuenta() -> Element {
+    let sesion = use_context::<crate::sesion::SenalSesion>();
+    let mut ajustes = use_context::<SenalAjustes>();
+    let navegador = navigator();
+    let idioma = ajustes().idioma;
+
+    // El alias se propone con lo que ya tiene la sesión guardada
+    let alias_guardado = crate::sesion::alias(&sesion).unwrap_or_default();
+    let mut alias = use_signal(|| alias_guardado.clone());
+    let mut adulto = use_signal(|| crate::sesion::es_adulto(&sesion));
+    let mut guardando = use_signal(|| false);
+    let mut aviso = use_signal(|| None::<String>);
+
+    // Sin sesión no hay cuenta que editar
+    if sesion.read().is_none() {
+        return rsx! {
+            section { class: "seccion",
+                p { class: "eyebrow", "{t(idioma, Texto::Cuenta)}" }
+                p { class: "nota", "{t(idioma, Texto::CuentaSinSesion)}" }
+                Link { to: Rutas::Entrar, class: "primario", "{t(idioma, Texto::Entrar)}" }
+            }
+        };
+    }
+
+    rsx! {
+        section { class: "seccion", "aria-labelledby": "titulo-cuenta",
+            p { id: "titulo-cuenta", class: "eyebrow", "{t(idioma, Texto::Cuenta)}" }
+            p { class: "nota", "{t(idioma, Texto::CuentaNota)}" }
+
+            label { class: "ajustar-nombre", r#for: "cuenta-alias",
+                span { "{t(idioma, Texto::Alias)}" }
+                input {
+                    id: "cuenta-alias",
+                    class: "ajustar-select",
+                    r#type: "text",
+                    maxlength: "32",
+                    value: "{alias}",
+                    oninput: move |evento| alias.set(evento.value()),
+                }
+            }
+
+            label { class: "chip",
+                input {
+                    r#type: "checkbox",
+                    checked: adulto(),
+                    onchange: move |evento| adulto.set(evento.checked()),
+                }
+                span { "{t(idioma, Texto::MayorDeEdadCuenta)}" }
+            }
+
+            div { class: "ajustar-acciones",
+                button {
+                    class: "primario",
+                    r#type: "button",
+                    disabled: guardando(),
+                    onclick: move |_| {
+                        let Some(token) = crate::sesion::token(&sesion) else {
+                            aviso.set(Some(crate::i18n::ahora(Texto::IniciaSesionCuenta).to_string()));
+                            return;
+                        };
+                        if guardando() {
+                            return;
+                        }
+
+                        let datos = api::perfil::CuentaPropia {
+                            alias: alias.read().clone(),
+                            mayor_de_edad: adulto(),
+                        };
+
+                        guardando.set(true);
+                        aviso.set(None);
+
+                        spawn(async move {
+                            match crate::red::con_plazo(api::perfil::actualizar_cuenta(token, datos)).await {
+                                Ok(cuenta) => {
+                                    crate::sesion::renombrar(&mut sesion.clone(), &cuenta.alias, cuenta.mayor_de_edad);
+                                    aviso.set(Some(crate::i18n::ahora(Texto::CuentaGuardada).to_string()));
+                                }
+                                Err(causa) => aviso.set(Some(crate::i18n::con(
+                                    crate::i18n::actual(),
+                                    Texto::NoSeGuardoCuenta,
+                                    &[&crate::red::mensaje(&causa)],
+                                ))),
+                            }
+                            guardando.set(false);
+                        });
+                    },
+                    if guardando() { "{t(idioma, Texto::Guardando)}" } else { "{t(idioma, Texto::GuardarCambios)}" }
+                }
+
+                button {
+                    class: "chip",
+                    r#type: "button",
+                    onclick: move |_| {
+                        crate::sesion::salir(&mut sesion.clone());
+                        navegador.push(Rutas::Entrar);
+                    },
+                    "{t(idioma, Texto::Salir)}"
+                }
+            }
+
+            if let Some(texto) = aviso() {
+                p { class: "ajustar-aviso", role: "status", "{texto}" }
+            }
+        }
     }
 }
 

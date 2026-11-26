@@ -694,5 +694,15 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::IniciaSesionIngrediente => "Sign in to add an ingredient.",
         Texto::RecetaActualizada => "Changes saved.",
         Texto::GuardarCambios => "Save changes",
+        Texto::Cuenta => "Account",
+        Texto::CuentaNota => {
+            "The alias is the name shown in La Barra; the age unlocks recipes with alcohol."
+        }
+        Texto::CuentaSinSesion => "Sign in to see and change your account.",
+        Texto::Alias => "Alias",
+        Texto::MayorDeEdadCuenta => "I am of legal drinking age",
+        Texto::CuentaGuardada => "Account updated.",
+        Texto::NoSeGuardoCuenta => "Could not save the account: {0}",
+        Texto::IniciaSesionCuenta => "Sign in again to change your account.",
     }
 }
