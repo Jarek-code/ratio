@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["apps/movil", "crates/api", "crates/proporciones", "crates/servidor"]
+members = [
+    "apps/movil",
+    "crates/api",
+    "crates/proporciones",
+    "crates/servidor",
+    "xtask",
+]
 
 [workspace.package]
 version = "0.1.0"
