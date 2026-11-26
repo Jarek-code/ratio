@@ -379,7 +379,7 @@ pub fn PantallaAjustes() -> Element {
 #[component]
 fn SeccionCuenta() -> Element {
     let sesion = use_context::<crate::sesion::SenalSesion>();
-    let mut ajustes = use_context::<SenalAjustes>();
+    let ajustes = use_context::<SenalAjustes>();
     let navegador = navigator();
     let idioma = ajustes().idioma;
 

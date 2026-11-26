@@ -699,7 +699,6 @@ pub(super) fn texto(texto: Texto) -> &'static str {
             "The alias is the name shown in La Barra; the age unlocks recipes with alcohol."
         }
         Texto::CuentaSinSesion => "Sign in to see and change your account.",
-        Texto::Alias => "Alias",
         Texto::MayorDeEdadCuenta => "I am of legal drinking age",
         Texto::CuentaGuardada => "Account updated.",
         Texto::NoSeGuardoCuenta => "Could not save the account: {0}",

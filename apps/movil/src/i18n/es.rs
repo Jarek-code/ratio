@@ -711,7 +711,6 @@ pub(super) fn texto(texto: Texto) -> &'static str {
             "El alias es el nombre que se ve en La Barra; la edad habilita las recetas con alcohol."
         }
         Texto::CuentaSinSesion => "Entra para ver y cambiar tu cuenta.",
-        Texto::Alias => "Alias",
         Texto::MayorDeEdadCuenta => "Soy mayor de edad",
         Texto::CuentaGuardada => "Cuenta actualizada.",
         Texto::NoSeGuardoCuenta => "No se pudo guardar la cuenta: {0}",
