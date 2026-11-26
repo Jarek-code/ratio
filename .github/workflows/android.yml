@@ -1,0 +1,187 @@
+name: APK de Android
+
+# Se puede lanzar a mano (Actions → APK de Android → Run workflow) o al empujar una etiqueta
+# `v*`, que además publica el APK como release descargable.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Publicar el APK como release (necesita la etiqueta de la versión)"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+# El token del repositorio necesita permiso de escritura para crear el release
+permissions:
+  contents: write
+
+env:
+  # Versión del NDK y del CLI de Dioxus; deben coincidir con el proyecto
+  NDK_VERSION: "30.0.16248370"
+  DIOXUS_CLI: "0.7.10"
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: "true"
+
+jobs:
+  apk:
+    name: Compilar y firmar el APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Traer el repositorio
+        uses: actions/checkout@v4
+
+      # Java 17 es lo que pide el Gradle que genera `dx`
+      - name: Preparar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Preparar Rust con los objetivos de Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      # El NDK viene en el SDK de Android; se instala solo el que usa el proyecto
+      - name: Preparar el SDK y el NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "ndk;${{ env.NDK_VERSION }} build-tools;34.0.0 platform-tools"
+
+      - name: Guardar la caché de Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: android-${{ env.DIOXUS_CLI }}
+
+      # `dx` compila el cliente y arma el proyecto de Gradle
+      - name: Instalar el CLI de Dioxus
+        run: |
+          if ! command -v dx >/dev/null; then
+            cargo install dioxus-cli --version "$DIOXUS_CLI" --locked
+          fi
+          dx --version
+
+      # El proyecto parchea manganis para poder compilar a 32 bits (DioxusLabs/dioxus#5641)
+      - name: Compilar para 64 y 32 bits
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/$NDK_VERSION"
+          export CC_armv7_linux_androideabi="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang"
+          export AR_armv7_linux_androideabi="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+
+          cd apps/movil
+          dx build --platform android --release --target aarch64-linux-android
+          dx build --platform android --release --target armv7-linux-androideabi
+
+      # El ícono se dibuja en el teléfono: se escala el cuadrado a las densidades del lanzador
+      - name: Escribir el ícono del lanzador
+        run: |
+          PROYECTO="$(find target/dx -maxdepth 5 -name gradlew -path '*/release/*' -printf '%h\n' | head -1)"
+          RES="$PROYECTO/app/src/main/res"
+          echo "recursos: $RES"
+
+          for densidad in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            nombre="${densidad%%:*}"
+            lado="${densidad##*:}"
+            carpeta="$RES/mipmap-$nombre"
+            mkdir -p "$carpeta"
+            rm -f "$carpeta/ic_launcher.webp"
+            if command -v magick >/dev/null; then
+              magick apps/movil/icono-cuadrado.png -resize "${lado}x${lado}" "$carpeta/ic_launcher.png"
+            else
+              convert apps/movil/icono-cuadrado.png -resize "${lado}x${lado}" "$carpeta/ic_launcher.png"
+            fi
+          done
+
+          # El ícono adaptativo de la plantilla tiene prioridad en Android 8+
+          rm -f "$RES"/mipmap-anydpi-v26/ic_launcher*.xml
+          rm -f "$RES"/drawable/ic_launcher*.xml
+          rm -f "$RES"/drawable-v24/ic_launcher*.xml
+
+      # Se desactiva R8: renombraría clases que el lado nativo y Firebase usan por nombre
+      - name: Ajustar la variante de release
+        run: |
+          PROYECTO="$(find target/dx -maxdepth 5 -name gradlew -path '*/release/*' -printf '%h\n' | head -1)"
+          sed -i -E 's/(getByName\("release"\)[[:space:]]*\{[[:space:]]*isMinifyEnabled = )true/\1false/' \
+            "$PROYECTO/app/build.gradle.kts"
+
+          # versionCode a partir de la versión (0.2.0 → 200) para poder instalar encima
+          VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' apps/movil/Cargo.toml | head -1)"
+          MAYOR="$(echo "$VERSION" | cut -d. -f1)"
+          MENOR="$(echo "$VERSION" | cut -d. -f2)"
+          PARCHE="$(echo "$VERSION" | cut -d. -f3)"
+          CODIGO=$(( MAYOR * 10000 + MENOR * 100 + PARCHE ))
+          sed -i -E "s/versionCode = [0-9]+/versionCode = $CODIGO/" "$PROYECTO/app/build.gradle.kts"
+          echo "versión $VERSION, versionCode $CODIGO"
+          echo "PROYECTO=$PROYECTO" >> "$GITHUB_ENV"
+
+      - name: Armar el APK
+        run: |
+          cd "$PROYECTO"
+          ./gradlew --no-daemon :app:assembleRelease
+
+      # Se firma con la clave del proyecto si está en los secretos; si no, con la de depuración
+      - name: Firmar el APK
+        env:
+          CLAVE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          CLAVE_CLAVE: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CLAVE_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          LIBRE="$PROYECTO/app/build/outputs/apk/release/app-release-unsigned.apk"
+          BT="$ANDROID_SDK_ROOT/build-tools/34.0.0"
+          SALIDA="Ratio-$(sed -n 's/^version = "\(.*\)"/\1/p' apps/movil/Cargo.toml | head -1)-android.apk"
+
+          if [ -n "$CLAVE_B64" ]; then
+            echo "Firmando con la clave del proyecto"
+            echo "$CLAVE_B64" | base64 -d > /tmp/ratio-release.jks
+            CLAVE=/tmp/ratio-release.jks
+            CLAVE_PASS="$CLAVE_CLAVE"
+            ALIAS="$CLAVE_ALIAS"
+          else
+            echo "::warning::Sin ANDROID_KEYSTORE_B64: se firma con la clave de depuración"
+            keytool -genkeypair -keystore /tmp/debug.jks -alias ratio -keyalg RSA -keysize 2048 \
+              -validity 10000 -storepass ratiodebug -keypass ratiodebug \
+              -dname "CN=Ratio Debug, O=Ratio, C=MX"
+            CLAVE=/tmp/debug.jks
+            CLAVE_PASS=ratiodebug
+            ALIAS=ratio
+          fi
+
+          "$BT/zipalign" -f -p 4 "$LIBRE" /tmp/alineado.apk
+          "$BT/apksigner" sign --ks "$CLAVE" --ks-pass "pass:$CLAVE_PASS" \
+            --key-pass "pass:$CLAVE_PASS" --ks-key-alias "$ALIAS" \
+            --out "$SALIDA" /tmp/alineado.apk
+          "$BT/apksigner" verify --print-certs "$SALIDA"
+
+          echo "APK=$SALIDA" >> "$GITHUB_ENV"
+          ls -lh "$SALIDA"
+
+      # Queda descargable en la pestaña Actions de cada ejecución
+      - name: Guardar el APK como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: ratio-apk
+          path: ${{ env.APK }}
+          if-no-files-found: error
+
+      # Con una etiqueta `v*` (o pidiéndolo a mano) se publica como release
+      - name: Publicar el release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publicar
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APK }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', github.run_number) }}
+          name: Ratio ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', github.run_number) }}
+          body: |
+            APK de Ratio para Android.
+
+            - Arquitecturas: arm64-v8a y armeabi-v7a
+            - Android 7.0 o posterior
+            - Instalación: abrir el archivo en el teléfono y permitir el origen desconocido
+
+            El servidor debe estar desplegado; la app apunta a él.
+          draft: false
+          prerelease: false
