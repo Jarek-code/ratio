@@ -247,6 +247,13 @@ async fn galeria_del_sistema() -> Result<Option<(Vec<u8>, String)>, String> {
     #[cfg(target_os = "ios")]
     {
         let foto = crate::selector_ios::elegir_de_galeria().await?;
+        // Mismo límite que el selector de Android: el bucket rechaza lo que pase de 5 MB
+        if foto
+            .as_ref()
+            .is_some_and(|bytes| bytes.len() as u64 > BYTES_MAXIMOS)
+        {
+            return Err({ crate::i18n::ahora(Texto::FotoPesaDemasiado) }.to_string());
+        }
         Ok(foto.map(|bytes| (bytes, "image/jpeg".to_string()))) // La galería entrega JPEG
     }
 
@@ -426,11 +433,27 @@ pub fn BotonFoto(
             {
                 class: "chip chip--enlace foto-subir",
                 r#type: "button",
-                disabled: ocupado,
+                disabled: ocupado || esperando(),
                 onclick: move |_| {
-                    spawn(async move { al_elegir.call(galeria_del_sistema().await) });
+                    esperando.set(true);
+                    spawn(async move {
+                        let elegida = galeria_del_sistema().await;
+                        esperando.set(false);
+                        al_elegir.call(elegida);
+                    });
                 },
-                if ocupado { "{crate::i18n::ahora(Texto::SubiendoFoto)}" } else { "{etiqueta}" }
+                if ocupado
+                {
+                    {crate::i18n::ahora(Texto::SubiendoFoto)}
+                }
+                else if esperando()
+                {
+                    {crate::i18n::ahora(Texto::AbriendoElSelector)}
+                }
+                else
+                {
+                    "{etiqueta}"
+                }
             }
         }
         else
