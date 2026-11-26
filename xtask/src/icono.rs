@@ -15,7 +15,7 @@ const FONDO: &str = "#B9633B";
 /// Exponente de la superelipse: 4 da el cuadrado redondeado continuo.
 const EXPONENTE: f64 = 4.0;
 /// Densidades del lanzador y su lado en píxeles.
-const DENSIDADES: [(&str, u32); 5] = [
+pub const DENSIDADES: [(&str, u32); 5] = [
     ("mdpi", 48),
     ("hdpi", 72),
     ("xhdpi", 96),

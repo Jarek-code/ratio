@@ -6,6 +6,8 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 
+use crate::icono::DENSIDADES;
+
 /// Arquitectura de los teléfonos actuales.
 const ABI_64: &str = "aarch64-linux-android";
 /// Arquitectura de los teléfonos y televisores de 32 bits.
@@ -69,16 +71,13 @@ pub fn compilar() -> Result<()> {
     numero_de_version(&proyecto, &movil)?;
 
     println!("Armando el APK…");
-    let gradle = Command::new("./gradlew")
-        .args(["--no-daemon", ":app:assembleRelease"])
-        .current_dir(&proyecto)
-        .output()
-        .context("no se pudo ejecutar Gradle")?;
-    anyhow::ensure!(
-        gradle.status.success(),
-        "Gradle falló: {}",
-        String::from_utf8_lossy(&gradle.stderr)
-    );
+    if let Err(causa) = armar(&proyecto) {
+        // `dx` vuelve a escribir su ícono de plantilla en cada compilación: si apareció
+        // junto al nuestro, Gradle ve dos recursos con el mismo nombre. Se retira y se repite.
+        println!("Gradle se quejó ({causa}); se retira el ícono de la plantilla y se repite");
+        quitar_plantilla(&res);
+        armar(&proyecto)?;
+    }
 
     let libre = proyecto.join("app/build/outputs/apk/release/app-release-unsigned.apk");
     anyhow::ensure!(libre.is_file(), "Gradle no dejó el APK sin firmar");
@@ -92,6 +91,34 @@ pub fn compilar() -> Result<()> {
     println!();
     println!("APK: {} ({tamaño} MB)", salida.display());
     Ok(())
+}
+
+/// Ejecuta Gradle para armar el APK de release.
+fn armar(proyecto: &Path) -> Result<()> {
+    let salida = Command::new("./gradlew")
+        .args(["--no-daemon", ":app:assembleRelease"])
+        .current_dir(proyecto)
+        .output()
+        .context("no se pudo ejecutar Gradle")?;
+
+    anyhow::ensure!(
+        salida.status.success(),
+        "{}",
+        String::from_utf8_lossy(&salida.stderr)
+            .lines()
+            .find(|linea| linea.contains("What went wrong") || linea.contains("Error:"))
+            .unwrap_or("sin detalle")
+    );
+
+    Ok(())
+}
+
+/// Borra el ícono de la plantilla de `dx` de todas las densidades.
+fn quitar_plantilla(res: &Path) {
+    for (nombre, _) in DENSIDADES {
+        let _ = std::fs::remove_file(res.join(format!("mipmap-{nombre}/ic_launcher.webp")));
+        let _ = std::fs::remove_file(res.join(format!("mipmap-{nombre}/ic_launcher.png")));
+    }
 }
 
 /// Firma el APK con la clave del proyecto, creándola si es la primera vez.
@@ -234,7 +261,7 @@ fn limpiar(raiz: &Path) {
 /// Archivos de un directorio hasta cinco niveles, sin seguir enlaces.
 fn walkdir(ruta: &Path, nivel: usize) -> Vec<PathBuf> {
     let mut encontrados = Vec::new();
-    if nivel > 5 {
+    if nivel > 12 {
         return encontrados;
     }
     let Ok(entradas) = std::fs::read_dir(ruta) else {
