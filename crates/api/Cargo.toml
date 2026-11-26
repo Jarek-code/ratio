@@ -13,7 +13,8 @@ serde = { workspace = true }
 # Solo en el servidor: el cliente no enlaza nada de esto.
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
-reqwest = { workspace = true, optional = true }
+# http2: APNs (push de iOS) no acepta HTTP/1
+reqwest = { workspace = true, optional = true, features = ["http2"] }
 serde_json = { workspace = true, optional = true }
 jsonwebtoken = { workspace = true, optional = true }
 

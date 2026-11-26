@@ -117,7 +117,7 @@ async fn registrar_peticion(
     respuesta
 }
 
-/// Instala las credenciales de FCM si el entorno las trae. Sin ellas el servidor arranca igual:
+/// Instala las credenciales de FCM y de APNs si el entorno las trae. Sin ellas el servidor arranca igual:
 /// solo deja de enviar push y lo anota.
 fn configurar_push(config: &config::Config) {
     match &config.fcm_credenciales {
@@ -126,6 +126,16 @@ fn configurar_push(config: &config::Config) {
             Err(motivo) => warn!("{motivo}: push disabled"),
         },
         None => warn!("no FCM credentials: push disabled"),
+    }
+
+    match &config.apns {
+        Some((p8, key_id, team_id, sandbox)) => {
+            match api::push::configurar_apns(p8, key_id, team_id, *sandbox) {
+                Ok(()) => info!("push configured (APNs, sandbox = {sandbox})"),
+                Err(motivo) => warn!("{motivo}: iOS push disabled"),
+            }
+        }
+        None => warn!("no APNs key: iOS push disabled"),
     }
 }
 

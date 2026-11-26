@@ -1,4 +1,5 @@
-//! Token push del aparato: Android lo deja en un archivo y aquí se registra en el servidor.
+//! Token push del aparato: Android (y `push_ios` en iOS) lo deja en un archivo y aquí se
+//! registra en el servidor.
 //!
 //! El servicio de FCM corre fuera del runtime de Rust (incluso con la app cerrada), así que
 //! no puede llamar a una server function. Guarda el token en la carpeta privada y esta tarea,
@@ -12,17 +13,17 @@ use crate::sesion::SenalSesion;
 /// Cada cuánto se revisa si hay token o sesión nuevos, en segundos.
 const REVISAR_CADA: u64 = 15;
 
-/// Archivo donde `MainActivity.kt` deja el token de FCM.
-#[cfg(target_os = "android")]
+/// Archivo donde `MainActivity.kt` deja el token de FCM (en iOS, `push_ios` el de APNs).
+#[cfg(any(target_os = "android", target_os = "ios"))]
 const ARCHIVO: &str = "push-token.txt";
 
-/// Archivo donde `MainActivity.kt` deja la ruta que abrió una notificación.
-#[cfg(target_os = "android")]
+/// Archivo donde `MainActivity.kt` (o `push_ios`) deja la ruta que abrió una notificación.
+#[cfg(any(target_os = "android", target_os = "ios"))]
 const ARCHIVO_RUTA: &str = "abrir-ruta.txt";
 
 /// Token push guardado por el lado nativo, si ya existe.
 ///
-/// Solo Android lo escribe; en iOS y escritorio no hay archivo y no se registra nada.
+/// Lo escriben Android e iOS; en escritorio no hay archivo y no se registra nada.
 pub fn token_push() -> Option<String> {
     let texto = std::fs::read_to_string(archivo()?).ok()?;
     let token = texto.trim();
@@ -31,26 +32,26 @@ pub fn token_push() -> Option<String> {
 }
 
 /// Ruta del archivo del token en la carpeta privada de la app.
-fn archivo() -> Option<PathBuf> {
-    #[cfg(target_os = "android")]
+pub(crate) fn archivo() -> Option<PathBuf> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         crate::sesion::carpeta_datos().map(|carpeta| carpeta.join(ARCHIVO))
     }
 
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         None // Sin push nativo todavía: no hay archivo que leer
     }
 }
 
 /// Ruta del archivo donde se deja el destino de una notificación tocada.
-fn archivo_ruta() -> Option<PathBuf> {
-    #[cfg(target_os = "android")]
+pub(crate) fn archivo_ruta() -> Option<PathBuf> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         crate::sesion::carpeta_datos().map(|carpeta| carpeta.join(ARCHIVO_RUTA))
     }
 
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         None
     }
@@ -76,9 +77,13 @@ pub fn tomar_atajo(sesion: &SenalSesion) -> bool {
     true
 }
 
-/// Plataforma que se declara al servidor. Solo se registra en Android.
+/// Plataforma que se declara al servidor: `ios` en iPhone, `android` en el resto.
 fn plataforma() -> &'static str {
-    "android"
+    if cfg!(target_os = "ios") {
+        "ios"
+    } else {
+        "android"
+    }
 }
 
 /// Registra el token del aparato cuando hay sesión, y lo reintenta si falla.
@@ -86,6 +91,10 @@ fn plataforma() -> &'static str {
 /// Se ejecuta una sola vez al abrir la app y no termina: una sesión nueva o un token rotado
 /// se registran en la siguiente vuelta. El servidor hace UPSERT, así que repetir no duplica.
 pub async fn registrar(sesion: SenalSesion) {
+    // En iOS el token lo pide la app misma (en Android lo hace MainActivity.kt)
+    #[cfg(target_os = "ios")]
+    crate::push_ios::iniciar();
+
     let mut ultimo: Option<(String, String)> = None;
 
     loop {

@@ -19,6 +19,11 @@ pub struct Config {
     /// Se acepta `FCM_CREDENTIALS_JSON` (contenido) o `FCM_CREDENTIALS` (ruta al archivo). En
     /// ningún caso se registra: solo se pasa a `api::push::configurar`.
     pub fcm_credenciales: Option<String>,
+    /// Llave de APNs (push de iOS): contenido del `.p8`, Key ID, Team ID y si es sandbox.
+    ///
+    /// Se arma con `APNS_KEY_P8` (contenido) o `APNS_KEY_P8_PATH` (ruta), más `APNS_KEY_ID`,
+    /// `APNS_TEAM_ID` y `APNS_SANDBOX` (por defecto `true`). Nunca se registra.
+    pub apns: Option<(String, String, String, bool)>,
 }
 
 impl Config {
@@ -63,11 +68,30 @@ impl Config {
                     .and_then(|ruta| std::fs::read_to_string(ruta).ok())
             });
 
+        // Llave de APNs: como FCM, sin ella el servidor arranca y iOS no recibe push
+        let variable = |nombre: &str| std::env::var(nombre).ok().filter(|v| !v.trim().is_empty());
+        let apns = variable("APNS_KEY_P8")
+            .or_else(|| {
+                variable("APNS_KEY_P8_PATH").and_then(|ruta| std::fs::read_to_string(ruta).ok())
+            })
+            .map(|p8| {
+                let sandbox = variable("APNS_SANDBOX").is_none_or(|v| {
+                    !matches!(v.trim().to_ascii_lowercase().as_str(), "0" | "false" | "no")
+                });
+                (
+                    p8,
+                    variable("APNS_KEY_ID").unwrap_or_default(),
+                    variable("APNS_TEAM_ID").unwrap_or_default(),
+                    sandbox,
+                )
+            });
+
         Ok(Self {
             database_url,
             supabase_url,
             supabase_anon,
             fcm_credenciales,
+            apns,
             migrar: std::env::var("MIGRACIONES_AL_ARRANCAR")
                 .map(|v| {
                     matches!(

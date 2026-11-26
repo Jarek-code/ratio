@@ -15,5 +15,11 @@ publisher = "Ratio"
 [android]
 gradle_dependencies = ["com.google.firebase:firebase-messaging:24.1.0"]
 
+# Push de iOS (APNs): requiere Apple Developer Program de pago. Sin cuenta de pago la firma
+# en un iPhone falla con este entitlement, así que queda apagado. Para activarlo, descomenta
+# las dos líneas y configura APNS_* en el servidor (ver .env.example).
+# [ios.entitlements]
+# "aps-environment" = "development"
+
 [ios.plist.UIApplicationSceneManifest]
 UIApplicationSupportsMultipleScenes = false

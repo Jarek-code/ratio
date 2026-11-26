@@ -131,7 +131,7 @@ pub fn configurado() -> bool {
 /// Los fallos de FCM solo quedan en el log; un push perdido no rompe la operación.
 #[cfg(feature = "server")]
 pub fn avisar(para: String, tipo: &'static str, receta_id: String) {
-    if !configurado() {
+    if !configurado() && !apns_configurado() {
         return;
     }
 
@@ -143,24 +143,20 @@ pub fn avisar(para: String, tipo: &'static str, receta_id: String) {
     });
 }
 
-/// Envía el aviso a todos los dispositivos activos de la cuenta.
+/// Envía el aviso a todos los dispositivos activos de la cuenta: Android por FCM, iOS por APNs.
 ///
 /// # Errores
 ///
-/// Devuelve el motivo si no hay credenciales, si la base no responde o si no se logra el token
-/// de OAuth. Los fallos por dispositivo se anotan y no cortan el resto.
+/// Devuelve el motivo si la base no responde o si falla uno de los dos envíos. Cada envío se
+/// intenta aunque el otro falle; una plataforma sin credenciales se salta sin avisar.
 #[cfg(feature = "server")]
 async fn enviar(para: &str, tipo: &str, receta_id: &str) -> Result<(), String> {
-    let cuenta = CUENTA
-        .get()
-        .and_then(Option::as_ref)
-        .ok_or("no FCM credentials installed")?;
     let pool = crate::db::pool().ok_or("no database pool")?;
 
     // Un token por dispositivo activo, con el idioma de su cuenta; el aviso respeta el interruptor
-    let filas = sqlx::query_as::<_, (String, String)>(
+    let filas = sqlx::query_as::<_, (String, String, String)>(
         r#"
-        SELECT d.token, COALESCE(u.idioma, 'es') AS idioma
+        SELECT d.token, COALESCE(u.idioma, 'es') AS idioma, d.plataforma
         FROM dispositivo d
         JOIN usuario u ON u.id = d.usuario_id
         WHERE d.usuario_id = $1::uuid
@@ -172,6 +168,40 @@ async fn enviar(para: &str, tipo: &str, receta_id: &str) -> Result<(), String> {
     .fetch_all(pool)
     .await
     .map_err(|causa| format!("could not read devices: {causa}"))?;
+
+    let (ios, android): (Vec<_>, Vec<_>) = filas
+        .into_iter()
+        .partition(|(_, _, plataforma)| plataforma == "ios");
+    let quitar_plataforma = |filas: Vec<(String, String, String)>| {
+        filas
+            .into_iter()
+            .map(|(token, idioma, _)| (token, idioma))
+            .collect::<Vec<_>>()
+    };
+
+    let fcm = enviar_fcm(pool, quitar_plataforma(android), tipo, receta_id).await;
+    let apns = enviar_apns(pool, quitar_plataforma(ios), tipo, receta_id).await;
+
+    fcm.and(apns)
+}
+
+/// Envía el aviso por FCM a los dispositivos Android de la cuenta.
+///
+/// # Errores
+///
+/// Devuelve el motivo si no se logra el token de OAuth o si FCM no responde. Los fallos por
+/// dispositivo se anotan y no cortan el resto.
+#[cfg(feature = "server")]
+async fn enviar_fcm(
+    pool: &sqlx::PgPool,
+    filas: Vec<(String, String)>,
+    tipo: &str,
+    receta_id: &str,
+) -> Result<(), String> {
+    // Sin credenciales no se envía nada, como antes de que existiera APNs
+    let Some(cuenta) = CUENTA.get().and_then(Option::as_ref) else {
+        return Ok(());
+    };
 
     if filas.is_empty() {
         return Ok(()); // La cuenta no tiene dispositivos o desactivó los avisos
@@ -345,6 +375,183 @@ fn firmar_jwt(cuenta: &CuentaServicio) -> Result<String, String> {
 
     jsonwebtoken::encode(&cabecera, &reclamos, &llave)
         .map_err(|causa| format!("could not sign the FCM JWT: {causa}"))
+}
+
+// APNS (iOS)
+
+/// Tema de APNs: el identificador del paquete de la app (`[bundle]` de `Dioxus.toml`).
+#[cfg(feature = "server")]
+const TEMA_APNS: &str = "com.ratio.app";
+
+/// Cada cuánto se firma un JWT nuevo para APNs, en segundos.
+///
+/// Apple lo acepta hasta una hora y rechaza renovarlo más de una vez cada 20 minutos.
+#[cfg(feature = "server")]
+const RENOVAR_JWT_APNS: u64 = 50 * 60;
+
+/// Llave de APNs (`.p8` de Apple Developer), ya validada.
+#[cfg(feature = "server")]
+struct CuentaApns {
+    /// Llave privada ES256.
+    llave: jsonwebtoken::EncodingKey,
+    /// Identificador de la llave (Key ID).
+    key_id: String,
+    /// Equipo de Apple Developer (Team ID).
+    team_id: String,
+    /// `true` para el entorno de desarrollo (apps firmadas con `aps-environment = development`).
+    sandbox: bool,
+}
+
+/// Llave de APNs instalada al arrancar; `None` si el servidor no recibió ninguna.
+#[cfg(feature = "server")]
+static APNS: OnceLock<Option<CuentaApns>> = OnceLock::new();
+
+/// JWT de APNs vigente y el instante en que se firmó.
+#[cfg(feature = "server")]
+static JWT_APNS: OnceLock<Mutex<Option<(String, Instant)>>> = OnceLock::new();
+
+/// Instala la llave de APNs. Se llama una sola vez al arrancar.
+///
+/// # Errores
+///
+/// Devuelve un texto legible si falta un dato o la llave no es un PEM de curva elíptica.
+#[cfg(feature = "server")]
+pub fn configurar_apns(p8: &str, key_id: &str, team_id: &str, sandbox: bool) -> Result<(), String> {
+    if key_id.trim().is_empty() || team_id.trim().is_empty() {
+        return Err("APNs needs APNS_KEY_ID and APNS_TEAM_ID".to_string());
+    }
+    let llave = jsonwebtoken::EncodingKey::from_ec_pem(p8.as_bytes())
+        .map_err(|causa| format!("APNs key is not a valid .p8 (EC PEM): {causa}"))?;
+
+    let _ = APNS.set(Some(CuentaApns {
+        llave,
+        key_id: key_id.trim().to_string(),
+        team_id: team_id.trim().to_string(),
+        sandbox,
+    }));
+
+    Ok(())
+}
+
+/// Si el servidor ya tiene la llave de APNs.
+#[cfg(feature = "server")]
+pub fn apns_configurado() -> bool {
+    APNS.get().is_some_and(Option::is_some)
+}
+
+/// Envía el aviso por APNs a los dispositivos iOS de la cuenta.
+///
+/// # Errores
+///
+/// Devuelve el motivo si no se puede firmar el JWT o si APNs no responde. Los tokens que
+/// Apple da por muertos se desactivan; el resto de fallos por dispositivo solo se anotan.
+#[cfg(feature = "server")]
+async fn enviar_apns(
+    pool: &sqlx::PgPool,
+    filas: Vec<(String, String)>,
+    tipo: &str,
+    receta_id: &str,
+) -> Result<(), String> {
+    let Some(cuenta) = APNS.get().and_then(Option::as_ref) else {
+        return Ok(()); // Sin llave de APNs: iOS no recibe push, como Android sin FCM
+    };
+    if filas.is_empty() {
+        return Ok(());
+    }
+
+    let jwt = jwt_apns(cuenta)?;
+    // APNs solo habla HTTP/2; el cliente compartido se queda en HTTP/1 para FCM y Supabase
+    let cliente = reqwest::Client::builder()
+        .http2_prior_knowledge()
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(12))
+        .build()
+        .map_err(|causa| format!("could not build the APNs client: {causa}"))?;
+    let host = if cuenta.sandbox {
+        "https://api.sandbox.push.apple.com"
+    } else {
+        "https://api.push.apple.com"
+    };
+
+    for (token, idioma) in filas {
+        let (titulo, cuerpo) = texto_aviso(&idioma, tipo);
+        // Los mismos datos que FCM manda en `data`, junto al aviso visible
+        let mensaje = serde_json::json!({
+            "aps": { "alert": { "title": titulo, "body": cuerpo }, "sound": "default" },
+            "tipo": tipo,
+            "receta_id": receta_id,
+        });
+
+        let respuesta = cliente
+            .post(format!("{host}/3/device/{token}"))
+            .bearer_auth(&jwt)
+            .header("apns-topic", TEMA_APNS)
+            .header("apns-push-type", "alert")
+            .header("apns-priority", "10")
+            .json(&mensaje)
+            .send()
+            .await
+            .map_err(|causa| format!("could not reach APNs: {causa}"))?;
+
+        if respuesta.status().is_success() {
+            continue;
+        }
+
+        // Token muerto: se desactiva para no reintentar en cada aviso
+        let estado = respuesta.status();
+        let detalle = respuesta.text().await.unwrap_or_default();
+        if estado.as_u16() == 410
+            || detalle.contains("BadDeviceToken")
+            || detalle.contains("Unregistered")
+        {
+            marcar_inactivo(pool, &token).await;
+        } else {
+            dioxus::logger::tracing::warn!("APNs respondió {estado}: {detalle}");
+        }
+    }
+
+    Ok(())
+}
+
+/// JWT de APNs, reutilizado mientras no toque renovarlo.
+#[cfg(feature = "server")]
+fn jwt_apns(cuenta: &CuentaApns) -> Result<String, String> {
+    /// Reclamos que pide APNs: equipo y momento de emisión.
+    #[derive(Serialize)]
+    struct Reclamos<'a> {
+        /// Equipo de Apple Developer.
+        iss: &'a str,
+        /// Emitido en (segundos desde 1970).
+        iat: u64,
+    }
+
+    let cache = JWT_APNS.get_or_init(|| Mutex::new(None));
+    let mut guardado = cache.lock().map_err(|_| "APNs token cache poisoned")?;
+    if let Some((jwt, firmado)) = guardado.as_ref()
+        && firmado.elapsed() < Duration::from_secs(RENOVAR_JWT_APNS)
+    {
+        return Ok(jwt.clone());
+    }
+
+    let ahora = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|causa| format!("bad system clock: {causa}"))?
+        .as_secs();
+    let mut cabecera = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);
+    cabecera.kid = Some(cuenta.key_id.clone());
+    let jwt = jsonwebtoken::encode(
+        &cabecera,
+        &Reclamos {
+            iss: &cuenta.team_id,
+            iat: ahora,
+        },
+        &cuenta.llave,
+    )
+    .map_err(|causa| format!("could not sign the APNs JWT: {causa}"))?;
+
+    *guardado = Some((jwt.clone(), Instant::now()));
+
+    Ok(jwt)
 }
 
 // REGISTRO DEL DISPOSITIVO

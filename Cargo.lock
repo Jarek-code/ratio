@@ -3846,10 +3846,12 @@ name = "movil"
 version = "0.1.0"
 dependencies = [
  "api",
+ "block2",
  "dioxus",
  "objc2",
  "objc2-foundation",
  "objc2-ui-kit",
+ "objc2-user-notifications",
  "proporciones",
  "reqwest",
  "serde",
@@ -4304,6 +4306,8 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9df9128cbbfef73cda168416ccf7f837b62737d748333bfe9ab71c245d76613e"
 dependencies = [
+ "bitflags 2.13.2",
+ "block2",
  "objc2",
  "objc2-foundation",
 ]
@@ -5284,6 +5288,7 @@ dependencies = [
  "cookie_store",
  "futures-core",
  "futures-util",
+ "h2",
  "http",
  "http-body",
  "http-body-util",

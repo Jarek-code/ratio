@@ -16,6 +16,9 @@ dist/
 *-firebase-adminsdk-*.json
 *service-account*.json
 fcm-service-account.json
+# Llave de APNs (push de iOS)
+AuthKey_*.p8
+*.p8
 
 # Base de datos local
 *.db
