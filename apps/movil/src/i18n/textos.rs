@@ -1222,4 +1222,6 @@ pub enum Texto {
     NoSeGuardoCuenta,
     /// Vuelve a entrar para cambiar tu cuenta.
     IniciaSesionCuenta,
+    /// Ver más
+    VerMas,
 }

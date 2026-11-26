@@ -101,9 +101,13 @@ pub fn PantallaMisRecetas() -> Element {
         let token = crate::sesion::token(&sesion);
         async move {
             match token {
-                Some(token) => crate::red::con_reintentos(move || mis_recetas(token.clone()))
+                Some(token) => {
+                    crate::local::lista("recetario", crate::sesion::cuenta(&sesion), move || {
+                        crate::red::con_reintentos(move || mis_recetas(token.clone()))
+                    })
                     .await
-                    .map(Some),
+                    .map(Some)
+                }
                 None => Ok(None),
             }
         }

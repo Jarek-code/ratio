@@ -448,3 +448,50 @@ mod pruebas {
         assert_ne!(nuevo_id(), nuevo_id(), "ids must differ");
     }
 }
+
+/// Copia local de una lista, con la cuenta a la que pertenece.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct ListaGuardada<T> {
+    /// Cuenta dueña de la lista: al cambiar de sesión no se mezclan.
+    cuenta: String,
+    /// Elementos tal como llegaron del servidor.
+    elementos: Vec<T>,
+}
+
+/// Pide una lista al servidor y la guarda para poder verla sin conexión.
+///
+/// `nombre` distingue el archivo de cada lista («recetario» o «guardados»). Sin red, devuelve
+/// la última copia de esa cuenta; si no hay copia, devuelve el error de red.
+pub async fn lista<T, F, Fut>(
+    nombre: &str,
+    cuenta: Option<String>,
+    pedir: F,
+) -> Result<Vec<T>, ServerFnError>
+where
+    T: serde::Serialize + serde::de::DeserializeOwned + Clone,
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<Vec<T>, ServerFnError>>,
+{
+    let archivo = format!("{nombre}.json");
+    let sesion = cuenta.clone().unwrap_or_default();
+
+    match pedir().await {
+        Ok(elementos) => {
+            escribir(
+                &archivo,
+                &ListaGuardada {
+                    cuenta: sesion,
+                    elementos: elementos.clone(),
+                },
+            );
+            Ok(elementos)
+        }
+        Err(causa) if crate::red::sin_conexion(&causa) => {
+            match leer_valor::<ListaGuardada<T>>(&archivo) {
+                Some(guardada) if guardada.cuenta == sesion => Ok(guardada.elementos),
+                _ => Err(causa), // Sin copia de esta cuenta
+            }
+        }
+        Err(causa) => Err(causa),
+    }
+}

@@ -75,6 +75,8 @@ pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> El
     let familia = use_signal(|| Some(familia).filter(|valor| !valor.is_empty()));
     let tipo = use_signal(|| Some(tipo).filter(|valor| !valor.is_empty()));
     let orden = use_signal(|| Orden::Nombre);
+    // Cuántas recetas se muestran; la lista crece de veinte en veinte
+    let mut mostradas = use_signal(|| 20_usize);
 
     rsx! {
         document::Stylesheet { href: CSS_BASE }
@@ -117,6 +119,8 @@ pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> El
 
                     {
                         let filtradas = filtrar(lista, &busqueda.read(), &familia.read(), &tipo.read(), *orden.read());
+                        let visibles = filtradas.iter().take(*mostradas.read()).cloned().collect::<Vec<_>>();
+                        let quedan = filtradas.len().saturating_sub(visibles.len());
 
                         rsx! {
                             if filtradas.is_empty() {
@@ -124,8 +128,21 @@ pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> El
                             } else {
                                 p { class: "biblioteca-cuenta", role: "status", "{crate::i18n::con(crate::i18n::actual(), Texto::CuentaRecetas, &[&filtradas.len().to_string()])}" }
                                 ul { class: "lista-recetas",
-                                    for receta in filtradas {
+                                    for receta in visibles {
                                         RecetaEnLista { key: "{receta.id}", receta }
+                                    }
+                                }
+
+                                // La lista va de veinte en veinte para no cargar todo de golpe
+                                if quedan > 0 {
+                                    button {
+                                        class: "chip",
+                                        r#type: "button",
+                                        onclick: move |_| {
+                                            let siguiente = *mostradas.peek() + 20;
+                                            mostradas.set(siguiente);
+                                        },
+                                        "{crate::i18n::ahora(Texto::VerMas)}"
                                     }
                                 }
                             }

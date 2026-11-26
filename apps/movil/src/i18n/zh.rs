@@ -635,5 +635,6 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::CuentaGuardada => "账户已更新。",
         Texto::NoSeGuardoCuenta => "无法保存账户：{0}",
         Texto::IniciaSesionCuenta => "请重新登录后再修改账户。",
+        Texto::VerMas => "查看更多",
     }
 }

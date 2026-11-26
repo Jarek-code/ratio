@@ -703,5 +703,6 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::CuentaGuardada => "Account updated.",
         Texto::NoSeGuardoCuenta => "Could not save the account: {0}",
         Texto::IniciaSesionCuenta => "Sign in again to change your account.",
+        Texto::VerMas => "See more",
     }
 }

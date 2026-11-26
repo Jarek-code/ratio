@@ -29,9 +29,13 @@ pub fn PantallaGuardados() -> Element {
         let token = crate::sesion::token(&sesion);
         async move {
             match token {
-                Some(token) => crate::red::con_reintentos(move || guardados(token.clone()))
+                Some(token) => {
+                    crate::local::lista("guardados", crate::sesion::cuenta(&sesion), move || {
+                        crate::red::con_reintentos(move || guardados(token.clone()))
+                    })
                     .await
-                    .map(Some),
+                    .map(Some)
+                }
                 None => Ok(None),
             }
         }

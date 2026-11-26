@@ -715,5 +715,6 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::CuentaGuardada => "Cuenta actualizada.",
         Texto::NoSeGuardoCuenta => "No se pudo guardar la cuenta: {0}",
         Texto::IniciaSesionCuenta => "Vuelve a entrar para cambiar tu cuenta.",
+        Texto::VerMas => "Ver más",
     }
 }
