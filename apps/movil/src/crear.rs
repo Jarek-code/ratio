@@ -85,6 +85,7 @@ pub fn PantallaCrear() -> Element {
         ]
     });
     let mut seleccion = use_signal(String::new);
+    let mut filtro_ingrediente = use_signal(String::new); // Buscador del desplegable
     let mut cantidad_nueva = use_signal(|| CANTIDAD_INICIAL.to_string());
     let mut guardando = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
@@ -158,13 +159,15 @@ pub fn PantallaCrear() -> Element {
         )
     });
 
-    // Los ingredientes que ya están no se ofrecen otra vez
+    // Los ingredientes que ya están no se ofrecen otra vez; el buscador acota la lista
+    let buscado = filtro_ingrediente.read().trim().to_lowercase();
     let disponibles: Vec<IngredienteOpcion> = catalogo_vec
         .iter()
         .filter(|opcion| {
             !capas_actuales
                 .iter()
                 .any(|capa| capa.ingrediente.id == opcion.id)
+                && (buscado.is_empty() || opcion.nombre.to_lowercase().contains(&buscado))
         })
         .cloned()
         .collect();
@@ -292,6 +295,15 @@ pub fn PantallaCrear() -> Element {
                     AvisoRed { causa, reintentar: move |_| ingredientes_res.restart() }
                 } else {
                         div { class: "ajustar-agregar",
+                            input {
+                                class: "ajustar-select",
+                                r#type: "search",
+                                aria_label: "{crate::i18n::ahora(Texto::BuscarIngrediente)}",
+                                placeholder: "{crate::i18n::ahora(Texto::BuscarIngrediente)}",
+                                value: "{filtro_ingrediente}",
+                                oninput: move |evento| filtro_ingrediente.set(evento.value()),
+                            }
+
                             select {
                                 class: "ajustar-select",
                                 value: "{seleccion}",
