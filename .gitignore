@@ -39,3 +39,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Material de la presentación final (local)
+/presentacion/
