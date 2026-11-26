@@ -25,6 +25,15 @@ pub(super) fn AgregarIngrediente(
     let mut seleccion_ingrediente = seleccion_ingrediente;
     let ingredientes_disponibles = disponibles;
     let catalogo_para_agregar = catalogo;
+    let mut busqueda_ingrediente = use_signal(String::new); // Buscador del desplegable
+
+    // El buscador acota lo que ofrece el desplegable
+    let buscado = busqueda_ingrediente.read().trim().to_lowercase();
+    let disponibles_filtrados: Vec<IngredienteOpcion> = ingredientes_disponibles
+        .iter()
+        .filter(|opcion| buscado.is_empty() || opcion.nombre.to_lowercase().contains(&buscado))
+        .cloned()
+        .collect();
 
     rsx! {
         section { class: "seccion", "aria-labelledby": "titulo-agregados",
@@ -33,73 +42,92 @@ pub(super) fn AgregarIngrediente(
                 span { class: "mini", "{crate::i18n::ahora(Texto::LiquidosOSolidos)}" }
             }
 
-            div { class: "ajustar-agregar",
-                label { class: "solo-lector", r#for: "ingrediente-nuevo", "{crate::i18n::ahora(Texto::IngredienteDelCatalogo)}" }
-                select {
-                    id: "ingrediente-nuevo",
-                    class: "ajustar-select",
-                    value: "{seleccion_ingrediente}",
-                    disabled: ingredientes_disponibles.is_empty(),
-                    onchange: move |evento| {
-                        let id = evento.value();
-                        if id.is_empty() {
-                            return;
-                        }
+            div { class: "anadir-tarjeta",
+                label { class: "campo", r#for: "ingrediente-buscar",
+                    span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::BuscarIngrediente)}" }
+                    input {
+                        id: "ingrediente-buscar",
+                        class: "campo-control",
+                        r#type: "search",
+                        autocomplete: "off",
+                        placeholder: "{crate::i18n::ahora(Texto::BuscarIngrediente)}",
+                        value: "{busqueda_ingrediente}",
+                        oninput: move |evento| busqueda_ingrediente.set(evento.value()),
+                    }
+                }
 
-                        let Some(opcion) = catalogo_para_agregar
-                            .iter()
-                            .find(|opcion| opcion.id == id)
-                            .cloned()
-                        else {
-                            return;
-                        };
-
-                        // El catálogo lo mantiene el equipo: elegir una opción ya crea
-                        // la capa; no hay un paso extra de añadir.
-                        if agregados.read().iter().any(|extra| extra.ingrediente_id == id) {
-                            seleccion_ingrediente.set(String::new());
-                            return;
-                        }
-
-                        let cantidad = if opcion.unidad == "mg" {
-                            MG_AGREGADO_POR_DEFECTO
-                        } else {
-                            ML_AGREGADO_POR_DEFECTO
-                        };
-
-                        agregados.write().push(CapaAgregada {
-                            ingrediente_id: opcion.id,
-                            nombre: opcion.nombre,
-                            graduacion: opcion.graduacion_pct,
-                            color: opcion.color,
-                            dilucion: opcion.dilucion,
-                            unidad: opcion.unidad,
-                            cantidad,
-                            factor: 1.0,
-                        });
-                        seleccion_ingrediente.set(String::new());
-                    },
-                    option { value: "", "{crate::i18n::ahora(Texto::EligeIngrediente)}" }
-                    for opcion in ingredientes_disponibles.iter() {
-                        if opcion.unidad == "mg" {
-                            option {
-                                key: "{opcion.id}",
-                                value: "{opcion.id}",
-                                "{opcion.nombre} · mg"
+                label { class: "campo", r#for: "ingrediente-nuevo",
+                    span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::IngredienteDelCatalogo)}" }
+                    select {
+                        id: "ingrediente-nuevo",
+                        class: "campo-control",
+                        value: "{seleccion_ingrediente}",
+                        disabled: ingredientes_disponibles.is_empty(),
+                        onchange: move |evento| {
+                            let id = evento.value();
+                            if id.is_empty() {
+                                return;
                             }
-                        } else {
-                            option {
-                                key: "{opcion.id}",
-                                value: "{opcion.id}",
-                                "{opcion.nombre} · {opcion.graduacion_pct:.0} % ABV"
+
+                            let Some(opcion) = catalogo_para_agregar
+                                .iter()
+                                .find(|opcion| opcion.id == id)
+                                .cloned()
+                            else {
+                                return;
+                            };
+
+                            // El catálogo lo mantiene el equipo: elegir una opción ya crea
+                            // la capa; no hay un paso extra de añadir.
+                            if agregados.read().iter().any(|extra| extra.ingrediente_id == id) {
+                                seleccion_ingrediente.set(String::new());
+                                return;
+                            }
+
+                            let cantidad = if opcion.unidad == "mg" {
+                                MG_AGREGADO_POR_DEFECTO
+                            } else {
+                                ML_AGREGADO_POR_DEFECTO
+                            };
+
+                            agregados.write().push(CapaAgregada {
+                                ingrediente_id: opcion.id,
+                                nombre: opcion.nombre,
+                                graduacion: opcion.graduacion_pct,
+                                color: opcion.color,
+                                dilucion: opcion.dilucion,
+                                unidad: opcion.unidad,
+                                cantidad,
+                                factor: 1.0,
+                            });
+                            seleccion_ingrediente.set(String::new());
+                        },
+                        option { value: "", "{crate::i18n::ahora(Texto::EligeIngrediente)}" }
+                        for opcion in disponibles_filtrados.iter() {
+                            if opcion.unidad == "mg" {
+                                option {
+                                    key: "{opcion.id}",
+                                    value: "{opcion.id}",
+                                    "{opcion.nombre} · mg"
+                                }
+                            } else {
+                                option {
+                                    key: "{opcion.id}",
+                                    value: "{opcion.id}",
+                                    "{opcion.nombre} · {opcion.graduacion_pct:.0} % ABV"
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            if ingredientes_disponibles.is_empty() {
-                p { class: "mini", "{crate::i18n::ahora(Texto::SinMasIngredientes)}" }
+                if ingredientes_disponibles.is_empty() {
+                    p { class: "mini", "{crate::i18n::ahora(Texto::SinMasIngredientes)}" }
+                } else if disponibles_filtrados.is_empty() {
+                    p { class: "mini", "{crate::i18n::ahora(Texto::SinIngredientesQueCoincidan)}" }
+                } else {
+                    p { class: "campo-nota", "{crate::i18n::ahora(Texto::ElegirIngredienteAgregaCapa)}" }
+                }
             }
         }
     }

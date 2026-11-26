@@ -626,6 +626,7 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::PropuestaOpcional => "Suggestion (optional)",
         Texto::SegundosPlaceholder => "seconds",
         Texto::CantidadPlaceholder => "amount",
+        Texto::Cantidad => "Amount",
         Texto::ReporteConDetalle => "{}: {} (reported by {})",
         Texto::ReporteSinDetalle => "{} (reported by {})",
         Texto::VolverAtras => "Back to the previous screen",
@@ -685,7 +686,11 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::CategoriaIngrediente => "Category",
         Texto::PlaceholderCategoria => "Liqueur, juice, spice…",
         Texto::Unidad => "Unit",
+        Texto::ElegirIngredienteAgregaCapa => {
+            "Choosing it adds it to the glass; you adjust the amount afterwards"
+        }
         Texto::Color => "Colour",
+        Texto::ColorDeLaCapa => "Colour used to paint its layer in the glass",
         Texto::DiluyeLaBebida => "Dilutes the drink",
         Texto::AgregarIngrediente => "Add",
         Texto::IngredienteAgregado => "Ingredient added to the catalogue.",

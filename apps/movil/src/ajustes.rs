@@ -26,6 +26,8 @@ const ARCHIVO_AJUSTES: &str = "ajustes.json";
 
 /// Hoja del sistema visual que comparten las pantallas.
 const CSS_BASE: Asset = asset!("/assets/descubrir.css");
+/// Campos, selectores y tarjetas de formulario.
+const CSS_FORMULARIO: Asset = asset!("/assets/formulario.css");
 
 // ESTRUCTURAS
 
@@ -162,6 +164,7 @@ pub fn Bienvenida() -> Element {
 
     rsx! {
         document::Stylesheet { href: CSS_BASE }
+        document::Stylesheet { href: CSS_FORMULARIO }
 
         main
         {
@@ -401,85 +404,102 @@ fn SeccionCuenta() -> Element {
         };
     }
 
+    // La inicial del alias preside la tarjeta de identidad
+    let inicial = alias_guardado
+        .chars()
+        .next()
+        .map(|letra| letra.to_uppercase().to_string())
+        .unwrap_or_else(|| "R".to_string());
+
     rsx! {
         section { class: "seccion", "aria-labelledby": "titulo-cuenta",
             p { id: "titulo-cuenta", class: "eyebrow", "{t(idioma, Texto::Cuenta)}" }
-            p { class: "nota", "{t(idioma, Texto::CuentaNota)}" }
 
-            label { class: "ajustar-nombre", r#for: "cuenta-alias",
-                span { "{t(idioma, Texto::Alias)}" }
-                input {
-                    id: "cuenta-alias",
-                    class: "ajustar-select",
-                    r#type: "text",
-                    maxlength: "32",
-                    value: "{alias}",
-                    oninput: move |evento| alias.set(evento.value()),
+            div { class: "cuenta-identidad",
+                span { class: "cuenta-inicial", "aria-hidden": "true", "{inicial}" }
+                div { class: "cuenta-datos",
+                    span { class: "cuenta-alias", "{alias_guardado}" }
+                    span { class: "cuenta-correo", "{t(idioma, Texto::CuentaNota)}" }
                 }
             }
 
-            label { class: "chip",
-                input {
-                    r#type: "checkbox",
-                    checked: adulto(),
-                    onchange: move |evento| adulto.set(evento.checked()),
+            div { class: "formulario-campos",
+                label { class: "campo", r#for: "cuenta-alias",
+                    span { class: "campo-etiqueta", "{t(idioma, Texto::Alias)}" }
+                    input {
+                        id: "cuenta-alias",
+                        class: "campo-control",
+                        r#type: "text",
+                        maxlength: "32",
+                        autocomplete: "nickname",
+                        value: "{alias}",
+                        oninput: move |evento| alias.set(evento.value()),
+                    }
                 }
-                span { "{t(idioma, Texto::MayorDeEdadCuenta)}" }
-            }
 
-            div { class: "ajustar-acciones",
-                button {
-                    class: "primario",
-                    r#type: "button",
-                    disabled: guardando(),
-                    onclick: move |_| {
-                        let Some(token) = crate::sesion::token(&sesion) else {
-                            aviso.set(Some(crate::i18n::ahora(Texto::IniciaSesionCuenta).to_string()));
-                            return;
-                        };
-                        if guardando() {
-                            return;
-                        }
+                label { class: "chip",
+                    input {
+                        r#type: "checkbox",
+                        checked: adulto(),
+                        onchange: move |evento| adulto.set(evento.checked()),
+                    }
+                    span { "{t(idioma, Texto::MayorDeEdadCuenta)}" }
+                }
 
-                        let datos = api::perfil::CuentaPropia {
-                            alias: alias.read().clone(),
-                            mayor_de_edad: adulto(),
-                        };
-
-                        guardando.set(true);
-                        aviso.set(None);
-
-                        spawn(async move {
-                            match crate::red::con_plazo(api::perfil::actualizar_cuenta(token, datos)).await {
-                                Ok(cuenta) => {
-                                    crate::sesion::renombrar(&mut sesion.clone(), &cuenta.alias, cuenta.mayor_de_edad);
-                                    aviso.set(Some(crate::i18n::ahora(Texto::CuentaGuardada).to_string()));
-                                }
-                                Err(causa) => aviso.set(Some(crate::i18n::con(
-                                    crate::i18n::actual(),
-                                    Texto::NoSeGuardoCuenta,
-                                    &[&crate::red::mensaje(&causa)],
-                                ))),
+                div { class: "formulario-acciones",
+                    button {
+                        class: "primario",
+                        r#type: "button",
+                        disabled: guardando(),
+                        onclick: move |_| {
+                            let Some(token) = crate::sesion::token(&sesion) else {
+                                aviso.set(Some(crate::i18n::ahora(Texto::IniciaSesionCuenta).to_string()));
+                                return;
+                            };
+                            if guardando() {
+                                return;
                             }
-                            guardando.set(false);
-                        });
-                    },
-                    if guardando() { "{t(idioma, Texto::Guardando)}" } else { "{t(idioma, Texto::GuardarCambios)}" }
+
+                            let datos = api::perfil::CuentaPropia {
+                                alias: alias.read().clone(),
+                                mayor_de_edad: adulto(),
+                            };
+
+                            guardando.set(true);
+                            aviso.set(None);
+
+                            spawn(async move {
+                                match crate::red::con_plazo(api::perfil::actualizar_cuenta(token, datos)).await {
+                                    Ok(cuenta) => {
+                                        crate::sesion::renombrar(&mut sesion.clone(), &cuenta.alias, cuenta.mayor_de_edad);
+                                        aviso.set(Some(crate::i18n::ahora(Texto::CuentaGuardada).to_string()));
+                                    }
+                                    Err(causa) => aviso.set(Some(crate::i18n::con(
+                                        crate::i18n::actual(),
+                                        Texto::NoSeGuardoCuenta,
+                                        &[&crate::red::mensaje(&causa)],
+                                    ))),
+                                }
+                                guardando.set(false);
+                            });
+                        },
+                        if guardando() { "{t(idioma, Texto::Guardando)}" } else { "{t(idioma, Texto::GuardarCambios)}" }
+                    }
+
+                    button {
+                        class: "chip cuenta-salir",
+                        r#type: "button",
+                        onclick: move |_| {
+                            crate::sesion::salir(&mut sesion.clone());
+                            navegador.push(Rutas::Entrar);
+                        },
+                        "{t(idioma, Texto::Salir)}"
+                    }
                 }
 
-                button {
-                    class: "chip",
-                    r#type: "button",
-                    onclick: move |_| {
-                        crate::sesion::salir(&mut sesion.clone());
-                        navegador.push(Rutas::Entrar);
-                    },
-                    "{t(idioma, Texto::Salir)}"
+                if let Some(texto) = aviso() {
+                    p { class: "ajustar-aviso", role: "status", "{texto}" }
                 }
-            }
-
-            if let Some(texto) = aviso() {
-                p { class: "ajustar-aviso", role: "status", "{texto}" }
             }
         }
     }

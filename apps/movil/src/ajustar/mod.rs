@@ -26,6 +26,8 @@ use crate::rutas::Rutas; // Textos traducibles
 
 /// Hoja de estilos propia del editor de proporciones.
 const CSS_AJUSTAR: Asset = asset!("/assets/ajustar.css");
+/// Campos, selectores y tarjetas de formulario.
+const CSS_FORMULARIO: Asset = asset!("/assets/formulario.css");
 /// Hoja del sistema visual que comparten las pantallas.
 const CSS_BASE: Asset = asset!("/assets/descubrir.css");
 
@@ -101,6 +103,7 @@ pub fn PantallaAjustar(id: String) -> Element {
     rsx! {
         document::Stylesheet { href: CSS_BASE }
         document::Stylesheet { href: CSS_AJUSTAR }
+        document::Stylesheet { href: CSS_FORMULARIO }
 
         main { class: "ajustar",
             BarraSuperior { id: id.clone() }

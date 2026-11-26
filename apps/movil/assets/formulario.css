@@ -1,0 +1,287 @@
+/* Formularios: campos, selectores y tarjetas para agregar ingredientes.
+   La comparten la pantalla de ingredientes, los ajustes y la de crear y ajustar. */
+
+/* Un campo por línea, con su etiqueta arriba y el control debajo. */
+.formulario-campos {
+    display: grid;
+    gap: 14px;
+    border: 1px solid var(--borde);
+    border-radius: 20px;
+    background: var(--superficie-alta);
+    padding: 16px;
+}
+
+/* Dos campos cortos que caben en el mismo renglón. */
+.formulario-pareja {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.campo {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.campo-etiqueta {
+    color: var(--tinta-suave);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.campo-control {
+    width: 100%;
+    min-height: 46px;
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    background-color: var(--papel);
+    padding: 0 14px;
+    color: var(--tinta);
+    font: inherit;
+    font-size: 15px;
+}
+
+.campo-control::placeholder {
+    color: var(--tenue);
+    font-weight: 400;
+}
+
+.campo-control:hover,
+.campo-control:focus-visible {
+    border-color: var(--cobre);
+    outline: none;
+}
+
+.campo-control:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+/* Desplegable: la flecha se dibuja aquí para que se vea igual en todos los teléfonos. */
+select.campo-control {
+    padding-right: 38px;
+    font-weight: 600;
+    cursor: pointer;
+    appearance: none;
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--tinta-suave) 50%),
+        linear-gradient(135deg, var(--tinta-suave) 50%, transparent 50%);
+    background-position:
+        calc(100% - 20px) 50%,
+        calc(100% - 14px) 50%;
+    background-repeat: no-repeat;
+    background-size: 6px 6px, 6px 6px;
+}
+
+/* Campo con una unidad fija a la derecha. */
+.campo-unidad {
+    position: relative;
+    display: block;
+}
+
+.campo-unidad .campo-control {
+    padding-right: 46px;
+}
+
+.campo-unidad span {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    transform: translateY(-50%);
+    color: var(--tinta-suave);
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+/* Selector de color: la muestra ocupa el campo y el texto queda a la vista. */
+.campo-color {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    background: var(--papel);
+    padding: 6px 14px 6px 6px;
+}
+
+.campo-color input[type="color"] {
+    width: 46px;
+    height: 34px;
+    flex: none;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    appearance: none;
+}
+
+.campo-color input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.campo-color input[type="color"]::-webkit-color-swatch {
+    border: 1px solid rgba(42, 27, 20, 0.18);
+    border-radius: 10px;
+}
+
+.campo-color input[type="color"]::-moz-color-swatch {
+    border: 1px solid rgba(42, 27, 20, 0.18);
+    border-radius: 10px;
+}
+
+.campo-color-codigo {
+    color: var(--texto-2);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+}
+
+.campo-nota {
+    color: var(--tenue);
+    font-size: 12px;
+}
+
+/* Botón principal del formulario, a todo el ancho. */
+.formulario-acciones {
+    display: grid;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.formulario-acciones .primario,
+.formulario-acciones .chip {
+    width: 100%;
+    min-height: 46px;
+    justify-content: center;
+}
+
+/* Revisión de lo que se va a agregar: color, nombre y cifra. */
+.anadir-ficha {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px dashed var(--linea-2);
+    border-radius: 14px;
+    background: var(--superficie-tenue);
+    padding: 10px 14px;
+}
+
+.anadir-ficha-punto {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(42, 27, 20, 0.18);
+}
+
+.anadir-ficha-nombre {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--tinta);
+    font-size: 14px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.anadir-ficha-cifra {
+    color: var(--tinta-suave);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Tarjeta con el buscador, el desplegable, la cantidad y el botón de agregar. */
+.anadir-tarjeta {
+    display: grid;
+    gap: 12px;
+    border: 1px solid var(--borde);
+    border-radius: 20px;
+    background: var(--superficie-alta);
+    padding: 14px;
+}
+
+.anadir-fila {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.anadir-fila .chip {
+    min-height: 46px;
+    padding: 0 18px;
+    white-space: nowrap;
+}
+
+/* Pantallas angostas: la cantidad y el botón pasan a su propio renglón. */
+@media (max-width: 420px) {
+    .formulario-pareja {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .anadir-fila {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Sección de cuenta en Ajustes: alias, edad y salida. */
+.cuenta-identidad {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--linea);
+    padding-bottom: 12px;
+}
+
+.cuenta-inicial {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--ficha-suave);
+    color: var(--cobre-oscuro);
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.cuenta-datos {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.cuenta-alias {
+    overflow: hidden;
+    color: var(--tinta);
+    font-size: 16px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cuenta-correo {
+    overflow: hidden;
+    color: var(--tinta-suave);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cuenta-salir {
+    border-color: var(--peligro-borde);
+    background: var(--peligro-fondo);
+    color: var(--peligro-texto);
+}
+
+.cuenta-salir:hover,
+.cuenta-salir:focus-visible {
+    border-color: var(--peligro-texto);
+}

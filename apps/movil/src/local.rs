@@ -109,7 +109,13 @@ struct Pendiente {
     cuenta: String,
     /// Cambio por enviar.
     cambio: Cambio,
+    /// Intentos ya hechos: un cambio que el servidor rechaza no se reintenta para siempre.
+    #[serde(default)]
+    intentos: u32,
 }
+
+/// Intentos antes de descartar un cambio que el servidor no acepta.
+const INTENTOS_MAXIMOS: u32 = 5;
 
 /// Señal con el número de cambios pendientes de la cuenta actual.
 pub type SenalPendientes = Signal<usize>;
@@ -311,6 +317,7 @@ pub fn encolar(sesion: &SenalSesion, pendientes: &mut SenalPendientes, cambio: C
         id: nuevo_id().unwrap_or_else(respaldo_id),
         cuenta: cuenta.clone(),
         cambio,
+        intentos: 0,
     });
     escribir(ARCHIVO_COLA, &cola_vec);
     pendientes.set(contar(&Some(cuenta)));
@@ -365,23 +372,46 @@ pub async fn vaciar(sesion: SenalSesion, mut pendientes: SenalPendientes) {
                 .collect(); // Cambios de esta cuenta, en orden
 
             // Enviar uno por uno hasta vaciar o perder la red
+            let mut sin_red = false; // La conexión se cayó a media cola
             for pendiente in propios_vec {
                 // Cada envío lleva plazo: un servidor que no contesta no frena la cola
                 let resultado_res =
                     crate::red::con_plazo(enviar(token_val.clone(), pendiente.cambio.clone()))
                         .await;
 
+                let mut reintentar = false; // Se queda en la cola tal cual
                 if let Err(causa) = &resultado_res {
-                    if crate::red::sin_conexion(causa) {
-                        break; // Sin red: se reintenta en la siguiente vuelta
+                    // Solo la falta de red detiene la cola: un servidor que rechaza un cambio
+                    // no puede dejar el aviso de pendientes encendido con conexión.
+                    if crate::red::es_red(causa) {
+                        sin_red = true;
+                        break;
+                    }
+                    if api::fallos::es_reintentable(causa) {
+                        reintentar = pendiente.intentos + 1 < INTENTOS_MAXIMOS;
                     }
                     dioxus::logger::tracing::warn!("queued change rejected: {causa}");
                 }
 
                 // Quitar la entrada releyendo la cola, por si llegó otra mientras se enviaba
                 let mut cola_vec: Vec<Pendiente> = leer(ARCHIVO_COLA);
-                cola_vec.retain(|otra| otra.id != pendiente.id);
+                cola_vec.retain_mut(|otra| {
+                    if otra.id != pendiente.id {
+                        return true; // Otro cambio: se queda
+                    }
+                    if reintentar {
+                        otra.intentos += 1;
+                        return true; // Se reintenta en la siguiente vuelta
+                    }
+                    false // Enviado, o descartado tras agotar los intentos
+                });
                 escribir(ARCHIVO_COLA, &cola_vec);
+            }
+
+            if sin_red {
+                pendientes.set(contar(&cuenta));
+                tokio::time::sleep(Duration::from_secs(REINTENTAR_CADA)).await;
+                continue;
             }
         }
 

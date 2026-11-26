@@ -852,6 +852,8 @@ pub enum Texto {
     SinGaleria,
     /// Cantidad de {}
     CantidadDe,
+    /// Cantidad
+    Cantidad,
     /// {} mililitros, {} por ciento
     LectorMililitros,
     /// {} miligramos, suma {} mililitros, {} por ciento
@@ -1188,8 +1190,12 @@ pub enum Texto {
     PlaceholderCategoria,
     /// Unidad
     Unidad,
+    /// Elegir un ingrediente ya crea su capa en el vaso
+    ElegirIngredienteAgregaCapa,
     /// Color
     Color,
+    /// Color con el que se pinta la capa de este ingrediente en el vaso
+    ColorDeLaCapa,
     /// Diluye la bebida
     DiluyeLaBebida,
     /// Agregar

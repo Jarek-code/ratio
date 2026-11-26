@@ -4,6 +4,7 @@ mod actividad;
 mod ajustar;
 mod ajustes;
 mod api_textos;
+mod atras;
 mod barra;
 mod biblioteca;
 mod comparar;
@@ -96,6 +97,7 @@ fn App() -> Element {
                 div { style: franja }
             }
             Router::<Rutas> {}
+            atras::AtrasDelSistema {}
         }
     }
 }

@@ -26,6 +26,8 @@ const CSS_BASE: Asset = asset!("/assets/descubrir.css");
 
 /// Hoja propia del editor de la receta.
 const CSS_AJUSTAR: Asset = asset!("/assets/ajustar.css");
+/// Campos, selectores y tarjetas de formulario.
+const CSS_FORMULARIO: Asset = asset!("/assets/formulario.css");
 
 /// Cantidad con la que entra un ingrediente nuevo, en mililitros o gramos.
 const CANTIDAD_INICIAL: f64 = 30.0;
@@ -161,6 +163,13 @@ pub fn PantallaCrear() -> Element {
 
     // Los ingredientes que ya están no se ofrecen otra vez; el buscador acota la lista
     let buscado = filtro_ingrediente.read().trim().to_lowercase();
+
+    // Unidad del ingrediente elegido: la cantidad se escribe en esa medida
+    let unidad_nueva = catalogo_vec
+        .iter()
+        .find(|opcion| opcion.id == seleccion())
+        .map(|opcion| opcion.unidad.clone())
+        .unwrap_or_else(|| "ml".to_string());
     let disponibles: Vec<IngredienteOpcion> = catalogo_vec
         .iter()
         .filter(|opcion| {
@@ -175,6 +184,7 @@ pub fn PantallaCrear() -> Element {
     rsx! {
         document::Stylesheet { href: CSS_BASE }
         document::Stylesheet { href: CSS_AJUSTAR }
+        document::Stylesheet { href: CSS_FORMULARIO }
 
         main { class: "ajustar",
             header { class: "ajustar-barra",
@@ -294,37 +304,72 @@ pub fn PantallaCrear() -> Element {
                 } else if let Some(causa) = ingredientes_error {
                     AvisoRed { causa, reintentar: move |_| ingredientes_res.restart() }
                 } else {
-                        div { class: "ajustar-agregar",
-                            input {
-                                class: "ajustar-select",
-                                r#type: "search",
-                                aria_label: "{crate::i18n::ahora(Texto::BuscarIngrediente)}",
-                                placeholder: "{crate::i18n::ahora(Texto::BuscarIngrediente)}",
-                                value: "{filtro_ingrediente}",
-                                oninput: move |evento| filtro_ingrediente.set(evento.value()),
-                            }
-
-                            select {
-                                class: "ajustar-select",
-                                value: "{seleccion}",
-                                onchange: move |evento| seleccion.set(evento.value()),
-
-                                option { value: "", "{crate::i18n::ahora(Texto::EligeIngredienteCorto)}" }
-                                for opcion in disponibles.iter() {
-                                    option { key: "{opcion.id}", value: "{opcion.id}", "{opcion.nombre}" }
+                        div { class: "anadir-tarjeta",
+                            label { class: "campo", r#for: "crear-buscar-ingrediente",
+                                span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::BuscarIngrediente)}" }
+                                input {
+                                    id: "crear-buscar-ingrediente",
+                                    class: "campo-control",
+                                    r#type: "search",
+                                    autocomplete: "off",
+                                    placeholder: "{crate::i18n::ahora(Texto::BuscarIngrediente)}",
+                                    value: "{filtro_ingrediente}",
+                                    oninput: move |evento| filtro_ingrediente.set(evento.value()),
                                 }
                             }
 
-                            input {
-                                class: "ajustar-select ajustar-cantidad",
-                                r#type: "text",
-                                inputmode: "decimal",
-                                value: "{cantidad_nueva}",
-                                oninput: move |evento| cantidad_nueva.set(evento.value()),
+                            label { class: "campo", r#for: "crear-ingrediente",
+                                span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::Ingredientes)}" }
+                                select {
+                                    id: "crear-ingrediente",
+                                    class: "campo-control",
+                                    value: "{seleccion}",
+                                    onchange: move |evento| seleccion.set(evento.value()),
+
+                                    option { value: "", "{crate::i18n::ahora(Texto::EligeIngredienteCorto)}" }
+                                    for opcion in disponibles.iter() {
+                                        option { key: "{opcion.id}", value: "{opcion.id}", "{opcion.nombre}" }
+                                    }
+                                }
                             }
 
+                            if let Some(elegido) = catalogo_vec.iter().find(|opcion| opcion.id == seleccion()) {
+                                div { class: "anadir-ficha",
+                                    span {
+                                        class: "anadir-ficha-punto",
+                                        style: "background:{elegido.color.clone().unwrap_or_else(|| \"#B9A48C\".to_string())}",
+                                        "aria-hidden": "true",
+                                    }
+                                    span { class: "anadir-ficha-nombre", "{elegido.nombre}" }
+                                    span { class: "anadir-ficha-cifra",
+                                        if elegido.graduacion_pct > 0.0 {
+                                            "{elegido.graduacion_pct:.0} % ABV"
+                                        } else {
+                                            "{elegido.unidad}"
+                                        }
+                                    }
+                                }
+                            }
+
+                            div { class: "anadir-fila",
+                                label { class: "campo", r#for: "crear-cantidad",
+                                    span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::Cantidad)}" }
+                                    span { class: "campo-unidad",
+                                        input {
+                                            id: "crear-cantidad",
+                                            class: "campo-control",
+                                            r#type: "text",
+                                            inputmode: "decimal",
+                                            autocomplete: "off",
+                                            value: "{cantidad_nueva}",
+                                            oninput: move |evento| cantidad_nueva.set(evento.value()),
+                                        }
+                                        span { "{unidad_nueva}" }
+                                    }
+                                }
+
                             button {
-                                class: "chip",
+                                class: "primario",
                                 r#type: "button",
                                 disabled: seleccion().is_empty(),
                                 onclick: move |_| {
@@ -348,6 +393,7 @@ pub fn PantallaCrear() -> Element {
                                     error.set(None);
                                 },
                                 "{crate::i18n::ahora(Texto::AnadirBoton)}"
+                            }
                             }
                         }
                 }

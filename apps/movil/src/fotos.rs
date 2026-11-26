@@ -313,10 +313,27 @@ fn guion(id: &str) -> String {
             documento.close();
             const entrada = documento.querySelector('input');
 
+            // Cancelar no siempre dispara `change`: se avisa con `cancel` y, en los
+            // teléfonos que no lo emiten, al volver el foco a la página sin archivo.
+            let cerrando = false;
+            const cancelado = () => {{
+                if (cerrando) {{ return; }}
+                cerrando = true;
+                dioxus.send({{ datos: '', tipo: 'cancelado' }});
+            }};
+            entrada.addEventListener('cancel', cancelado);
+            if (marco.contentWindow) {{
+                marco.contentWindow.addEventListener('focus', () => {{
+                    setTimeout(() => {{
+                        if (!entrada.files || entrada.files.length === 0) {{ cancelado(); }}
+                    }}, 700);
+                }});
+            }}
+
             entrada.addEventListener('change', () => {{
                 const archivo = entrada.files && entrada.files[0];
                 if (!archivo) {{
-                    dioxus.send({{ datos: '', tipo: null }});
+                    cancelado();
                     return;
                 }}
                 const lector = new FileReader();
@@ -361,7 +378,7 @@ fn procesar(elegida: FotoElegida) -> Result<Option<(Vec<u8>, String)>, String> {
         if elegida.tipo.as_deref() == Some("error") {
             return Err({ crate::i18n::ahora(Texto::FotoNoLeida) }.to_string());
         }
-        return Ok(None); // Selección cancelada
+        return Ok(None); // Cancelada: se puede volver a intentar
     }
 
     let mut bytes = decodificar_base64(&elegida.datos)?;
@@ -491,14 +508,13 @@ pub fn BotonFoto(
                 disabled: ocupado || esperando(),
                 onclick: move |_| {
                     esperando.set(true);
-                    // Sin foto en un minuto, se avisa: el selector no llegó a abrirse
+                    // Si el selector no avisa nada en 25 segundos, se da por cancelado y el
+                    // botón vuelve a estar disponible: nunca queda trabado en «abriendo».
                     spawn(async move {
-                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(25)).await;
                         if esperando() {
                             esperando.set(false);
-                            al_elegir.call(Err(
-                                crate::i18n::ahora(Texto::FotoNoSeAbrioElSelector).to_string(),
-                            ));
+                            al_elegir.call(Ok(None));
                         }
                     });
                 },

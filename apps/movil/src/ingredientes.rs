@@ -10,6 +10,8 @@ use crate::sesion::SenalSesion;
 
 /// Hoja del sistema visual que comparten las pantallas.
 const CSS_BASE: Asset = asset!("/assets/descubrir.css");
+/// Campos, selectores y tarjetas de formulario.
+const CSS_FORMULARIO: Asset = asset!("/assets/formulario.css");
 
 /// Pantalla del catálogo: buscar, ver por categoría y agregar.
 #[component]
@@ -23,6 +25,7 @@ pub fn PantallaIngredientes() -> Element {
 
     rsx! {
         document::Stylesheet { href: CSS_BASE }
+        document::Stylesheet { href: CSS_FORMULARIO }
 
         main { class: "descubrir",
             header { class: "seccion-cabeza",
@@ -35,11 +38,11 @@ pub fn PantallaIngredientes() -> Element {
             p { class: "eyebrow", "{crate::i18n::ahora(Texto::RecetarioSeccion)}" }
             h1 { "{crate::i18n::ahora(Texto::CatalogoDeIngredientes)}" }
 
-            label { class: "ajustar-nombre", r#for: "buscar-ingrediente",
-                span { "{crate::i18n::ahora(Texto::BuscarIngrediente)}" }
+            label { class: "campo", r#for: "buscar-ingrediente",
+                span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::BuscarIngrediente)}" }
                 input {
                     id: "buscar-ingrediente",
-                    class: "ajustar-select",
+                    class: "campo-control",
                     r#type: "search",
                     value: "{busqueda}",
                     oninput: move |evento| busqueda.set(evento.value()),
@@ -144,83 +147,131 @@ fn ListaCatalogo(catalogo: Vec<IngredienteOpcion>, busqueda: String) -> Element 
     }
 }
 
-/// Formulario mínimo: nombre, categoría, unidad, alcohol y color.
+/// Categorías que ofrece el desplegable; la última deja escribir una propia.
+const CATEGORIAS: [&str; 8] = [
+    "cafe",
+    "licor",
+    "jarabe",
+    "fruta",
+    "especia",
+    "lacteo",
+    "mezclador",
+    "otra",
+];
+
+/// Color con el que nace un ingrediente cuando no se elige otro.
+const COLOR_INICIAL: &str = "#7A4A2B";
+
+/// Formulario de alta: nombre, categoría, unidad, graduación, color y dilución.
 #[component]
 fn FormularioIngrediente(al_agregar: EventHandler<()>) -> Element {
     let sesion = use_context::<SenalSesion>();
     let mut nombre = use_signal(String::new);
-    let mut tipo = use_signal(String::new);
+    let mut tipo = use_signal(|| CATEGORIAS[0].to_string());
+    let mut tipo_propio = use_signal(String::new);
     let mut unidad = use_signal(|| "ml".to_string());
     let mut graduacion = use_signal(String::new);
-    let mut color = use_signal(String::new);
+    let mut color = use_signal(|| COLOR_INICIAL.to_string());
     let mut dilucion = use_signal(|| false);
     let mut guardando = use_signal(|| false);
     let mut aviso = use_signal(|| None::<String>);
 
+    let nombre_limpio = nombre.read().trim().to_string();
+    let puede_guardar = !guardando() && nombre_limpio.chars().count() >= 2;
+    let otra = tipo() == "otra";
+
     rsx! {
-        section { class: "seccion",
-            label { class: "ajustar-nombre", r#for: "ing-nombre",
-                span { "{crate::i18n::ahora(Texto::NombreIngrediente)}" }
+        div { class: "formulario-campos",
+            label { class: "campo", r#for: "ing-nombre",
+                span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::NombreIngrediente)}" }
                 input {
                     id: "ing-nombre",
-                    class: "ajustar-select",
+                    class: "campo-control",
                     r#type: "text",
                     maxlength: "60",
+                    autocomplete: "off",
                     value: "{nombre}",
                     oninput: move |evento| nombre.set(evento.value()),
                 }
             }
 
-            label { class: "ajustar-nombre", r#for: "ing-tipo",
-                span { "{crate::i18n::ahora(Texto::CategoriaIngrediente)}" }
-                input {
+            label { class: "campo", r#for: "ing-tipo",
+                span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::CategoriaIngrediente)}" }
+                select {
                     id: "ing-tipo",
-                    class: "ajustar-select",
-                    r#type: "text",
-                    maxlength: "30",
-                    placeholder: "{crate::i18n::ahora(Texto::PlaceholderCategoria)}",
+                    class: "campo-control",
                     value: "{tipo}",
-                    oninput: move |evento| tipo.set(evento.value()),
+                    onchange: move |evento| tipo.set(evento.value()),
+                    for categoria in CATEGORIAS {
+                        option {
+                            key: "{categoria}",
+                            value: "{categoria}",
+                            selected: tipo() == categoria,
+                            "{categoria}"
+                        }
+                    }
                 }
             }
 
-            div { class: "ajustar-acciones",
-                label { class: "ajustar-nombre", r#for: "ing-unidad",
-                    span { "{crate::i18n::ahora(Texto::Unidad)}" }
+            if otra {
+                label { class: "campo", r#for: "ing-tipo-propio",
+                    span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::PlaceholderCategoria)}" }
+                    input {
+                        id: "ing-tipo-propio",
+                        class: "campo-control",
+                        r#type: "text",
+                        maxlength: "30",
+                        autocomplete: "off",
+                        placeholder: "{crate::i18n::ahora(Texto::PlaceholderCategoria)}",
+                        value: "{tipo_propio}",
+                        oninput: move |evento| tipo_propio.set(evento.value()),
+                    }
+                }
+            }
+
+            div { class: "formulario-pareja",
+                label { class: "campo", r#for: "ing-unidad",
+                    span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::Unidad)}" }
                     select {
                         id: "ing-unidad",
-                        class: "ajustar-select",
+                        class: "campo-control",
                         value: "{unidad}",
                         onchange: move |evento| unidad.set(evento.value()),
-                        option { value: "ml", "ml" }
-                        option { value: "mg", "mg" }
+                        option { value: "ml", selected: unidad() == "ml", "ml" }
+                        option { value: "mg", selected: unidad() == "mg", "mg" }
                     }
                 }
 
-                label { class: "ajustar-nombre", r#for: "ing-graduacion",
-                    span { "{crate::i18n::ahora(Texto::Graduacion)}" }
-                    input {
-                        id: "ing-graduacion",
-                        class: "ajustar-select",
-                        r#type: "text",
-                        inputmode: "decimal",
-                        value: "{graduacion}",
-                        oninput: move |evento| graduacion.set(evento.value()),
+                label { class: "campo", r#for: "ing-graduacion",
+                    span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::Graduacion)}" }
+                    span { class: "campo-unidad",
+                        input {
+                            id: "ing-graduacion",
+                            class: "campo-control",
+                            r#type: "text",
+                            inputmode: "decimal",
+                            autocomplete: "off",
+                            placeholder: "0",
+                            value: "{graduacion}",
+                            oninput: move |evento| graduacion.set(evento.value()),
+                        }
+                        span { "%" }
                     }
                 }
+            }
 
-                label { class: "ajustar-nombre", r#for: "ing-color",
-                    span { "{crate::i18n::ahora(Texto::Color)}" }
+            div { class: "campo",
+                span { class: "campo-etiqueta", "{crate::i18n::ahora(Texto::Color)}" }
+                label { class: "campo-color", r#for: "ing-color",
                     input {
                         id: "ing-color",
-                        class: "ajustar-select",
-                        r#type: "text",
-                        maxlength: "7",
-                        placeholder: "#7A4A2B",
+                        r#type: "color",
                         value: "{color}",
                         oninput: move |evento| color.set(evento.value()),
                     }
+                    span { class: "campo-color-codigo", "{color.read().to_uppercase()}" }
                 }
+                span { class: "campo-nota", "{crate::i18n::ahora(Texto::ColorDeLaCapa)}" }
             }
 
             label { class: "chip",
@@ -232,53 +283,61 @@ fn FormularioIngrediente(al_agregar: EventHandler<()>) -> Element {
                 span { "{crate::i18n::ahora(Texto::DiluyeLaBebida)}" }
             }
 
-            button {
-                class: "primario",
-                r#type: "button",
-                disabled: guardando(),
-                onclick: move |_| {
-                    let Some(token) = crate::sesion::token(&sesion) else {
-                        aviso.set(Some(crate::i18n::ahora(Texto::IniciaSesionIngrediente).to_string()));
-                        return;
-                    };
-                    if guardando() {
-                        return;
-                    }
-
-                    let datos = IngredienteNuevo {
-                        nombre: nombre.read().trim().to_string(),
-                        tipo: Some(tipo.read().trim().to_string()),
-                        unidad: unidad.read().clone(),
-                        graduacion_pct: graduacion.read().replace(',', ".").parse().unwrap_or(0.0),
-                        color: Some(color.read().trim().to_string()),
-                        dilucion: dilucion(),
-                    };
-
-                    guardando.set(true);
-                    aviso.set(None);
-
-                    spawn(async move {
-                        match crate::red::con_plazo(crear_ingrediente(token, datos)).await {
-                            Ok(_) => {
-                                aviso.set(Some(crate::i18n::ahora(Texto::IngredienteAgregado).to_string()));
-                                nombre.set(String::new());
-                                color.set(String::new());
-                                graduacion.set(String::new());
-                                al_agregar.call(());
-                            }
-                            Err(causa) => aviso.set(Some(crate::i18n::con(
-                                crate::i18n::actual(),
-                                Texto::NoSePudoAgregarIngrediente,
-                                &[&crate::red::mensaje(&causa)],
-                            ))),
+            div { class: "formulario-acciones",
+                button {
+                    class: "primario",
+                    r#type: "button",
+                    disabled: !puede_guardar,
+                    onclick: move |_| {
+                        let Some(token) = crate::sesion::token(&sesion) else {
+                            aviso.set(Some(crate::i18n::ahora(Texto::IniciaSesionIngrediente).to_string()));
+                            return;
+                        };
+                        if !puede_guardar {
+                            return;
                         }
-                        guardando.set(false);
-                    });
-                },
-                if guardando() {
-                    "{crate::i18n::ahora(Texto::Guardando)}"
-                } else {
-                    "{crate::i18n::ahora(Texto::AgregarIngrediente)}"
+
+                        let categoria = if otra {
+                            tipo_propio.read().trim().to_lowercase()
+                        } else {
+                            tipo()
+                        };
+                        let datos = IngredienteNuevo {
+                            nombre: nombre.read().trim().to_string(),
+                            tipo: (!categoria.is_empty()).then_some(categoria),
+                            unidad: unidad(),
+                            graduacion_pct: graduacion.read().replace(',', ".").parse().unwrap_or(0.0),
+                            color: Some(color()),
+                            dilucion: dilucion(),
+                        };
+
+                        guardando.set(true);
+                        aviso.set(None);
+
+                        spawn(async move {
+                            match crate::red::con_plazo(crear_ingrediente(token, datos)).await {
+                                Ok(_) => {
+                                    aviso.set(Some(crate::i18n::ahora(Texto::IngredienteAgregado).to_string()));
+                                    nombre.set(String::new());
+                                    graduacion.set(String::new());
+                                    color.set(COLOR_INICIAL.to_string());
+                                    dilucion.set(false);
+                                    al_agregar.call(());
+                                }
+                                Err(causa) => aviso.set(Some(crate::i18n::con(
+                                    crate::i18n::actual(),
+                                    Texto::NoSePudoAgregarIngrediente,
+                                    &[&crate::red::mensaje(&causa)],
+                                ))),
+                            }
+                            guardando.set(false);
+                        });
+                    },
+                    if guardando() {
+                        "{crate::i18n::ahora(Texto::Guardando)}"
+                    } else {
+                        "{crate::i18n::ahora(Texto::AgregarIngrediente)}"
+                    }
                 }
             }
 

@@ -57,17 +57,38 @@ class MainActivity : WryActivity() {
     }
 
     /**
-     * Retroceder del sistema navega dentro de la app, no la cierra.
+     * El retroceso lo atiende la app, no el WebView: su historial vive en memoria.
      *
-     * La app es una sola página con su propio historial, así que se le pide al navegador que
-     * vuelva; solo cuando ya no hay a dónde volver se deja que Android cierre la actividad.
+     * Con esto `WryActivity` deja de interceptar la tecla para llamar a `goBack()` del WebView,
+     * que siempre responde que no hay historial y terminaba cerrando la app.
+     */
+    override val handleBackNavigation: Boolean = false
+
+    /**
+     * Retroceder del sistema vuelve una pantalla y solo cierra la app en la primera.
+     *
+     * La página publica `__ratioPuedeVolver` y escucha el evento `ratio-atras`: se le avisa y,
+     * si no hay pantalla anterior, se cierra la actividad como haría cualquier app.
      */
     override fun onBackPressed() {
         val web = vista
-        if (web != null && web.canGoBack()) {
-            web.evaluateJavascript("window.history.back()", null)
-        } else {
+        if (web == null) {
             super.onBackPressed()
+            return
+        }
+
+        web.evaluateJavascript(
+            """
+            (function () {
+                if (!window.__ratioPuedeVolver) { return 'raiz'; }
+                document.dispatchEvent(new Event('ratio-atras'));
+                return 'atras';
+            })()
+            """.trimIndent()
+        ) { respuesta ->
+            if (respuesta != null && respuesta.contains("raiz")) {
+                finish()
+            }
         }
     }
 
