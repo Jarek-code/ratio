@@ -6,7 +6,7 @@
     margin: 0 auto;
     flex-direction: column;
     gap: 16px;
-    padding: 22px 18px 96px;
+    padding: 22px 18px calc(96px + var(--seguro-abajo, 0px)); /* iOS: margen del indicador de inicio */
 }
 
 .guardados-barra {

@@ -26,6 +26,8 @@ mod moderacion;
 mod perfil;
 mod preparar;
 mod push;
+#[cfg(target_os = "ios")]
+mod push_ios;
 mod red;
 mod reportar;
 mod rutas;
@@ -33,6 +35,8 @@ mod salud;
 #[cfg(target_os = "ios")]
 mod selector_ios;
 mod sesion;
+#[cfg(target_os = "ios")]
+mod zona_segura_ios;
 
 use dioxus::prelude::*;
 use dioxus::router::Router;
@@ -61,13 +65,24 @@ fn App() -> Element {
     // Las novedades sin leer de La Barra se consultan cada minuto
     let no_leidas = use_context_provider(|| actividad::NoLeidas(Signal::new(0_u32)));
     use_future(move || actividad::vigilar(sesion, no_leidas));
-    // El token push del aparato se registra cuando hay sesión (Android)
+    // El token push del aparato se registra cuando hay sesión (Android e iOS)
     use_future(move || push::registrar(sesion));
     // Unidad, tema y bienvenida, leídas del archivo de ajustes
     let ajustes = use_context_provider(|| Signal::new(ajustes::cargar()));
     let tema = ajustes.read().tema;
     // El idioma guardado manda desde el primer texto que se pinta
     i18n::fijar_actual(ajustes.read().idioma);
+    // Solo iOS: márgenes de la barra de estado y del indicador de inicio (Android no los usa)
+    #[cfg(target_os = "ios")]
+    let (zona_segura, franja) = zona_segura_ios::estilos().unzip();
+    #[cfg(not(target_os = "ios"))]
+    let (zona_segura, franja): (Option<String>, Option<String>) = (None, None);
+    // Solo iOS: el fondo que asoma al estirar la página (rebote) toma el color del tema
+    #[cfg(target_os = "ios")]
+    use_effect(use_reactive!(|(tema,)| {
+        let _ = tema; // Solo marca el cambio de tema
+        document::eval(zona_segura_ios::PINTAR_FONDO);
+    }));
 
     rsx! {
         // Fuentes usadas por el diseño de Penpot.
@@ -76,7 +91,10 @@ fn App() -> Element {
             href: "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap",
         }
         // El tema se aplica aquí: las hojas leen `data-theme` para cambiar sus colores
-        div { class: "app", "data-theme": "{tema.atributo()}",
+        div { class: "app", "data-theme": "{tema.atributo()}", style: zona_segura,
+            if let Some(franja) = franja {
+                div { style: franja }
+            }
             Router::<Rutas> {}
         }
     }

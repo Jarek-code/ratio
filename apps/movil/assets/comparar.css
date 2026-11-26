@@ -16,7 +16,7 @@
     margin: 0 auto;
     flex-direction: column;
     gap: 20px;
-    padding: calc(16px + env(safe-area-inset-top)) 20px calc(96px + env(safe-area-inset-bottom));
+    padding: calc(16px + env(safe-area-inset-top)) 20px calc(96px + var(--seguro-abajo, env(safe-area-inset-bottom)));
 }
 
 .cmp h1 {

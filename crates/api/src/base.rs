@@ -67,6 +67,7 @@ where
 #[cfg(feature = "server")]
 pub fn cliente_http() -> Result<reqwest::Client, ServerFnError> {
     reqwest::Client::builder()
+        .http1_only() // Como antes de activar http2 para APNs: Supabase y FCM siguen igual
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(12))
         .build()

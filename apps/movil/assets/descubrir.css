@@ -148,7 +148,7 @@ button {
     margin: 0 auto;
     flex-direction: column;
     gap: 20px;
-    padding: calc(16px + env(safe-area-inset-top)) 20px calc(96px + env(safe-area-inset-bottom));
+    padding: calc(16px + env(safe-area-inset-top)) 20px calc(96px + var(--seguro-abajo, env(safe-area-inset-bottom)));
 }
 
 .descubrir h1 {
@@ -598,7 +598,7 @@ button {
     color: var(--peligro-texto);
 }
 
-/* Barra inferior. */
+/* Barra inferior. `--seguro-abajo` solo existe en iOS (`zona_segura_ios`); Android usa `env()`. */
 .barra-inferior {
     position: fixed;
     right: 0;
@@ -608,7 +608,7 @@ button {
     grid-template-columns: repeat(5, 1fr);
     border-top: 1px solid var(--borde);
     background: var(--superficie-alta);
-    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    padding: 4px 4px calc(4px + var(--seguro-abajo, env(safe-area-inset-bottom)));
 }
 
 .barra-inferior .proximamente {

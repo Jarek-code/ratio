@@ -22,12 +22,14 @@ reqwest = { workspace = true }
 # Compresión de fotos que pasan del límite del contenedor (solo decodificar y recodificar en JPEG)
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 
-# Selector de fotos nativo de iOS (galería); estas versiones ya venían en Cargo.lock por Dioxus
+# Selector de fotos y push nativos de iOS; estas versiones ya venían en Cargo.lock por Dioxus
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSDictionary", "NSData", "NSString"] }
+block2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDictionary", "NSData", "NSEnumerator", "NSError", "NSString"] }
 objc2-ui-kit = { version = "0.3", default-features = false, features = [
     "std",
+    "block2", # present/dismiss del selector llevan bloque de cierre
     "objc2-core-foundation",
     "UIApplication",
     "UIResponder",
@@ -37,6 +39,15 @@ objc2-ui-kit = { version = "0.3", default-features = false, features = [
     "UINavigationController",
     "UIImagePickerController",
     "UIImage",
+    "UIGeometry", # margen seguro de la ventana (zona_segura_ios)
+    "UIScrollView", # margen del scroll del WebView (zona_segura_ios)
+] }
+objc2-user-notifications = { version = "0.3", default-features = false, features = [
+    "std",
+    "block2",
+    "UNNotification",
+    "UNNotificationResponse",
+    "UNUserNotificationCenter",
 ] }
 
 [features]

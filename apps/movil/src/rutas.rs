@@ -135,6 +135,19 @@ fn Atajos() -> Element {
         }
     });
 
+    // Solo iOS: la pantalla nueva empieza arriba. El WebView conserva el scroll de la anterior
+    // y el enlace para volver queda fuera de la vista. Android tiene lo mismo, pero aquí no se
+    // toca para no cambiar su comportamiento.
+    #[cfg(target_os = "ios")]
+    {
+        let ruta = use_route::<Rutas>();
+        use_effect(use_reactive!(|(ruta,)| {
+            let _ = ruta; // Solo marca el cambio de pantalla
+            document::eval("window.scrollTo(0, 0);");
+            document::eval(crate::zona_segura_ios::PINTAR_FONDO); // Cada pantalla carga sus hojas
+        }));
+    }
+
     rsx! {
         Outlet::<Rutas> {}
     }
