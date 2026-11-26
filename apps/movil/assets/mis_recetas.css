@@ -259,3 +259,19 @@
         max-height: 104px;
     }
 }
+
+/* Confirmación antes de borrar: el texto explica el alcance y los dos botones quedan juntos */
+.propia-confirmar {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 13px;
+}
+
+.chip--peligro {
+    color: var(--peligro-texto);
+    border-color: var(--peligro-borde);
+}
+
+.chip--peligro:hover {
+    background: var(--peligro-fondo);
+}

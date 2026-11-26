@@ -71,11 +71,12 @@ class MainActivity : WryActivity() {
      * notificaciones que pinta la app como los datos que FCM añade al abrir la app.
      */
     private fun guardarRuta(intent: Intent?) {
-        val ruta = intent?.getStringExtra(EXTRA_RUTA)
-            ?: if (intent?.getStringExtra("tipo") != null) "/actividad" else null
-        if (ruta == null) {
+        if (intent == null) {
             return
         }
+
+        val ruta = intent.getStringExtra(EXTRA_RUTA)
+            ?: if (intent.getStringExtra("tipo") != null) "/actividad" else return
 
         // Consumir los extras para no repetir la navegación si la Activity se reutiliza
         intent.removeExtra(EXTRA_RUTA)

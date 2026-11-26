@@ -77,6 +77,7 @@ fn enlazar_contratos() {
         api::push::registrar_dispositivo,
         api::receta::completa,
         api::recetario::mis_recetas,
+        api::recetario::eliminar_receta,
         api::vasos::vasos,
     );
 }

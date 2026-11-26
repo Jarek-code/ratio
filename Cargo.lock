@@ -3842,6 +3842,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "movil"
 version = "0.1.0"
 dependencies = [
@@ -3860,6 +3861,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> ffac3e2e8911e0c3b70fe46001fd3c16a105857c
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5135,6 +5138,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ratio"
+version = "0.1.1"
+dependencies = [
+ "api",
+ "dioxus",
+ "objc2",
+ "objc2-foundation",
+ "objc2-ui-kit",
+ "proporciones",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "rav1e"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5686,6 +5705,7 @@ dependencies = [
  "api",
  "dioxus",
  "dotenvy",
+ "serde_json",
  "sqlx",
  "tokio",
  "tracing",

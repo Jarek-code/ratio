@@ -284,10 +284,12 @@ pub async fn publicar(
     let mut tx = pool.begin().con_plazo("la publicación").await?;
 
     // Leer el estado actual y a quién pertenece la receta original, si es una versión
-    let previa = sqlx::query_as::<_, (bool, Option<String>)>(
+    let previa = sqlx::query_as::<_, (bool, Option<String>, i64, i64)>(
         r#"
         SELECT r.publicada_en IS NOT NULL,
-               (SELECT o.autor_id::text FROM receta o WHERE o.id = r.receta_origen_id)
+               (SELECT o.autor_id::text FROM receta o WHERE o.id = r.receta_origen_id),
+               (SELECT count(*) FROM comentario c WHERE c.receta_id = r.id),
+               (SELECT count(*) FROM receta d WHERE d.receta_origen_id = r.id)
         FROM receta r
         WHERE r.id = $1::uuid
           AND r.autor_id = $2::uuid
@@ -300,11 +302,18 @@ pub async fn publicar(
     .fetch_optional(&mut *tx)
     .con_plazo("la publicación")
     .await?;
-    let Some((estaba_publicada, autor_origen)) = previa else {
+    let Some((estaba_publicada, autor_origen, comentarios, derivadas)) = previa else {
         return Err(crate::fallos::no_encontrado(
             "Esa receta no existe o no es tuya.",
         )); // No es suya o está oculta
     };
+
+    // Con conversación o variantes de otras personas, la publicación se queda como está
+    if !publica && estaba_publicada && (comentarios > 0 || derivadas > 0) {
+        return Err(crate::fallos::datos(
+            "Tiene comentarios o versiones derivadas en La Barra: no se puede retirar.",
+        ));
+    }
 
     // Cambiar la fecha de publicación
     sqlx::query(

@@ -23,6 +23,9 @@ use crate::sesion::SenalSesion; // Sesión con cuenta y token // Textos traducib
 /// Segundos entre dos consultas de novedades sin leer.
 const REVISAR_CADA: u64 = 60;
 
+/// Hoja del sistema visual que comparten las pantallas.
+const CSS_BASE: Asset = asset!("/assets/descubrir.css");
+
 // ESTRUCTURAS
 
 /// Novedades sin leer de la cuenta actual, compartidas por contexto.
@@ -172,6 +175,9 @@ pub fn ContenidoActividad() -> Element {
     });
 
     rsx! {
+        // Sin la hoja del sistema visual, los enlaces y las listas salen con el estilo del navegador
+        document::Stylesheet { href: CSS_BASE }
+
         // Elegir contenido según el estado de la petición
         match &*recurso.read()
         {

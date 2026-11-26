@@ -598,5 +598,18 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::AnadirBoton => "添加",
         Texto::FotoNoSeAbrioElSelector => "无法打开照片选择器，请重试。",
         Texto::AbriendoElSelector => "正在打开选择器…",
+        Texto::EliminarReceta => "删除",
+        Texto::ConfirmarEliminar => "要删除《{0}》吗？此操作无法撤销。",
+        Texto::SiEliminar => "是的，删除",
+        Texto::Eliminando => "正在删除…",
+        Texto::NoSePudoEliminar => "无法删除：{0}",
+        Texto::VuelveAEntrarEliminar => "请重新登录后再删除配方。",
+        Texto::RecetaEnUso => "它已发布在 La Barra，并且有评论或衍生版本：无法删除或撤回。",
+        Texto::GuardarYPublicar => "保存并发布到 La Barra",
+        Texto::VersionGuardadaSinPublicar => "配方版本已保存，但未发布：{0}",
+        Texto::VersionGuardadaSinConexionPublicar => {
+            "配方版本已加入队列：网络恢复后可在“我的配方”中发布。"
+        }
+        Texto::VersionGuardadaYPublicada => "配方版本已保存并发布到 La Barra。",
     }
 }
