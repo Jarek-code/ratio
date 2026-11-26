@@ -138,8 +138,8 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::ConLeche => "Con leche",
         Texto::SinAlcoholTexto => "Sin alcohol",
         Texto::Igual => "— igual",
-        Texto::Volumen => "Volumen",
         Texto::Graduacion => "Graduación",
+        Texto::Volumen => "Volumen",
         Texto::Capas => "Capas",
         Texto::VolverALaFicha => "Volver a la ficha",
         Texto::CompararSubtitulo => {
@@ -690,5 +690,19 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         }
         Texto::VersionGuardadaYPublicada => "La versión quedó guardada y publicada en La Barra.",
         Texto::FotoNoQuitada => "No se pudo quitar la foto: {0}",
+        Texto::CatalogoDeIngredientes => "Ingredientes",
+        Texto::BuscarIngrediente => "Buscar",
+        Texto::NuevoIngrediente => "Agregar ingrediente",
+        Texto::NombreIngrediente => "Nombre",
+        Texto::CategoriaIngrediente => "Categoría",
+        Texto::PlaceholderCategoria => "Licor, zumo, especia…",
+        Texto::Unidad => "Unidad",
+        Texto::Color => "Color",
+        Texto::DiluyeLaBebida => "Diluye la bebida",
+        Texto::AgregarIngrediente => "Agregar",
+        Texto::IngredienteAgregado => "Ingrediente agregado al catálogo.",
+        Texto::NoSePudoAgregarIngrediente => "No se pudo agregar: {0}",
+        Texto::SinIngredientesQueCoincidan => "No hay ingredientes que coincidan.",
+        Texto::IniciaSesionIngrediente => "Inicia sesión para agregar un ingrediente.",
     }
 }

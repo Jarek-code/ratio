@@ -15,6 +15,7 @@ mod fotos;
 mod guardados;
 mod historial;
 mod i18n;
+mod ingredientes;
 mod la_barra;
 mod lista_compra;
 mod local;

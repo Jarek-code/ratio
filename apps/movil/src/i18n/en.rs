@@ -126,8 +126,8 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::ConLeche => "With milk",
         Texto::SinAlcoholTexto => "Alcohol free",
         Texto::Igual => "— same",
-        Texto::Volumen => "Volume",
         Texto::Graduacion => "ABV",
+        Texto::Volumen => "Volume",
         Texto::Capas => "Layers",
         Texto::VolverALaFicha => "Back to the recipe",
         Texto::CompararSubtitulo => {
@@ -678,5 +678,19 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         }
         Texto::VersionGuardadaYPublicada => "The version was saved and published to La Barra.",
         Texto::FotoNoQuitada => "Could not remove the photo: {0}",
+        Texto::CatalogoDeIngredientes => "Ingredients",
+        Texto::BuscarIngrediente => "Search",
+        Texto::NuevoIngrediente => "Add ingredient",
+        Texto::NombreIngrediente => "Name",
+        Texto::CategoriaIngrediente => "Category",
+        Texto::PlaceholderCategoria => "Liqueur, juice, spice…",
+        Texto::Unidad => "Unit",
+        Texto::Color => "Colour",
+        Texto::DiluyeLaBebida => "Dilutes the drink",
+        Texto::AgregarIngrediente => "Add",
+        Texto::IngredienteAgregado => "Ingredient added to the catalogue.",
+        Texto::NoSePudoAgregarIngrediente => "Could not add: {0}",
+        Texto::SinIngredientesQueCoincidan => "No ingredients match.",
+        Texto::IniciaSesionIngrediente => "Sign in to add an ingredient.",
     }
 }

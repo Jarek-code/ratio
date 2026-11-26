@@ -1176,4 +1176,32 @@ pub enum Texto {
     VersionGuardadaYPublicada,
     /// No se pudo quitar la foto: {0}
     FotoNoQuitada,
+    /// Ingredientes
+    CatalogoDeIngredientes,
+    /// Buscar
+    BuscarIngrediente,
+    /// Agregar ingrediente
+    NuevoIngrediente,
+    /// Nombre
+    NombreIngrediente,
+    /// Categoría
+    CategoriaIngrediente,
+    /// Licor, zumo, especia…
+    PlaceholderCategoria,
+    /// Unidad
+    Unidad,
+    /// Color
+    Color,
+    /// Diluye la bebida
+    DiluyeLaBebida,
+    /// Agregar
+    AgregarIngrediente,
+    /// Ingrediente agregado al catálogo.
+    IngredienteAgregado,
+    /// No se pudo agregar: {0}
+    NoSePudoAgregarIngrediente,
+    /// No hay ingredientes que coincidan.
+    SinIngredientesQueCoincidan,
+    /// Inicia sesión para agregar un ingrediente.
+    IniciaSesionIngrediente,
 }

@@ -84,6 +84,13 @@ pub fn PantallaBiblioteca(busqueda: String, familia: String, tipo: String) -> El
             header { class: "biblioteca-cabeza",
                 p { class: "eyebrow", "{crate::i18n::ahora(Texto::RecetarioSeccion)}" }
                 h1 { "{crate::i18n::ahora(Texto::BibliotecaTitulo)}" }
+
+                // Acceso al catálogo de ingredientes, donde se pueden agregar
+                Link {
+                    to: Rutas::Ingredientes,
+                    class: "chip",
+                    "{crate::i18n::ahora(Texto::CatalogoDeIngredientes)}"
+                }
                 p { class: "biblioteca-sub", "{crate::i18n::ahora(Texto::ProporcionEnLaFicha)}" }
                 Link {
                     to: Rutas::ListaCompra,

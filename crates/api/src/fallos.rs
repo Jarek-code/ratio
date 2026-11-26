@@ -87,6 +87,12 @@ pub fn es_datos(causa: &ServerFnError) -> bool {
 ///
 /// Evita que un identificador vacío o inventado llegue a `$1::uuid` y vuelva como error de
 /// consulta, que la persona no puede entender ni corregir.
+/// Si el texto es un color hexadecimal de seis dígitos (`#RRGGBB`).
+pub fn es_color(texto: &str) -> bool {
+    let bytes = texto.as_bytes();
+    bytes.len() == 7 && bytes[0] == b'#' && bytes[1..].iter().all(u8::is_ascii_hexdigit)
+}
+
 pub fn es_uuid(texto: &str) -> bool {
     let bytes = texto.as_bytes();
     if bytes.len() != 36 {

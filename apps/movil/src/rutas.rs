@@ -11,6 +11,7 @@ use crate::descubrir;
 use crate::ficha;
 use crate::guardados;
 use crate::historial;
+use crate::ingredientes;
 use crate::la_barra;
 use crate::lista_compra;
 use crate::login;
@@ -77,6 +78,9 @@ pub enum Rutas {
     /// Comparación de dos recetas (B4); sin `con`, se elige la segunda.
     #[route("/receta/:id/comparar?:con")]
     Comparar { id: String, con: String },
+    /// Catálogo de ingredientes, con búsqueda y alta.
+    #[route("/ingredientes")]
+    Ingredientes,
     /// Ingredientes de una receta en varias unidades (B5).
     #[route("/receta/:id/ingredientes")]
     Equivalencias { id: String },
@@ -289,6 +293,14 @@ fn Actividad() -> Element {
 fn Comparar(id: String, con: String) -> Element {
     rsx! {
         comparar::PantallaComparar { id, con }
+    }
+}
+
+/// Catálogo de ingredientes.
+#[component]
+fn Ingredientes() -> Element {
+    rsx! {
+        ingredientes::PantallaIngredientes {}
     }
 }
 
