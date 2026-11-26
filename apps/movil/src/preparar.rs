@@ -203,7 +203,7 @@ pub fn PantallaPreparar(id: String) -> Element {
                             {
                                 class: "acciones-fila",
                                 button { class: "chip", r#type: "button", onclick: move |_| ir_a(0), "{crate::i18n::ahora(Texto::PrepararOtraVez)}" }
-                                Link { to: Rutas::Ficha { id: receta.id.clone() }, class: "chip", "{crate::i18n::ahora(Texto::VolverALaReceta)}" }
+                                crate::rutas::VolverChip { etiqueta: crate::i18n::ahora(Texto::VolverALaReceta).to_string(), respaldo: Rutas::Ficha { id: receta.id.clone() } }
                             }
                         }
                     }

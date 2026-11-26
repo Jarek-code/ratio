@@ -257,6 +257,7 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::Publica => "公开",
         Texto::PrivadaFiltro => "私密",
         Texto::VolverALaFichaReceta => "返回配方卡",
+        Texto::Receta => "配方",
         Texto::HistorialDeVersiones => "版本历史",
         Texto::CargandoHistorial => "正在加载历史…",
         Texto::SinVersionesBebida => "此饮品还没有已发布的版本。",

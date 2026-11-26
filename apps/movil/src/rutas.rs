@@ -363,23 +363,51 @@ fn Ajustes() -> Element {
 ///
 /// Se usa en toda pantalla que no sea una pestaña de la barra inferior. Si no hay historial
 /// (por ejemplo al abrir un enlace directo) va a `respaldo`.
+///
+/// `texto` es la versión corta que se pinta, cuando la etiqueta accesible es más larga.
 #[component]
-pub fn Volver(etiqueta: String, #[props(into)] respaldo: Rutas) -> Element {
+pub fn Volver(
+    etiqueta: String,
+    #[props(into)] respaldo: Rutas,
+    #[props(default)] texto: Option<String>,
+) -> Element {
     let navegador = navigator();
+    let visible = texto.unwrap_or_else(|| etiqueta.clone());
 
     rsx! {
         button {
             class: "volver",
             r#type: "button",
             aria_label: "{etiqueta}",
-            onclick: move |_| {
-                if navegador.can_go_back() {
-                    navegador.go_back();
-                } else {
-                    navegador.push(respaldo.clone());
-                }
-            },
-            "‹ {etiqueta}"
+            onclick: move |_| regresar(navegador, respaldo.clone()),
+            "‹ {visible}"
         }
+    }
+}
+
+/// Igual que [`Volver`], con la forma de un chip de acciones.
+#[component]
+pub fn VolverChip(etiqueta: String, #[props(into)] respaldo: Rutas) -> Element {
+    let navegador = navigator();
+
+    rsx! {
+        button {
+            class: "chip",
+            r#type: "button",
+            onclick: move |_| regresar(navegador, respaldo.clone()),
+            "{etiqueta}"
+        }
+    }
+}
+
+/// Vuelve a la pantalla anterior y, si no la hay, abre la de respaldo.
+///
+/// Volver siempre con `go_back` evita el bucle de abrir una subpantalla y regresar a ella:
+/// empujar la ficha como si fuera nueva dejaría la subpantalla detrás en el historial.
+fn regresar(navegador: dioxus::router::Navigator, respaldo: Rutas) {
+    if navegador.can_go_back() {
+        navegador.go_back();
+    } else {
+        navegador.push(respaldo);
     }
 }

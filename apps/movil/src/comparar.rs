@@ -501,7 +501,7 @@ fn Comparacion(
         {
             class: "cmp-pie",
             Link { to: Rutas::Equivalencias { id: a.id.clone() }, class: "chip", "{crate::i18n::ahora(Texto::IngredientesOtrasUnidades)}" }
-            Link { to: Rutas::Ficha { id: a.id.clone() }, class: "chip", "{crate::i18n::ahora(Texto::VolverALaReceta)}" }
+            crate::rutas::VolverChip { etiqueta: crate::i18n::ahora(Texto::VolverALaReceta).to_string(), respaldo: Rutas::Ficha { id: a.id.clone() } }
         }
     }
 }

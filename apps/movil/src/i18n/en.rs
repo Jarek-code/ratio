@@ -289,6 +289,7 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::Publica => "Public",
         Texto::PrivadaFiltro => "Private",
         Texto::VolverALaFichaReceta => "Back to the recipe card",
+        Texto::Receta => "Recipe",
         Texto::HistorialDeVersiones => "Version history",
         Texto::CargandoHistorial => "Loading the history…",
         Texto::SinVersionesBebida => "This drink has no published versions yet.",

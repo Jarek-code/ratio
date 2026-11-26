@@ -478,6 +478,8 @@ pub enum Texto {
     PrivadaFiltro,
     /// Volver a la ficha de la receta
     VolverALaFichaReceta,
+    /// Receta (texto corto de la flecha de vuelta)
+    Receta,
     /// Historial de versiones
     HistorialDeVersiones,
     /// Cargando el historial…

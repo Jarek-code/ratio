@@ -138,11 +138,10 @@ pub fn PantallaAjustar(id: String) -> Element {
 fn BarraSuperior(id: String) -> Element {
     rsx! {
         header { class: "ajustar-barra",
-            Link {
-                to: Rutas::Ficha { id },
-                class: "volver",
-                aria_label: "{crate::i18n::ahora(Texto::VolverALaFichaReceta)}",
-                "‹ Receta"
+            crate::rutas::Volver {
+                etiqueta: crate::i18n::ahora(Texto::VolverALaFichaReceta).to_string(),
+                texto: Some(crate::i18n::ahora(Texto::Receta).to_string()),
+                respaldo: Rutas::Ficha { id },
             }
         }
     }
