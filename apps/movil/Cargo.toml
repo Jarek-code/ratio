@@ -19,6 +19,8 @@ serde_json = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 # Subida directa de fotos a Supabase Storage; ya venía dentro de la app por dioxus-fullstack
 reqwest = { workspace = true }
+# Compresión de fotos que pasan del límite del contenedor (solo decodificar y recodificar en JPEG)
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 
 # Selector de fotos nativo de iOS (galería); estas versiones ya venían en Cargo.lock por Dioxus
 [target.'cfg(target_os = "ios")'.dependencies]

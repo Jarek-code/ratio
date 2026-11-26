@@ -677,5 +677,6 @@ pub(super) fn texto(texto: Texto) -> &'static str {
             "The version is queued: publish it from My recipes once the connection returns."
         }
         Texto::VersionGuardadaYPublicada => "The version was saved and published to La Barra.",
+        Texto::FotoNoQuitada => "Could not remove the photo: {0}",
     }
 }

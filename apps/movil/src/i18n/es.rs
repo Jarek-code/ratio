@@ -689,5 +689,6 @@ pub(super) fn texto(texto: Texto) -> &'static str {
             "La versión quedó en la cola: publícala desde Mi recetario cuando vuelva la conexión."
         }
         Texto::VersionGuardadaYPublicada => "La versión quedó guardada y publicada en La Barra.",
+        Texto::FotoNoQuitada => "No se pudo quitar la foto: {0}",
     }
 }

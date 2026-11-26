@@ -1174,4 +1174,6 @@ pub enum Texto {
     VersionGuardadaSinConexionPublicar,
     /// La versión quedó guardada y publicada en La Barra.
     VersionGuardadaYPublicada,
+    /// No se pudo quitar la foto: {0}
+    FotoNoQuitada,
 }

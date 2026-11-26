@@ -1306,3 +1306,31 @@ a.destino {
     height: 100%;
     width: auto;
 }
+
+/* Cada foto de la galería con su botón para quitarla */
+.foto-celda {
+    position: relative;
+    display: grid;
+}
+
+.foto-quitar {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(20, 12, 8, 0.62);
+    color: var(--crema);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.foto-quitar:hover {
+    background: var(--peligro-texto);
+}

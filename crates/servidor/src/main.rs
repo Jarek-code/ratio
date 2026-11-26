@@ -52,6 +52,7 @@ fn enlazar_contratos() {
         api::diario::detallar_preparacion,
         api::diario::diario,
         api::foro::agregar_foto,
+        api::foro::quitar_foto,
         api::foro::comentar,
         api::foro::datos_storage,
         api::foro::hilo,

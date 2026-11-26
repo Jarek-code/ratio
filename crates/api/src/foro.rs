@@ -974,3 +974,59 @@ pub async fn agregar_foto(
 
     rutas.ok_or_else(|| crate::fallos::datos("La receta no es tuya o ya tiene cinco fotos.")) // No es suya o ya tiene cinco
 }
+
+/// Quita una foto de una receta propia y devuelve las rutas que quedan.
+///
+/// El archivo del almacenamiento lo borra el cliente con el token de la cuenta; aquí solo se
+/// deja de referenciar, de modo que la ficha no la muestre aunque el objeto tarde en irse.
+///
+/// # Errores
+///
+/// Devuelve `ServerFnError` si la ruta no es de la cuenta y la receta, si la receta no es suya
+/// o si la consulta falla.
+#[server(endpoint = "quitar_foto")]
+pub async fn quitar_foto(
+    token: String,
+    receta_id: String,
+    ruta: String,
+) -> Result<Vec<String>, ServerFnError> {
+    if !crate::fallos::es_uuid(&receta_id) {
+        return Err(crate::fallos::datos(
+            "La receta pedida no es válida: vuelve a abrirla desde Mi recetario.",
+        ));
+    }
+
+    let pool = crate::base::pool()?;
+    let cuenta = cuenta_obligatoria(&token).await?;
+
+    let prefijo = format!("{cuenta}/{receta_id}/");
+    if !nombre_foto_valido(ruta.strip_prefix(&prefijo).unwrap_or_default()) {
+        return Err(crate::fallos::datos(
+            "La ruta de la foto no es válida: tiene que estar dentro de tu carpeta.",
+        ));
+    }
+
+    let rutas = sqlx::query_scalar::<_, Vec<String>>(
+        r#"
+        UPDATE receta
+        SET fotos_rutas = array_remove(fotos_rutas, $3)
+        WHERE id = $1::uuid
+          AND autor_id = $2::uuid
+          AND $3 = ANY(fotos_rutas)
+        RETURNING fotos_rutas
+        "#,
+    )
+    .bind(&receta_id)
+    .bind(&cuenta)
+    .bind(&ruta)
+    .fetch_optional(pool)
+    .con_plazo("quitar la foto")
+    .await
+    .map_err(|causa| {
+        dioxus::logger::tracing::error!("no se pudo quitar la foto: {causa}");
+
+        crate::fallos::reintento("No se pudo quitar la foto de la receta. Vuelve a intentarlo.")
+    })?;
+
+    rutas.ok_or_else(|| crate::fallos::datos("La receta no es tuya o esa foto ya no está."))
+}

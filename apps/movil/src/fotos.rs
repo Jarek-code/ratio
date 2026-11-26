@@ -241,6 +241,25 @@ async fn subir_a_receta(
         })
 }
 
+/// Borra el archivo del almacenamiento con el token de la cuenta.
+///
+/// Es un borrado de mejor esfuerzo: si falla, la foto ya no se muestra porque la receta dejó
+/// de referenciarla, y el objeto queda huérfano en el contenedor.
+async fn borrar_de_storage(token: &str, ruta: &str) {
+    let (Some(url), Some(anon)) = (base_url(), clave()) else {
+        return;
+    };
+
+    let mut peticion =
+        reqwest::Client::new().delete(format!("{url}/storage/v1/object/{BUCKET}/{ruta}"));
+    peticion = peticion.header("apikey", anon);
+    peticion = peticion.header("Authorization", format!("Bearer {token}"));
+
+    if let Err(causa) = peticion.send().await {
+        dioxus::logger::tracing::warn!("la foto quedó en el almacenamiento: {causa}");
+    }
+}
+
 /// Abre la galería del sistema, que solo existe en iOS. Devuelve los bytes y el tipo, o
 /// `None` si la persona canceló.
 async fn galeria_del_sistema() -> Result<Option<(Vec<u8>, String)>, String> {
@@ -338,15 +357,21 @@ fn procesar(elegida: FotoElegida) -> Result<Option<(Vec<u8>, String)>, String> {
         return Ok(None); // Selección cancelada
     }
 
-    let bytes = decodificar_base64(&elegida.datos)?;
-    if bytes.len() as u64 > BYTES_MAXIMOS {
-        return Err({ crate::i18n::ahora(Texto::FotoPesaDemasiado) }.to_string());
-    }
-
-    let tipo = elegida
+    let mut bytes = decodificar_base64(&elegida.datos)?;
+    let mut tipo = elegida
         .tipo
         .filter(|tipo| !tipo.is_empty())
         .unwrap_or_else(|| "image/jpeg".to_string());
+
+    // Una foto grande se reduce aquí; si aun así no cabe, se avisa
+    if bytes.len() as u64 > BYTES_MAXIMOS {
+        bytes = comprimir(std::mem::take(&mut bytes))?;
+        tipo = "image/jpeg".to_string();
+
+        if bytes.len() as u64 > BYTES_MAXIMOS {
+            return Err({ crate::i18n::ahora(Texto::FotoPesaDemasiado) }.to_string());
+        }
+    }
 
     Ok(Some((bytes, tipo)))
 }
@@ -483,6 +508,7 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element {
     let aviso_plataforma = aviso_sin_fotos(); // Por qué no se puede subir aquí
     let puede_subir = puede_adjuntar() && propia && fotos_sel().len() < api::foro::FOTOS_MAXIMAS;
     let receta_id = receta.id.clone();
+    let receta_id_quitar = receta.id.clone(); // Copia para el borrado
     let nombre = receta.receta.nombre.clone();
 
     // Elegir la foto y subirla; en iOS el archivo llega vacío y se abre la galería nativa
@@ -517,6 +543,34 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element {
         });
     });
 
+    // Quitar una foto propia: primero de la receta y después del almacenamiento
+    let quitar = use_callback(move |ruta: String| {
+        let Some(token) = crate::sesion::token(&sesion) else {
+            aviso.set(Some(
+                { crate::i18n::ahora(Texto::FotoSinSesion) }.to_string(),
+            ));
+            return;
+        };
+        let id = receta_id_quitar.clone();
+        aviso.set(None);
+
+        spawn(async move {
+            match crate::red::con_plazo(api::foro::quitar_foto(token.clone(), id, ruta.clone()))
+                .await
+            {
+                Ok(rutas) => {
+                    fotos_sel.set(rutas);
+                    borrar_de_storage(&token, &ruta).await;
+                }
+                Err(causa) => aviso.set(Some(crate::i18n::con(
+                    crate::i18n::actual(),
+                    Texto::FotoNoQuitada,
+                    &[&crate::red::mensaje(&causa)],
+                ))),
+            }
+        });
+    });
+
     // Sin Storage configurado, o sin fotos ni permiso para subir: no ocupar espacio
     if base().is_none() || (fotos_sel().is_empty() && !puede_subir) {
         // En Android el motivo se dice en la ficha; si no hay nada que explicar, no se pinta
@@ -541,7 +595,23 @@ pub fn FotosReceta(receta: RecetaCompleta) -> Element {
                 {
                     if let Some(url) = url_publica(ruta)
                     {
-                        img { key: "{ruta}", class: "foto-receta", src: "{url}", alt: "{crate::i18n::con(crate::i18n::actual(), Texto::FotoNumeroDe, &[&(indice + 1).to_string(), &nombre])}", loading: "lazy" }
+                        div { key: "{ruta}", class: "foto-celda",
+                            img { class: "foto-receta", src: "{url}", alt: "{crate::i18n::con(crate::i18n::actual(), Texto::FotoNumeroDe, &[&(indice + 1).to_string(), &nombre])}", loading: "lazy" }
+
+                            if propia
+                            {
+                                button {
+                                    class: "foto-quitar",
+                                    r#type: "button",
+                                    aria_label: "{crate::i18n::ahora(Texto::QuitarFoto)}",
+                                    onclick: {
+                                        let ruta = ruta.clone();
+                                        move |_| quitar.call(ruta.clone())
+                                    },
+                                    "✕"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -596,4 +666,32 @@ mod pruebas {
         assert_eq!(decodificar_base64("+/8=").unwrap(), vec![0xfb, 0xff]);
         assert!(decodificar_base64("").is_err());
     }
+}
+
+/// Reduce una foto que pasa del límite del contenedor.
+///
+/// Se decodifica, se limita el lado mayor a 1600 px y se guarda como JPEG con calidad 80,
+/// que para una foto de teléfono pesa muy por debajo de los 5 MB sin perder detalle visible.
+fn comprimir(bytes: Vec<u8>) -> Result<Vec<u8>, String> {
+    /// Lado mayor de la foto ya comprimida.
+    const LADO_MAXIMO: u32 = 1600;
+    /// Calidad del JPEG resultante.
+    const CALIDAD: u8 = 80;
+
+    let imagen = image::load_from_memory(&bytes)
+        .map_err(|_| crate::i18n::ahora(Texto::FotoNoLeida).to_string())?;
+
+    let reducida = if imagen.width() > LADO_MAXIMO || imagen.height() > LADO_MAXIMO {
+        imagen.thumbnail(LADO_MAXIMO, LADO_MAXIMO)
+    } else {
+        imagen
+    };
+
+    let mut salida = Vec::new();
+    let mut codificador = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut salida, CALIDAD);
+    codificador
+        .encode_image(&reducida)
+        .map_err(|_| crate::i18n::ahora(Texto::FotoNoLeida).to_string())?;
+
+    Ok(salida)
 }

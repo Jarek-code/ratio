@@ -611,5 +611,6 @@ pub(super) fn texto(texto: Texto) -> &'static str {
             "配方版本已加入队列：网络恢复后可在“我的配方”中发布。"
         }
         Texto::VersionGuardadaYPublicada => "配方版本已保存并发布到 La Barra。",
+        Texto::FotoNoQuitada => "无法删除照片：{0}",
     }
 }
