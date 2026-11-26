@@ -421,7 +421,7 @@
 .toast {
     position: fixed;
     z-index: 10;
-    bottom: 24px;
+    bottom: calc(24px + var(--seguro-abajo, 0px)); /* iOS: sobre el indicador de inicio */
     left: 50%;
     max-width: min(340px, calc(100vw - 40px));
     padding: 10px 14px;
