@@ -97,7 +97,6 @@ fn App() -> Element {
                 div { style: franja }
             }
             Router::<Rutas> {}
-            atras::AtrasDelSistema {}
         }
     }
 }

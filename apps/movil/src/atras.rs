@@ -20,6 +20,11 @@ new Promise((listo) => {
 /// Atiende el botón de retroceso de Android y publica si hay pantalla anterior.
 #[component]
 pub fn AtrasDelSistema() -> Element {
+    // Sin router por encima la app sigue sin este aviso, en vez de caerse al abrir
+    if dioxus::core::try_consume_context::<dioxus::router::RouterContext>().is_none() {
+        return rsx! {};
+    }
+
     let navegador = navigator();
     let ruta = use_route::<Rutas>(); // Cambia de valor en cada pantalla
 

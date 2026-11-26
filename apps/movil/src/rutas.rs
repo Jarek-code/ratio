@@ -149,6 +149,8 @@ fn Atajos() -> Element {
     }
 
     rsx! {
+        // El retroceso del sistema vive aquí: necesita el router por encima
+        crate::atras::AtrasDelSistema {}
         Outlet::<Rutas> {}
     }
 }
