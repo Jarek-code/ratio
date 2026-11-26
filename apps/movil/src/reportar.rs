@@ -154,9 +154,10 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                                         enviado.set(true);
                                         enviando.set(false);
                                     }
-                                    // Sin red: el reporte queda en la cola
+                                    // Sin red de verdad: el reporte queda en la cola. Un error
+                                    // del servidor se muestra, para no guardarlo en silencio
                                     Err(causa)
-                                        if crate::red::sin_conexion(&causa)
+                                        if crate::red::es_red(&causa)
                                             && crate::local::encolar(
                                                 &sesion,
                                                 &mut pendientes,
