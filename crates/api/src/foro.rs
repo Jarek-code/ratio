@@ -865,7 +865,7 @@ pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<bool, Serv
     let creado = sqlx::query(
         r#"
         INSERT INTO reporte (id, reportante_id, receta_id, comentario_id, motivo, detalle)
-        SELECT COALESCE($6::uuid, gen_random_uuid()), $1::uuid, $2::uuid, $3, $4, $5
+        SELECT COALESCE($6::uuid, gen_random_uuid()), $1::uuid, $2::uuid, $3::uuid, $4, $5
         WHERE NOT EXISTS (
             SELECT 1 FROM reporte
             WHERE reportante_id = $1::uuid
