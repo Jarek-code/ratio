@@ -266,13 +266,13 @@ async fn galeria_del_sistema() -> Result<Option<(Vec<u8>, String)>, String> {
     #[cfg(target_os = "ios")]
     {
         let foto = crate::selector_ios::elegir_de_galeria().await?;
-        // Mismo límite que el selector de Android: el bucket rechaza lo que pase de 5 MB
-        if foto
-            .as_ref()
-            .is_some_and(|bytes| bytes.len() as u64 > BYTES_MAXIMOS)
-        {
-            return Err({ crate::i18n::ahora(Texto::FotoPesaDemasiado) }.to_string());
-        }
+
+        // Igual que en Android: una foto grande se reduce aquí en vez de rechazarla
+        let foto = match foto {
+            Some(bytes) if bytes.len() as u64 > BYTES_MAXIMOS => Some(comprimir(bytes)?),
+            otra => otra,
+        };
+
         Ok(foto.map(|bytes| (bytes, "image/jpeg".to_string()))) // La galería entrega JPEG
     }
 
