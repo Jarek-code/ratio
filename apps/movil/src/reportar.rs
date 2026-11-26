@@ -130,6 +130,7 @@ pub fn ModalReportar(receta_id: String, on_cerrar: EventHandler<()>) -> Element 
                             let texto = detalle();
                             let limpio = texto.trim();
                             let datos = ReporteNuevo {
+                                id: crate::local::nuevo_id(),
                                 receta_id: Some(id_reporte.clone()),
                                 comentario_id: None,
                                 motivo: motivo(),

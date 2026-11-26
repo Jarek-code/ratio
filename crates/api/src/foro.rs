@@ -796,6 +796,9 @@ impl Motivo {
 /// Reporte de una receta o de un comentario.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReporteNuevo {
+    /// UUID que genera la app: reenviarlo desde la cola no duplica el reporte.
+    #[serde(default)]
+    pub id: Option<String>,
     /// Receta reportada, o `None` si se reporta un comentario.
     pub receta_id: Option<String>,
     /// Comentario reportado, o `None` si se reporta una receta.
@@ -857,17 +860,19 @@ pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<bool, Serv
         .filter(|texto| !texto.is_empty())
         .map(|texto| texto.chars().take(LARGO_MAXIMO).collect::<String>()); // Detalle limpio y acotado
 
-    // Insertar el reporte salvo que la cuenta ya haya reportado ese contenido
+    // Insertar el reporte salvo que la cuenta ya haya reportado ese contenido; el
+    // identificador del cliente hace que un reenvío de la cola tampoco lo duplique
     let creado = sqlx::query(
         r#"
-        INSERT INTO reporte (reportante_id, receta_id, comentario_id, motivo, detalle)
-        SELECT $1::uuid, $2::uuid, $3::uuid, $4, $5
+        INSERT INTO reporte (id, reportante_id, receta_id, comentario_id, motivo, detalle)
+        SELECT COALESCE($6::uuid, gen_random_uuid()), $1::uuid, $2::uuid, $3, $4, $5
         WHERE NOT EXISTS (
             SELECT 1 FROM reporte
             WHERE reportante_id = $1::uuid
               AND receta_id IS NOT DISTINCT FROM $2::uuid
               AND comentario_id IS NOT DISTINCT FROM $3::uuid
         )
+        ON CONFLICT (id) DO NOTHING
         "#,
     )
     .bind(&cuenta)
@@ -875,6 +880,7 @@ pub async fn reportar(token: String, reporte: ReporteNuevo) -> Result<bool, Serv
     .bind(&reporte.comentario_id)
     .bind(reporte.motivo.clave())
     .bind(&detalle)
+    .bind(&reporte.id)
     .execute(pool)
     .await
     .map_err(|causa| {

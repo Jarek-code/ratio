@@ -671,6 +671,7 @@ fn Reportar(receta_id: Option<String>, comentario_id: Option<String>) -> Element
                     };
                     let reporte = ReporteNuevo
                     {
+                        id: crate::local::nuevo_id(),
                         receta_id: receta_id.clone(),
                         comentario_id: comentario_id.clone(),
                         motivo: motivo_sel(),
