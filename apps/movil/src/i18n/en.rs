@@ -692,5 +692,7 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::NoSePudoAgregarIngrediente => "Could not add: {0}",
         Texto::SinIngredientesQueCoincidan => "No ingredients match.",
         Texto::IniciaSesionIngrediente => "Sign in to add an ingredient.",
+        Texto::RecetaActualizada => "Changes saved.",
+        Texto::GuardarCambios => "Save changes",
     }
 }

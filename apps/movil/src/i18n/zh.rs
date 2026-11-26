@@ -626,5 +626,7 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::NoSePudoAgregarIngrediente => "无法添加：{0}",
         Texto::SinIngredientesQueCoincidan => "没有匹配的配料。",
         Texto::IniciaSesionIngrediente => "登录后即可添加配料。",
+        Texto::RecetaActualizada => "更改已保存。",
+        Texto::GuardarCambios => "保存更改",
     }
 }

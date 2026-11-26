@@ -49,8 +49,13 @@ pub(super) fn Acciones(
     let vaso_para_guardar = vaso;
     let propuesto_para_guardar = nombre_propuesto.clone(); // Copia para el callback
 
+    // Si la receta es de la cuenta, los cambios se pueden guardar en ella misma
+    let propia = crate::foro::es_propia(&sesion, &receta_para_guardar);
+    let receta_propia_id = receta_para_guardar.id.clone();
+
     // Guardar la versión; con `publicar` además se publica en La Barra (D1)
-    let guardar_version = use_callback(move |publicar: bool| {
+    let guardar_version = use_callback(move |accion: u8| {
+        let publicar = accion == 1;
         if *guardando.read() {
             return;
         }
@@ -121,9 +126,31 @@ pub(super) fn Acciones(
         guardada.set(None);
         aviso.set(None);
 
+        let receta_propia_id = receta_propia_id.clone(); // Copia para esta llamada
+
         spawn(async move {
-            match crate::red::con_plazo(guardar_receta(token.clone(), datos.clone())).await {
+            let guardado = if accion == 2 {
+                crate::red::con_plazo(api::guardar::actualizar_receta(
+                    token.clone(),
+                    receta_propia_id.clone(),
+                    datos.clone(),
+                ))
+                .await
+            } else {
+                crate::red::con_plazo(guardar_receta(token.clone(), datos.clone())).await
+            };
+
+            match guardado {
                 Ok(resultado) => {
+                    if accion == 2 {
+                        aviso.set(Some(
+                            crate::i18n::ahora(Texto::RecetaActualizada).to_string(),
+                        ));
+                        guardada.set(Some(resultado.receta_id.clone()));
+                        guardando.set(false);
+                        return;
+                    }
+
                     let mensaje = if resultado.advertencias.is_empty() {
                         crate::i18n::ahora(Texto::VersionGuardada).to_string()
                     } else {
@@ -150,7 +177,8 @@ pub(super) fn Acciones(
                 }
                 // Sin red: la versión queda en la cola con su mismo id
                 Err(causa)
-                    if crate::red::sin_conexion(&causa)
+                    if accion != 2
+                        && crate::red::sin_conexion(&causa)
                         && crate::local::encolar(
                             &sesion,
                             &mut pendientes,
@@ -210,7 +238,7 @@ pub(super) fn Acciones(
                 class: "chip",
                 r#type: "button",
                 disabled: *guardando.read(),
-                onclick: move |_| guardar_version.call(false),
+                onclick: move |_| guardar_version.call(0),
                 if *guardando.read() {
                     {crate::i18n::ahora(Texto::Guardando)}
                 } else {
@@ -223,11 +251,26 @@ pub(super) fn Acciones(
                 class: "chip chip--activo",
                 r#type: "button",
                 disabled: *guardando.read(),
-                onclick: move |_| guardar_version.call(true),
+                onclick: move |_| guardar_version.call(1),
                 if *guardando.read() {
                     {crate::i18n::ahora(Texto::Guardando)}
                 } else {
                     {crate::i18n::ahora(Texto::GuardarYPublicar)}
+                }
+            }
+
+            // Receta propia: los cambios se guardan en ella, sin crear otra versión
+            if propia {
+                button {
+                    class: "chip",
+                    r#type: "button",
+                    disabled: *guardando.read(),
+                    onclick: move |_| guardar_version.call(2),
+                    if *guardando.read() {
+                        {crate::i18n::ahora(Texto::Guardando)}
+                    } else {
+                        {crate::i18n::ahora(Texto::GuardarCambios)}
+                    }
                 }
             }
 

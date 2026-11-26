@@ -64,6 +64,7 @@ fn enlazar_contratos() {
         api::guardados::guardados,
         api::guardar::crear_receta,
         api::guardar::guardar_receta,
+        api::guardar::actualizar_receta,
         api::historial::versiones,
         api::ingredientes::catalogo,
         api::ingredientes::crear_ingrediente,

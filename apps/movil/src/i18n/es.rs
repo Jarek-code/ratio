@@ -704,5 +704,7 @@ pub(super) fn texto(texto: Texto) -> &'static str {
         Texto::NoSePudoAgregarIngrediente => "No se pudo agregar: {0}",
         Texto::SinIngredientesQueCoincidan => "No hay ingredientes que coincidan.",
         Texto::IniciaSesionIngrediente => "Inicia sesión para agregar un ingrediente.",
+        Texto::RecetaActualizada => "Cambios guardados.",
+        Texto::GuardarCambios => "Guardar cambios",
     }
 }

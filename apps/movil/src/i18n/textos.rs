@@ -1204,4 +1204,8 @@ pub enum Texto {
     SinIngredientesQueCoincidan,
     /// Inicia sesión para agregar un ingrediente.
     IniciaSesionIngrediente,
+    /// Cambios guardados.
+    RecetaActualizada,
+    /// Guardar cambios
+    GuardarCambios,
 }

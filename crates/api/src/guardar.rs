@@ -776,3 +776,191 @@ pub async fn crear_receta(token: String, datos: RecetaDesdeCero) -> Result<Strin
 
     Ok(receta_id)
 }
+
+/// Actualiza una receta propia en su sitio, sin crear otra versión.
+///
+/// Se usa al ajustar una receta que ya es de la cuenta: cambia el nombre, el vaso, la
+/// capacidad y las capas. Una receta publicada con comentarios o con versiones derivadas no
+/// se toca, porque cambiaría lo que otras personas comentaron o copiaron.
+///
+/// # Errores
+///
+/// Devuelve error si no hay sesión, si la receta no es de la cuenta, si está en uso en La
+/// Barra o si los datos no son válidos.
+#[server(endpoint = "actualizar_receta")]
+pub async fn actualizar_receta(
+    token: String,
+    receta_id: String,
+    datos: RecetaNueva,
+) -> Result<VersionGuardada, ServerFnError> {
+    if !crate::fallos::es_uuid(&receta_id) {
+        return Err(crate::fallos::datos(
+            "La receta pedida no es válida: vuelve a abrirla desde Mi recetario.",
+        ));
+    }
+    if !crate::fallos::es_uuid(&datos.vaso_id) {
+        return Err(crate::fallos::datos("Elige un vaso del catálogo."));
+    }
+
+    let nombre = datos.nombre.trim();
+    if nombre.is_empty() || nombre.chars().count() > 120 {
+        return Err(crate::fallos::datos(
+            "El nombre tiene que tener entre 1 y 120 caracteres.",
+        ));
+    }
+    if !datos.capacidad_ml.is_finite() || datos.capacidad_ml <= 0.0 {
+        return Err(crate::fallos::datos(
+            "La capacidad de la bebida no es válida.",
+        ));
+    }
+    if datos.componentes.is_empty() {
+        return Err(crate::fallos::datos(
+            "La receta necesita al menos un ingrediente.",
+        ));
+    }
+
+    let pool = crate::base::pool()?;
+    let cuenta = crate::auth::cuenta(Some(&token))
+        .await
+        .ok_or_else(|| crate::fallos::sesion("Inicia sesión para cambiar la receta."))?;
+
+    // La receta tiene que ser suya y no estar en uso en La Barra
+    let estado = sqlx::query_as::<_, (bool, i64, i64)>(
+        r#"
+        SELECT r.publicada_en IS NOT NULL,
+               (SELECT count(*) FROM comentario c WHERE c.receta_id = r.id),
+               (SELECT count(*) FROM receta d WHERE d.receta_origen_id = r.id)
+        FROM receta r
+        WHERE r.id = $1::uuid AND r.autor_id = $2::uuid
+        "#,
+    )
+    .bind(&receta_id)
+    .bind(&cuenta)
+    .fetch_optional(pool)
+    .con_plazo("la receta")
+    .await?
+    .ok_or_else(|| crate::fallos::no_encontrado("Esa receta no existe o no es tuya."))?;
+
+    if estado.0 && (estado.1 > 0 || estado.2 > 0) {
+        return Err(crate::fallos::datos(
+            "Está publicada en La Barra y tiene comentarios o versiones derivadas: guarda los cambios como una versión nueva.",
+        ));
+    }
+
+    let capacidad_vaso =
+        sqlx::query_scalar::<_, f64>("SELECT capacidad_ml FROM vaso WHERE id = $1::uuid")
+            .bind(&datos.vaso_id)
+            .fetch_optional(pool)
+            .con_plazo("el vaso")
+            .await?
+            .ok_or_else(|| crate::fallos::no_encontrado("El vaso elegido no existe."))?;
+
+    if datos.capacidad_ml > capacidad_vaso + 0.01 {
+        return Err(crate::fallos::datos(
+            "La capacidad no puede superar la del vaso elegido.",
+        ));
+    }
+
+    // Metadata de cada capa, leída del catálogo
+    let mut capas_vec = Vec::with_capacity(datos.componentes.len());
+    let mut total_ml = 0.0;
+    let mut tiene_alcohol = false;
+
+    for (posicion, componente) in datos.componentes.iter().enumerate() {
+        if !crate::fallos::es_uuid(&componente.ingrediente_id) {
+            return Err(crate::fallos::datos(
+                "Uno de los ingredientes no es válido: vuelve a elegirlo.",
+            ));
+        }
+        if !componente.cantidad.is_finite() || componente.cantidad <= 0.0 {
+            return Err(crate::fallos::datos(
+                "Las cantidades tienen que ser mayores que cero.",
+            ));
+        }
+
+        let fila = sqlx::query_as::<_, FilaIngredienteCatalogo>(
+            r#"
+            SELECT nombre, unidad, graduacion_pct, color, es_dilucion AS dilucion
+            FROM ingrediente
+            WHERE id = $1::uuid
+            "#,
+        )
+        .bind(&componente.ingrediente_id)
+        .fetch_optional(pool)
+        .con_plazo("el ingrediente")
+        .await?
+        .ok_or_else(|| crate::fallos::no_encontrado("El ingrediente elegido no existe."))?;
+
+        total_ml += crate::ml_equivalentes(componente.cantidad, &fila.unidad);
+        tiene_alcohol |= fila.graduacion_pct > 0.0;
+        capas_vec.push((posicion as i16, componente.cantidad, fila));
+    }
+
+    if total_ml > datos.capacidad_ml {
+        return Err(crate::fallos::datos(
+            "La bebida no cabe en el vaso: quita cantidad o elige uno más grande.",
+        ));
+    }
+    if tiene_alcohol && !crate::auth::es_adulto(Some(&token)).await {
+        return Err(crate::fallos::datos(
+            "Solo una cuenta de mayor de edad puede guardar bebidas con alcohol.",
+        ));
+    }
+
+    let mut tx = pool
+        .begin()
+        .con_plazo("la transacción de la receta")
+        .await?;
+
+    sqlx::query(
+        r#"
+        UPDATE receta
+        SET nombre = $2, vaso_id = $3::uuid, capacidad_ml = $4
+        WHERE id = $1::uuid
+        "#,
+    )
+    .bind(&receta_id)
+    .bind(nombre)
+    .bind(&datos.vaso_id)
+    .bind(datos.capacidad_ml)
+    .execute(&mut *tx)
+    .con_plazo("la receta")
+    .await?;
+
+    sqlx::query("DELETE FROM componente_receta WHERE receta_id = $1::uuid")
+        .bind(&receta_id)
+        .execute(&mut *tx)
+        .con_plazo("las capas")
+        .await?;
+
+    for (posicion, cantidad, capa) in capas_vec {
+        sqlx::query(
+            r#"
+            INSERT INTO componente_receta (
+                receta_id, posicion, ingrediente_id, nombre,
+                graduacion_pct, color, cantidad, unidad, dilucion
+            )
+            VALUES ($1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8, $9)
+            "#,
+        )
+        .bind(&receta_id)
+        .bind(posicion)
+        .bind(&datos.componentes[posicion as usize].ingrediente_id)
+        .bind(&capa.nombre)
+        .bind(capa.graduacion_pct)
+        .bind(&capa.color)
+        .bind(cantidad)
+        .bind(&capa.unidad)
+        .bind(capa.dilucion)
+        .execute(&mut *tx)
+        .con_plazo("las capas")
+        .await?;
+    }
+
+    tx.commit().con_plazo("la receta").await?;
+
+    Ok(VersionGuardada {
+        receta_id,
+        advertencias: Vec::new(),
+    })
+}
