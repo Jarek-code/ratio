@@ -151,7 +151,20 @@ pub fn Historial(id: String) -> Element {
                             rsx! {
                                 if let Some(raiz) = raiz {
                                     section { class: "recipe-summary", aria_label: "{crate::i18n::ahora(Texto::RecetaOriginal)}",
-                                        div { class: "summary-mark", Marca {} }
+                                        div {
+                                            class: "summary-mark",
+                                            if let Some(bebida) = raiz.bebida.clone() {
+                                                div {
+                                                    class: "summary-cup",
+                                                    dangerous_inner_html: proporciones::svg(
+                                                        &bebida,
+                                                        &proporciones::Opciones { escalas: false, mini: true },
+                                                    ),
+                                                }
+                                            } else {
+                                                Marca {}
+                                            }
+                                        }
                                         div { class: "recipe-summary__body",
                                             p { class: "summary-label", "{crate::i18n::ahora(Texto::RecetaOriginal)}" }
                                             h2 { "{raiz.nombre}" }

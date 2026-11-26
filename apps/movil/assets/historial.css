@@ -481,3 +481,9 @@
     width: 26px;
     height: 26px;
 }
+
+/* El resumen de la original muestra la bebida dibujada por el motor */
+.summary-cup svg {
+    width: 72px;
+    height: auto;
+}

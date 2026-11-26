@@ -47,6 +47,9 @@ pub struct VersionHistorial {
     pub ratio: String,
     /// Cambios frente a la versión de origen; vacío en la original.
     pub cambios: Vec<CambioHistorial>,
+    /// Vaso y capas de la receta original, para dibujarla; las versiones no lo llevan.
+    #[serde(default)] // Un servidor anterior no manda el campo
+    pub bebida: Option<proporciones::Receta>,
 }
 
 /// Fila de la consulta de versiones (solo servidor).
@@ -85,6 +88,10 @@ struct FilaComponente {
     unidad: String,
     /// Alcohol por volumen, para elegir el ingrediente base.
     graduacion_pct: f64,
+    /// Color de la capa, para el dibujo del vaso.
+    color: Option<String>,
+    /// Si la capa diluye la bebida (agua o hielo).
+    dilucion: bool,
 }
 
 /// Árbol de versiones de una receta: sube a la original y baja por sus derivadas.
@@ -256,7 +263,8 @@ pub async fn versiones(
 
     let componentes = sqlx::query_as::<_, FilaComponente>(&format!(
         r#"{ARBOL}
-        SELECT c.receta_id::text AS receta_id, c.nombre, c.cantidad, c.unidad, c.graduacion_pct
+        SELECT c.receta_id::text AS receta_id, c.nombre, c.cantidad, c.unidad,
+               c.graduacion_pct, c.color, c.dilucion
         FROM componente_receta c
         WHERE c.receta_id IN (SELECT id FROM arbol)
         ORDER BY c.receta_id, c.posicion
@@ -277,8 +285,30 @@ pub async fn versiones(
                 cantidad: componente.cantidad,
                 unidad: componente.unidad.clone(),
                 graduacion_pct: componente.graduacion_pct,
+                color: componente.color.clone(),
+                dilucion: componente.dilucion,
             })
             .collect()
+    };
+
+    // Vaso de la receta original, para dibujarla en la cabecera del historial
+    let vaso_raiz = match filas.iter().find(|fila| fila.origen_id.is_none()) {
+        Some(raiz) => {
+            sqlx::query_as::<_, (f64, f64, f64, f64, f64, f64, f64, Option<String>, bool)>(
+                r#"
+            SELECT v.radio_boca, v.radio_fondo, v.altura, v.pared, v.borde, v.tallo,
+                   v.capacidad_ml, v.asa, v.plato
+            FROM receta r
+            JOIN vaso v ON v.id = r.vaso_id
+            WHERE r.id = $1::uuid
+            "#,
+            )
+            .bind(&raiz.id)
+            .fetch_optional(pool)
+            .con_plazo("el vaso del historial")
+            .await?
+        }
+        None => None,
     };
 
     let versiones = filas
@@ -311,6 +341,53 @@ pub async fn versiones(
                 cambios: match origen_visible {
                     Some(otra) => cambios_de(&propias, &de_receta(&otra.id)),
                     None => Vec::new(),
+                },
+                // Solo la original lleva el dibujo: es la que se muestra arriba
+                bebida: match (&vaso_raiz, fila.origen_id.is_none()) {
+                    (
+                        Some((boca, fondo, altura, pared, borde, tallo, capacidad, asa, plato)),
+                        true,
+                    ) => {
+                        let mut vaso =
+                            proporciones::Vaso::nuevo(*capacidad, *boca, *fondo, *altura, *pared)
+                                .con_borde(*borde)
+                                .con_tallo(*tallo);
+
+                        if let Some(asa) = asa.as_deref() {
+                            vaso = vaso.con_asa(if asa == "grande" {
+                                proporciones::Asa::Grande
+                            } else {
+                                proporciones::Asa::Chica
+                            });
+                        }
+                        if *plato {
+                            vaso = vaso.con_plato();
+                        }
+
+                        let componentes = propias
+                            .iter()
+                            .map(|capa| {
+                                let ml = crate::ml_equivalentes(capa.cantidad, &capa.unidad);
+                                let mut componente = proporciones::Componente::nuevo(
+                                    capa.nombre.clone(),
+                                    ml,
+                                    capa.graduacion_pct,
+                                );
+                                componente.dilucion = capa.dilucion;
+                                if let Some(color) = capa.color.clone() {
+                                    componente = componente.con_color(color);
+                                }
+                                componente
+                            })
+                            .collect();
+
+                        Some(proporciones::Receta::nueva(
+                            fila.nombre.clone(),
+                            vaso,
+                            componentes,
+                        ))
+                    }
+                    _ => None,
                 },
             }
         })
