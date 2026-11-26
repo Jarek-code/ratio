@@ -52,7 +52,7 @@
     font-weight: 600;
 }
 
-.brand-mini .brand-mark {
+.brand-mini .brand-mark svg {
     width: 26px;
     height: 26px;
 }
@@ -100,7 +100,7 @@
     background: var(--ficha-suave);
 }
 
-.summary-mark .brand-mark {
+.summary-mark .brand-mark svg {
     width: 32px;
     height: 32px;
 }
@@ -475,4 +475,9 @@
     color: var(--tinta-suave);
     font-size: 14px;
     line-height: 1.5;
+}
+
+.brand-mini .brand-mark {
+    width: 26px;
+    height: 26px;
 }

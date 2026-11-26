@@ -158,12 +158,6 @@ pub fn PantallaMisRecetas() -> Element {
 fn BarraSuperior() -> Element {
     rsx! {
         header { class: "mi-recetario-barra",
-            Link {
-                to: Rutas::Descubrir,
-                class: "volver",
-                aria_label: crate::i18n::ahora(Texto::VolverADescubrir),
-                "{crate::i18n::ahora(Texto::VolverDescubrirBoton)}"
-            }
             span { class: "mi-recetario-marca", "Ratio" }
         }
     }

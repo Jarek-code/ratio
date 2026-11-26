@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.webkit.WebView
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -47,6 +48,29 @@ private const val ETIQUETA = "RatioPush"
  * plugin de Gradle `google-services` no está disponible en el proyecto que genera `dx`.
  */
 class MainActivity : WryActivity() {
+    /** Vista web de la app: la usa el botón de retroceder del sistema. */
+    private var vista: WebView? = null
+
+    override fun onWebViewCreate(webView: WebView) {
+        super.onWebViewCreate(webView)
+        vista = webView
+    }
+
+    /**
+     * Retroceder del sistema navega dentro de la app, no la cierra.
+     *
+     * La app es una sola página con su propio historial, así que se le pide al navegador que
+     * vuelva; solo cuando ya no hay a dónde volver se deja que Android cierre la actividad.
+     */
+    override fun onBackPressed() {
+        val web = vista
+        if (web != null && web.canGoBack()) {
+            web.evaluateJavascript("window.history.back()", null)
+        } else {
+            super.onBackPressed()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         inicializarFirebase(this)

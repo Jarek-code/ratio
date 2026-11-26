@@ -80,11 +80,9 @@ pub fn PantallaGuardados() -> Element {
 fn BarraSuperior() -> Element {
     rsx! {
         header { class: "guardados-barra",
-            Link {
-                to: Rutas::Descubrir,
-                class: "volver",
-                aria_label: crate::i18n::ahora(Texto::VolverADescubrir),
-                "{crate::i18n::ahora(Texto::VolverDescubrirBoton)}"
+            crate::rutas::Volver {
+                etiqueta: crate::i18n::ahora(Texto::VolverAtras).to_string(),
+                respaldo: Rutas::Descubrir,
             }
             span { class: "guardados-marca", "Ratio" }
         }

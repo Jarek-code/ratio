@@ -284,7 +284,7 @@ pub fn PantallaComparar(id: String, con: String) -> Element {
             header
             {
                 class: "cmp-cabeza",
-                Link { to: Rutas::Ficha { id: id.clone() }, class: "volver", aria_label: "{crate::i18n::ahora(Texto::VolverALaFicha)}", "‹ Receta" }
+                crate::rutas::Volver { etiqueta: crate::i18n::ahora(Texto::VolverALaFicha).to_string(), respaldo: Rutas::Ficha { id: id.clone() } }
             }
 
             section
@@ -662,7 +662,7 @@ pub fn PantallaEquivalencias(id: String) -> Element {
             header
             {
                 class: "seccion-cabeza",
-                Link { to: Rutas::Ficha { id: id.clone() }, class: "volver", aria_label: "Volver a la ficha", "‹ Receta" }
+                crate::rutas::Volver { etiqueta: "Volver a la ficha".to_string(), respaldo: Rutas::Ficha { id: id.clone() } }
             }
             p { class: "eyebrow", "Recetario" }
             h1 { "{crate::i18n::ahora(Texto::IngredientesYEquivalencias)}" }

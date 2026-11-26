@@ -174,7 +174,7 @@ button {
     font-size: 24px;
 }
 
-.encabezado-marca .brand-mark {
+.encabezado-marca .brand-mark svg {
     width: 34px;
     height: 34px;
     color: var(--tinta);
@@ -1292,4 +1292,17 @@ a.destino {
     font-size: 44px;
     font-variant-numeric: tabular-nums;
     line-height: 1;
+}
+
+/* El logo se dibuja con el mismo motor que las fichas: se alinea como un icono */
+.brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.brand-mark svg {
+    display: block;
+    height: 100%;
+    width: auto;
 }

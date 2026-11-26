@@ -127,6 +127,37 @@ pub fn PantallaCrear() -> Element {
     let sin_ingredientes = capas_actuales.is_empty();
     let vasos_para_guardar = vasos_vec.clone(); // Copia para el manejador de guardado
 
+    // Vista previa: el vaso elegido con las capas que ya se agregaron
+    let vista_previa = vaso_actual.as_ref().map(|vaso| {
+        let receta = proporciones::Receta::nueva(
+            "",
+            vaso.vaso.clone(),
+            capas_actuales
+                .iter()
+                .map(|capa| {
+                    let mut componente = proporciones::Componente::nuevo(
+                        capa.ingrediente.nombre.clone(),
+                        capa.cantidad,
+                        capa.ingrediente.graduacion_pct,
+                    );
+                    componente.dilucion = capa.ingrediente.dilucion;
+                    if let Some(color) = capa.ingrediente.color.clone() {
+                        componente = componente.con_color(color);
+                    }
+                    componente
+                })
+                .collect(),
+        );
+
+        proporciones::svg(
+            &receta,
+            &proporciones::Opciones {
+                escalas: false,
+                mini: false,
+            },
+        )
+    });
+
     // Los ingredientes que ya están no se ofrecen otra vez
     let disponibles: Vec<IngredienteOpcion> = catalogo_vec
         .iter()
@@ -144,11 +175,9 @@ pub fn PantallaCrear() -> Element {
 
         main { class: "ajustar",
             header { class: "ajustar-barra",
-                Link {
-                    to: Rutas::MisRecetas,
-                    class: "volver",
-                    aria_label: "{crate::i18n::ahora(Texto::VolverAtras)}",
-                    "‹ {crate::i18n::ahora(Texto::Recetario)}"
+                crate::rutas::Volver {
+                    etiqueta: crate::i18n::ahora(Texto::VolverAtras).to_string(),
+                    respaldo: Rutas::MisRecetas,
                 }
             }
 
@@ -247,6 +276,10 @@ pub fn PantallaCrear() -> Element {
                 }
 
                 span { class: "mini", "{total_ml:.0} ml / {capacidad:.0} ml" }
+
+                if let Some(svg) = vista_previa.clone() {
+                    div { class: "crear-vista", dangerous_inner_html: svg }
+                }
             }
 
             // Ingredientes

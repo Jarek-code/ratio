@@ -1,44 +1,52 @@
-use crate::i18n::Texto;
-use dioxus::prelude::*; // Textos traducibles
+use std::sync::OnceLock; // El dibujo se calcula una sola vez
 
-/// Logo del vaso con capas, compartido por las pantallas de Ratio.
+use dioxus::prelude::*;
+
+use crate::i18n::Texto;
+
+/// Dibujo del logo: la taza de espresso con la proporción del propio motor.
 ///
-/// Se dibuja inline para que el diseño no dependa de archivos externos y para
-/// conservar el mismo trazo que usa el frame de Penpot.
+/// Es la misma taza que genera `proporciones::svg()` con 30 ml de espresso, 25 ml de leche y
+/// 25 ml de espuma, así que el logo y las fichas comparten trazo y colores.
+fn logo() -> &'static str {
+    static DIBUJO: OnceLock<String> = OnceLock::new();
+
+    DIBUJO.get_or_init(|| {
+        // Geometría de `taza_espresso` en migrations/20261022120000_vasos_sandbox.sql
+        let vaso = proporciones::Vaso::nuevo(90.0, 46.0, 34.0, 76.0, 4.0)
+            .con_borde(4.0)
+            .con_asa(proporciones::Asa::Chica)
+            .con_plato();
+
+        let receta = proporciones::Receta::nueva(
+            "Ratio",
+            vaso,
+            vec![
+                proporciones::Componente::nuevo("Espresso", 30.0, 0.0).con_color("#3E2415"),
+                proporciones::Componente::nuevo("Leche", 25.0, 0.0).con_color("#F3E7D6"),
+                proporciones::Componente::nuevo("Espuma", 25.0, 0.0).con_color("#FBF3E6"),
+            ],
+        );
+
+        proporciones::svg(
+            &receta,
+            &proporciones::Opciones {
+                escalas: false,
+                mini: false,
+            },
+        )
+    })
+}
+
+/// Logo de la aplicación, compartido por las pantallas.
 #[component]
 pub fn Marca() -> Element {
     rsx! {
-        svg {
+        span {
             class: "brand-mark",
-            view_box: "0 0 64 64",
             role: "img",
             "aria-label": "{crate::i18n::ahora(Texto::VasoConCapas)}",
-            path {
-                d: "M18 9 H46 L43.4 50.5 Q43 56 37.5 56 H26.5 Q21 56 20.6 50.5 Z",
-                fill: "none",
-                stroke: "currentColor",
-                stroke_width: "2.6",
-                stroke_linejoin: "round",
-            }
-            path {
-                d: "M24.3 43.5 H39.7 L38.9 50.2 Q38.7 53.5 35.7 53.5 H28.3 Q25.3 53.5 25.1 50.2 Z",
-                fill: "#B9633B",
-            }
-            path {
-                d: "M22.8 31 H41.2 L40.2 43.5 H23.8 Z",
-                fill: "#D8A44C",
-            }
-            path {
-                d: "M21.3 20 H42.7 L41.7 31 H22.3 Z",
-                fill: "#6E4A32",
-            }
-            path {
-                d: "M27 62 H37",
-                fill: "none",
-                stroke: "currentColor",
-                stroke_width: "2.6",
-                stroke_linecap: "round",
-            }
+            dangerous_inner_html: logo(),
         }
     }
 }

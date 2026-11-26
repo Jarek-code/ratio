@@ -598,7 +598,7 @@ pub fn PantallaHilo(id: String) -> Element {
             header
             {
                 class: "seccion-cabeza",
-                Link { to: Rutas::la_barra(), class: "volver", aria_label: "{crate::i18n::ahora(Texto::VolverALaBarra)}", "{crate::i18n::ahora(Texto::VolverALaBarraBoton)}" }
+                crate::rutas::Volver { etiqueta: crate::i18n::ahora(Texto::VolverALaBarraBoton).to_string(), respaldo: Rutas::la_barra() }
                 Link { to: Rutas::Ficha { id: id.clone() }, class: "chip", "{crate::i18n::ahora(Texto::VerLaReceta)}" }
             }
 

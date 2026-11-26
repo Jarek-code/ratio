@@ -86,7 +86,7 @@ pub fn PantallaPreparar(id: String) -> Element {
             header
             {
                 class: "seccion-cabeza",
-                Link { to: Rutas::Ficha { id: id.clone() }, class: "volver", aria_label: "{crate::i18n::ahora(Texto::SalirDeLaPreparacion)}", "‹ Receta" }
+                crate::rutas::Volver { etiqueta: crate::i18n::ahora(Texto::SalirDeLaPreparacion).to_string(), respaldo: Rutas::Ficha { id: id.clone() } }
             }
 
             match &*recurso.read()

@@ -63,7 +63,7 @@ pub fn PantallaFicha(id: String) -> Element {
 fn BarraSuperior() -> Element {
     rsx! {
         header { class: "ficha-barra",
-            Link { to: Rutas::Descubrir, class: "volver", "{crate::i18n::ahora(Texto::VolverDescubrirBoton)}" }
+            crate::rutas::Volver { etiqueta: crate::i18n::ahora(Texto::VolverAtras).to_string(), respaldo: Rutas::Descubrir }
         }
     }
 }

@@ -848,6 +848,14 @@ pub fn ResumenHilo(receta: RecetaCompleta) -> Element {
                 Some(Ok(comentarios_vec)) if comentarios_vec.is_empty() => rsx!
                 {
                     p { class: "estado", "{crate::i18n::ahora(Texto::SinComentariosAun)}" }
+
+                    // Sin comentarios todavía: el botón abre el hilo para escribir el primero
+                    Link
+                    {
+                        to: Rutas::Hilo { id: receta.id.clone() },
+                        class: "primario",
+                        "{crate::i18n::ahora(Texto::Comentar)}"
+                    }
                 },
                 Some(Ok(comentarios_vec)) =>
                 {

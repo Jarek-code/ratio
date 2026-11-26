@@ -331,3 +331,28 @@ fn Ajustes() -> Element {
         ajustes::PantallaAjustes {}
     }
 }
+
+/// Botón para volver a la pantalla anterior, no a una ruta fija.
+///
+/// Se usa en toda pantalla que no sea una pestaña de la barra inferior. Si no hay historial
+/// (por ejemplo al abrir un enlace directo) va a `respaldo`.
+#[component]
+pub fn Volver(etiqueta: String, #[props(into)] respaldo: Rutas) -> Element {
+    let navegador = navigator();
+
+    rsx! {
+        button {
+            class: "volver",
+            r#type: "button",
+            aria_label: "{etiqueta}",
+            onclick: move |_| {
+                if navegador.can_go_back() {
+                    navegador.go_back();
+                } else {
+                    navegador.push(respaldo.clone());
+                }
+            },
+            "‹ {etiqueta}"
+        }
+    }
+}

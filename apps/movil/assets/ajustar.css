@@ -352,3 +352,15 @@
     outline: 2px solid var(--cobre);
     outline-offset: 1px;
 }
+
+/* Vista previa del vaso mientras se arma la receta */
+.crear-vista {
+    display: grid;
+    place-items: center;
+    margin-top: 10px;
+}
+
+.crear-vista svg {
+    width: 128px;
+    height: auto;
+}

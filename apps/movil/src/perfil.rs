@@ -328,7 +328,6 @@ pub fn PantallaPerfil(alias: String) -> Element {
             header
             {
                 class: "seccion-cabeza",
-                Link { to: Rutas::Descubrir, class: "volver", aria_label: "{crate::i18n::ahora(Texto::VolverADescubrir)}", "{crate::i18n::ahora(Texto::VolverDescubrirBoton)}" }
             }
 
             // Elegir contenido según el estado de la petición

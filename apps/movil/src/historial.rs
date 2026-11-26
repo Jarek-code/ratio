@@ -113,11 +113,9 @@ pub fn Historial(id: String) -> Element {
         main { class: "historial-page",
             section { class: "historial-shell",
                 header { class: "historial-top",
-                    Link {
-                        to: Rutas::Ficha { id: id.clone() },
-                        class: "volver",
-                        aria_label: "{crate::i18n::ahora(Texto::VolverALaFichaReceta)}",
-                        "←"
+                    crate::rutas::Volver {
+                        etiqueta: crate::i18n::ahora(Texto::VolverALaFichaReceta).to_string(),
+                        respaldo: Rutas::Ficha { id: id.clone() },
                     }
                     div { class: "brand-mini",
                         Marca {}

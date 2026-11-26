@@ -356,7 +356,7 @@ pub fn PantallaModeracion() -> Element {
             header
             {
                 class: "seccion-cabeza",
-                Link { to: Rutas::Perfil, class: "volver", aria_label: "{crate::i18n::ahora(Texto::VolverATuPerfil)}", "‹ Perfil" }
+                crate::rutas::Volver { etiqueta: crate::i18n::ahora(Texto::VolverATuPerfil).to_string(), respaldo: Rutas::Perfil }
             }
 
             p { class: "eyebrow", "{crate::i18n::ahora(Texto::LaBarra)}" }
